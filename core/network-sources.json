@@ -1,0 +1,245 @@
+{
+  "upstream_commit": "628d6ce1850e17225185a5807a9d0aa375bae2be",
+  "files": [
+    {
+      "path": "Source/WebCore/platform/network/curl/AuthenticationChallenge.h",
+      "size": 2827,
+      "sha256": "d0b48d965856253d19493c7fb4307c2b6f0a3bfe833ff0f8e0783acc5b76eea7"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/AuthenticationChallengeCurl.cpp",
+      "size": 6009,
+      "sha256": "41adb7acffc18298f2128f2c6a47b2d9915939567a740bde8908f2e9b2599998"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CertificateInfo.h",
+      "size": 2730,
+      "sha256": "a4bce62910795326e81d401598763d2b60dff9f68dd7ef133c34d7ae72c5548c"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CertificateInfoCurl.cpp",
+      "size": 2410,
+      "sha256": "926cb30dc4077e7ba640f8c69b93f3b18ea7e3c5bd7257d465d216ad35f4fd04"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CookieJarDB.cpp",
+      "size": 22614,
+      "sha256": "563e3741e5aede3f6563ef826374eec2d4d530c4f2592c4d31d096786addb64c"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CookieJarDB.h",
+      "size": 4166,
+      "sha256": "e929881eaaa57395a08d2b075b7903c5378f33502d280711ceabf946b039d9de"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CookieStorageCurl.cpp",
+      "size": 1670,
+      "sha256": "8729ca5e3f2bb7a5b27679655d1c7450767b08c50ef340d62389600c1b4f2e14"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CookieUtil.cpp",
+      "size": 7035,
+      "sha256": "af6c46c9a47dea5a40e4b62042ab4295def3c7b5d99fc13cfdb7fb13ce42e1de"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CookieUtil.h",
+      "size": 1710,
+      "sha256": "fd6a4cba91d9de566a46b583ff5bf934798b27947cd1fa8e15a84b9b5755427f"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlContext.cpp",
+      "size": 29870,
+      "sha256": "7c5d6ce6284ac38e80efe6377861f3c4c9d468cc28ea0f14beee7587eb9882bc"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlContext.h",
+      "size": 10634,
+      "sha256": "e4663b08782ed9b5998c059a3d4f499160399134f46756f26e001aebcec89c6d"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlFormDataStream.cpp",
+      "size": 5488,
+      "sha256": "b55c74ab131bd9f046845da70e9a229ea8a5009d0e65acf4a5c8ba39c7d8d19a"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlFormDataStream.h",
+      "size": 2387,
+      "sha256": "16efc871710e7d4f9d14fb7bbb3415595e65f866985aa32befbf488ae6bb67e6"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlMultipartHandle.cpp",
+      "size": 10809,
+      "sha256": "0ddc0426471c7a78dbcd733a1c13324d139992e1751ec1880d1155e95e9a3118"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlMultipartHandle.h",
+      "size": 3159,
+      "sha256": "21839385f6e2e9ed06e54518baf5040b4555502f4e2df92bdb2026360113f9c9"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlMultipartHandleClient.h",
+      "size": 1788,
+      "sha256": "7ee10d28fa514b986a260872986a6f8c7e942e83f7be441ef80d62941549de99"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlProxySettings.cpp",
+      "size": 4698,
+      "sha256": "23bcfdf1118098d5512b3d180eaf81e875d94477d53f90bae8312b3ab45409ee"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlProxySettings.h",
+      "size": 3635,
+      "sha256": "77cef36f9c84fc4ca104cb19dab17019ceac25f5fc989be44bf6f5aba9806c03"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlRequest.cpp",
+      "size": 22864,
+      "sha256": "4940c7e651336be176fa3933a564ca4746e5ef1aa834aac51682e0ed37ecf253"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlRequest.h",
+      "size": 7303,
+      "sha256": "07cbc093e5d1cabba4ad2ddec3494463f9fb06408457d487a8eb7b4a7bc1bcf5"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlRequestClient.h",
+      "size": 2112,
+      "sha256": "502679e484582ee32cfb9f1a0c464ba1907f45c78ca7c863cbc73ac69ca0f062"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlRequestScheduler.cpp",
+      "size": 6937,
+      "sha256": "167aa2c4537894cc35045fbcd959008b48521f5d9dda1e3a425ff32c68faa479"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlRequestScheduler.h",
+      "size": 3018,
+      "sha256": "86af93ffb2e07832bb681535f468b4ff72c010ed9ca53a309f15716240fd75a3"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlRequestSchedulerClient.h",
+      "size": 1023,
+      "sha256": "321558acc7c5d1737dd02bac187705d2bce9468d89e6cec752fa68088dd45417"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlResponse.h",
+      "size": 2621,
+      "sha256": "ff8719d94f1e27ca6abde143e82e3f1a41f62be3a9e05480998f3a5dc28aad6f"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlSSLHandle.cpp",
+      "size": 2937,
+      "sha256": "f8bbbaaa22a07a82aca4d3b45ada0b5f620bf0075669b21b81c8a84c6002072f"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlSSLHandle.h",
+      "size": 3923,
+      "sha256": "4efc3d27eff9de2a6389d4556a22c6fd8f2d923f922155a9c0daa8bc07d1ef3d"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlSSLVerifier.cpp",
+      "size": 3059,
+      "sha256": "4d1fcdb5350601f7d17cf4d47208650a1f73ce153677359d3379c9dd174efe68"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlSSLVerifier.h",
+      "size": 1999,
+      "sha256": "7162e0a7f1a96fcf14d12798c545149489a3140e0f83f9289c3305c8db63eb1f"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlStream.cpp",
+      "size": 5833,
+      "sha256": "f4b26be4380fe37c2f38f034635c2e1177e635513411b6c7fbd2c97a7b955324"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlStream.h",
+      "size": 3246,
+      "sha256": "fadcf66a28fd34fa179876704ab6bc5fc87fd4c97faac6bb4fe5f339ce854381"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlStreamScheduler.cpp",
+      "size": 5420,
+      "sha256": "6215d7d84e2eb17f8a5f8b145336c47fe985d21360aca041d3ad8fc401e06e41"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlStreamScheduler.h",
+      "size": 2624,
+      "sha256": "df22683848b77743ad63b12e7df9404dd485d36ff0ef77c460fe854606e62370"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/DNSResolveQueueCurl.cpp",
+      "size": 1996,
+      "sha256": "f1fd7707d6133ff304edad1a2015b5dae5f85736154f67419d4fa10403aa972a"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/DNSResolveQueueCurl.h",
+      "size": 1904,
+      "sha256": "66096820c9078a4bbc2e4977ffbc5f76d12e0c2090c0f8cb79f1fe45425eba34"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/NetworkStorageSessionCurl.cpp",
+      "size": 11120,
+      "sha256": "166a954cbad7bf3112795f32f08d406c579d73922497b7d1189610841d9442d7"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/OpenSSLHelper.cpp",
+      "size": 11716,
+      "sha256": "5a34ad8511f11fbeeca38bbec86f7f7ae018e33e68f16ee2e9bf2fa64f977e21"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/OpenSSLHelper.h",
+      "size": 1908,
+      "sha256": "b9d5f46c101812623305ff9a9c3b6dd897d547925d36b8e5490c270f866df54b"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/ProtectionSpaceCurl.cpp",
+      "size": 1577,
+      "sha256": "6c0b29be4e297d81faa01c9df4015a2235fe90f0af1cfefb386c071342f89292"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/ProtectionSpaceCurl.h",
+      "size": 2606,
+      "sha256": "7698b92214720047404d23eae6a70609a3fd4ab91512bbbcba19e025f81b825e"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/PublicSuffixStoreCurl.cpp",
+      "size": 2815,
+      "sha256": "7fe7e4ae6611eaa9e1ff1e88b4e403aeed42121055fe400a3e15b382147c8a67"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/ResourceError.h",
+      "size": 2703,
+      "sha256": "fa83121f1748e62c46aea5b6b8d0ab4f44a0a58f9f6c5dda99d9ecc2d031fe23"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/ResourceErrorCurl.cpp",
+      "size": 2815,
+      "sha256": "da5e1652e6730c2a5ebf5da0d63ae173150ba4954aec893e8e7c26642e641e1c"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/ResourceRequest.h",
+      "size": 3250,
+      "sha256": "c6115a8f415715e3eff53bd1085cf1b0ce431cde361357250abb9aaf9c14173f"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/ResourceRequestCurl.cpp",
+      "size": 2680,
+      "sha256": "621c0be128afa5583a266060596f231618f16d2901da54d6caa9a8522f71dcc0"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/ResourceResponse.h",
+      "size": 2695,
+      "sha256": "27c016c4eba5b455d9eae0be18597f7fea142604f92254d3587f302fc363b2af"
+    },
+    {
+      "path": "Source/WebCore/platform/network/curl/ResourceResponseCurl.cpp",
+      "size": 4898,
+      "sha256": "3f8dd669bd122d5865af64b287772174b8cf099f5a1d85c975ac687b15d2bc28"
+    },
+    {
+      "path": "Source/WebCore/platform/Curl.cmake",
+      "size": 2446,
+      "sha256": "bf72db27bd25ccfdbdf2f93ded994bb6b56d8d93a650ec18ad275ed0d60cf64c"
+    }
+  ]
+}

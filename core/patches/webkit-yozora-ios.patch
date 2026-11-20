@@ -1,0 +1,216 @@
+diff -ruN --no-dereference a/Source/WebCore/crypto/CryptoKey.cpp b/Source/WebCore/crypto/CryptoKey.cpp
+--- a/Source/WebCore/crypto/CryptoKey.cpp
++++ b/Source/WebCore/crypto/CryptoKey.cpp
+@@ -76,7 +76,7 @@
+     return WebCoreOpaqueRoot { key };
+ }
+ 
+-#if !OS(DARWIN) || PLATFORM(GTK)
++#if !OS(DARWIN) || PLATFORM(GTK) || PLATFORM(YOZORA)
+ Vector<uint8_t> CryptoKey::randomData(size_t size)
+ {
+     Vector<uint8_t> result(size);
+diff -ruN --no-dereference a/Source/WebCore/crypto/keys/CryptoKeyEC.cpp b/Source/WebCore/crypto/keys/CryptoKeyEC.cpp
+--- a/Source/WebCore/crypto/keys/CryptoKeyEC.cpp
++++ b/Source/WebCore/crypto/keys/CryptoKeyEC.cpp
+@@ -31,7 +31,7 @@
+ #include "JsonWebKey.h"
+ #include <wtf/text/Base64.h>
+ 
+-#if OS(DARWIN) && !PLATFORM(GTK)
++#if OS(DARWIN) && !PLATFORM(GTK) && !PLATFORM(YOZORA)
+ #include <pal/crypto/CryptoTypes.h>
+ #include <pal/crypto/PlatformECKey.h>
+ #endif
+diff -ruN --no-dereference a/Source/WebCore/crypto/keys/CryptoKeyEC.h b/Source/WebCore/crypto/keys/CryptoKeyEC.h
+--- a/Source/WebCore/crypto/keys/CryptoKeyEC.h
++++ b/Source/WebCore/crypto/keys/CryptoKeyEC.h
+@@ -29,7 +29,7 @@
+ #include <WebCore/CryptoKeyPair.h>
+ 
+ #include <wtf/Platform.h>
+-#if OS(DARWIN) && !PLATFORM(GTK)
++#if OS(DARWIN) && !PLATFORM(GTK) && !PLATFORM(YOZORA)
+ #include <WebCore/CommonCryptoUtilities.h>
+ 
+ #include <pal/crypto/CryptoTypes.h>
+diff -ruN --no-dereference a/Source/WebCore/crypto/keys/CryptoKeyRSA.h b/Source/WebCore/crypto/keys/CryptoKeyRSA.h
+--- a/Source/WebCore/crypto/keys/CryptoKeyRSA.h
++++ b/Source/WebCore/crypto/keys/CryptoKeyRSA.h
+@@ -28,7 +28,7 @@
+ #include "CryptoKey.h"
+ #include <wtf/Function.h>
+ 
+-#if OS(DARWIN) && !PLATFORM(GTK)
++#if OS(DARWIN) && !PLATFORM(GTK) && !PLATFORM(YOZORA)
+ #include "CommonCryptoUtilities.h"
+ 
+ typedef CCRSACryptorRef PlatformRSAKey;
+diff -ruN --no-dereference a/Source/WebCore/page/Crypto.cpp b/Source/WebCore/page/Crypto.cpp
+--- a/Source/WebCore/page/Crypto.cpp
++++ b/Source/WebCore/page/Crypto.cpp
+@@ -38,7 +38,7 @@
+ #include <wtf/CryptographicallyRandomNumber.h>
+ #include <wtf/UUID.h>
+ 
+-#if OS(DARWIN)
++#if OS(DARWIN) && !PLATFORM(YOZORA)
+ #include <CommonCrypto/CommonCryptor.h>
+ #include <CommonCrypto/CommonRandom.h>
+ #endif
+@@ -59,7 +59,7 @@
+         return Exception { ExceptionCode::TypeMismatchError };
+     if (array.byteLength() > 65536)
+         return Exception { ExceptionCode::QuotaExceededError };
+-#if OS(DARWIN)
++#if OS(DARWIN) && !PLATFORM(YOZORA)
+     auto rc = CCRandomGenerateBytes(array.baseAddress(), array.byteLength());
+     RELEASE_ASSERT(rc == kCCSuccess);
+ #else
+diff -ruN --no-dereference a/Source/WebCore/platform/graphics/skia/ComplexTextControllerSkia.cpp b/Source/WebCore/platform/graphics/skia/ComplexTextControllerSkia.cpp
+--- a/Source/WebCore/platform/graphics/skia/ComplexTextControllerSkia.cpp
++++ b/Source/WebCore/platform/graphics/skia/ComplexTextControllerSkia.cpp
+@@ -35,9 +35,21 @@
+ #include <hb-icu.h>
+ #include <hb-ot.h>
+ #include <hb.h>
++#include <wtf/NeverDestroyed.h>
++#include <wtf/ThreadSpecific.h>
+ 
+ namespace WebCore {
+ 
++static hb_buffer_t* shapingBuffer()
++{
++    // the armv7 ios 5 target has no thread-local storage, so each thread gets its buffer from a pthread key
++    static NeverDestroyed<ThreadSpecific<HbUniquePtr<hb_buffer_t>>> storage;
++    auto& buffer = *storage.get();
++    if (!buffer)
++        buffer.reset(hb_buffer_create());
++    return buffer.get();
++}
++
+ static inline float harfBuzzPositionToFloat(hb_position_t value)
+ {
+     return static_cast<float>(value) / (1 << 16);
+@@ -212,7 +224,7 @@
+         featuresSize = featuresWithKerning.size();
+     }
+ 
+-    static thread_local HbUniquePtr<hb_buffer_t> buffer(hb_buffer_create());
++    auto* buffer = shapingBuffer();
+ 
+     // The computed "locale" equals the "lang" attribute. The latter must be a valid BCP 47 language tag,
+     // according to <https://html.spec.whatwg.org/multipage/dom.html#attr-lang>.
+@@ -220,21 +232,21 @@
+     auto language = hb_language_from_string(m_fontCascade->fontDescription().computedLocale().string().utf8().data(), -1);
+ 
+     auto shapeFunction = [&](const HBRun& run) {
+-        hb_buffer_set_cluster_level(buffer.get(), HB_BUFFER_CLUSTER_LEVEL_CHARACTERS);
+-        hb_buffer_set_language(buffer.get(), language);
++        hb_buffer_set_cluster_level(buffer, HB_BUFFER_CLUSTER_LEVEL_CHARACTERS);
++        hb_buffer_set_language(buffer, language);
+ 
+-        hb_buffer_set_script(buffer.get(), hb_icu_script_to_script(run.script));
++        hb_buffer_set_script(buffer, hb_icu_script_to_script(run.script));
+ 
+         if (!m_mayUseNaturalWritingDirection || m_run->directionalOverride())
+-            hb_buffer_set_direction(buffer.get(), m_run->rtl() ? HB_DIRECTION_RTL : HB_DIRECTION_LTR);
++            hb_buffer_set_direction(buffer, m_run->rtl() ? HB_DIRECTION_RTL : HB_DIRECTION_LTR);
+         else
+-            hb_buffer_set_direction(buffer.get(), hb_script_get_horizontal_direction(hb_icu_script_to_script(run.script)));
++            hb_buffer_set_direction(buffer, hb_script_get_horizontal_direction(hb_icu_script_to_script(run.script)));
+ 
+-        hb_buffer_add_utf16(buffer.get(), reinterpret_cast<const uint16_t*>(characters.data()), characters.size(), run.startIndex, run.endIndex - run.startIndex);
++        hb_buffer_add_utf16(buffer, reinterpret_cast<const uint16_t*>(characters.data()), characters.size(), run.startIndex, run.endIndex - run.startIndex);
+ 
+-        hb_shape(hbFont, buffer.get(), featuresData, featuresSize);
+-        m_complexTextRuns.append(ComplexTextRun::create(buffer.get(), *font, characters, stringLocation, run.startIndex, run.endIndex));
+-        hb_buffer_reset(buffer.get());
++        hb_shape(hbFont, buffer, featuresData, featuresSize);
++        m_complexTextRuns.append(ComplexTextRun::create(buffer, *font, characters, stringLocation, run.startIndex, run.endIndex));
++        hb_buffer_reset(buffer);
+     };
+     if (m_run->ltr())
+         forEachHBRun<LTR>(characters, WTF::move(shapeFunction));
+diff -ruN --no-dereference a/Source/WebCore/platform/WebCorePersistentCoders.cpp b/Source/WebCore/platform/WebCorePersistentCoders.cpp
+--- a/Source/WebCore/platform/WebCorePersistentCoders.cpp
++++ b/Source/WebCore/platform/WebCorePersistentCoders.cpp
+@@ -405,7 +405,8 @@
+     auto& certificateChain = certificateInfo.certificateChain();
+ 
+     encoder << certificateInfo.verificationError();
+-    encoder << certificateChain.size();
++    // size_t is unsigned long on 32-bit darwin, which has no persistence coder
++    encoder << static_cast<uint64_t>(certificateChain.size());
+     for (auto& certificate : certificateChain)
+         encoder << certificate;
+ }
+@@ -417,13 +418,13 @@
+     if (!verificationError)
+         return std::nullopt;
+ 
+-    std::optional<size_t> numOfCerts;
++    std::optional<uint64_t> numOfCerts;
+     decoder >> numOfCerts;
+     if (!numOfCerts)
+         return std::nullopt;
+ 
+     WebCore::CertificateInfo::CertificateChain certificateChain;
+-    for (size_t i = 0; i < numOfCerts.value(); i++) {
++    for (uint64_t i = 0; i < numOfCerts.value(); i++) {
+         std::optional<WebCore::CertificateInfo::Certificate> certificate;
+         decoder >> certificate;
+         if (!certificate)
+diff -ruN --no-dereference a/Source/WebCore/style/computed/StyleComputedStyle.cpp b/Source/WebCore/style/computed/StyleComputedStyle.cpp
+--- a/Source/WebCore/style/computed/StyleComputedStyle.cpp
++++ b/Source/WebCore/style/computed/StyleComputedStyle.cpp
+@@ -96,7 +96,10 @@
+ 
+ IGNORE_CLANG_WARNINGS_END
+ 
++// the mirror struct is 4 bytes larger than ComputedStyle with 32-bit pointers
++#if CPU(ADDRESS64)
+ static_assert(sizeof(ComputedStyle) == sizeof(SameSizeAsComputedStyle), "ComputedStyle should stay small");
++#endif
+ 
+ ComputedStyle::ComputedStyle(ComputedStyle&&) = default;
+ ComputedStyle& ComputedStyle::operator=(ComputedStyle&&) = default;
+diff -ruN --no-dereference a/Source/WTF/wtf/darwin/DispatchExtras.h b/Source/WTF/wtf/darwin/DispatchExtras.h
+--- a/Source/WTF/wtf/darwin/DispatchExtras.h
++++ b/Source/WTF/wtf/darwin/DispatchExtras.h
+@@ -34,7 +34,8 @@
+     return dispatch_get_global_queue(identifier, flags); // NOLINT
+ }
+ 
+-inline dispatch_queue_main_t mainDispatchQueueSingleton()
++// the ios 5 sdk predates dispatch_queue_main_t
++inline dispatch_queue_t mainDispatchQueueSingleton()
+ {
+     return dispatch_get_main_queue(); // NOLINT
+ }
+diff -ruN --no-dereference a/Source/WTF/wtf/PlatformUse.h b/Source/WTF/wtf/PlatformUse.h
+--- a/Source/WTF/wtf/PlatformUse.h
++++ b/Source/WTF/wtf/PlatformUse.h
+@@ -127,7 +127,8 @@
+ #define USE_PTHREADS 1
+ #endif
+ 
+-#if OS(DARWIN) && !PLATFORM(GTK)
++// the generic blur and pixel code is what the host tests execute, and it needs no Accelerate
++#if OS(DARWIN) && !PLATFORM(GTK) && !PLATFORM(YOZORA)
+ #define USE_ACCELERATE 1
+ #endif
+ 
+diff -ruN --no-dereference a/Source/WTF/wtf/UnbarrieredMonotonicTime.h b/Source/WTF/wtf/UnbarrieredMonotonicTime.h
+--- a/Source/WTF/wtf/UnbarrieredMonotonicTime.h
++++ b/Source/WTF/wtf/UnbarrieredMonotonicTime.h
+@@ -55,7 +55,8 @@
+ // UnbarrieredMonotonicTime is expected to have the same timer resolution as
+ // MonotonicTime (unlike the coarse ApproximateTime).
+ 
+-#if OS(DARWIN) && CPU(ARM64)
++// reading CNTVCT_EL0 from user space raises SIGILL on ios 12 with an A8 (iPhone 6), mach_absolute_time reads the commpage on every device
++#if OS(DARWIN) && CPU(ARM64) && !defined(YOZORA_DARWIN)
+ #define USE_HARDWARE_UNBARRIERED_MONOTONIC_TIME 1
+ #else
+ #define USE_HARDWARE_UNBARRIERED_MONOTONIC_TIME 0

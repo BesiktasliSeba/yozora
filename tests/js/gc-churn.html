@@ -1,0 +1,12 @@
+<!doctype html><meta charset=utf-8><title>gc</title><body><script>
+var keep = [], t0 = performance.now(), worst = 0;
+function mk(i) { return {id: i, name: "item number " + i, tags: ["a" + i, "b" + i, "c" + i], nested: {x: i, y: [i, i + 1, i + 2, i + 3], z: {k: "v" + i}}}; }
+for (var i = 0; i < 90000; i++) keep.push(mk(i));
+for (var round = 0; round < 300; round++) {
+  var s = performance.now();
+  for (var i = 0; i < 4000; i++) { var o = mk(i); if (i % 50 == 0) keep[(round * 80 + i) % keep.length] = o; }
+  var d = performance.now() - s; if (d > worst) worst = d;
+}
+document.title = "done total=" + Math.round(performance.now() - t0) + " worst=" + Math.round(worst);
+document.body.textContent = document.title;
+</script>

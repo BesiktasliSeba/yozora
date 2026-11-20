@@ -1,0 +1,2182 @@
+# yozora build, run by tools/meow: the compile graph of the C core, the app, the host tests, the strip and signing,
+# the release checks and the ipa live here. the dependency builds that meow does not model (the llvm runtime, icu,
+# the web and text archives, WebKit through cmake and ninja) stay in scripts/ and run as steps; the library graph
+# cmake computes for the app reaches meow as a response file (scripts/export_link_line.py)
+#
+#   meow build              the ipa of each slice
+#   meow build ipa          one ipa with both slices
+#   meow test               the host tests
+#   meow plan app-fat       what is stale, runs nothing
+
+default = ["ipa-armv7", "ipa-arm64"]
+
+[vars]
+TC = "${YOZORA_TC:-${MEOW_TC}}"
+# the legacy armv7 sdk (ios 5 headers and the crt1.3.1.o start file) and the patched arm64 sdk of the dependency build
+# absolute: the cmake scripts take these paths and reject a relative sysroot
+DEPS = "${YOZORA_CORE_DEPS:-${root}/build/core/deps}"
+SDK_V7 = "${YOZORA_SDK_V7:-${DEPS}/sdk/iPhoneOS-armv7.sdk}"
+SDK_V64 = "${YOZORA_SDK_V64:-${DEPS}/sdk/iPhoneOS-arm64.sdk}"
+CRT_V7 = "${YOZORA_CRT_V7:-${SDK_V7}/usr/lib/crt1.3.1.o}"
+# the cmake tree of the webcore libraries: the jit build, YOZORA_ARMV7_JIT=0 uses webcore-ios
+WEB = "${YOZORA_WEBCORE_IOS_BUILD:-${root}/build/core/webcore-ios-jit}"
+ENTITLEMENTS = "tools/yozora-jit.entitlements"
+
+[slice.armv7]
+cc = "${TC}/clang"
+ar = "${TC}/llvm-ar"
+flags = ["-target", "armv7-apple-ios5.0", "-B", "${TC}", "-mlinker-version=253", "-isysroot", "${SDK}"]
+[slice.armv7.vars]
+SDK = "${SDK_V7}"
+
+[slice.arm64]
+cc = "${TC}/clang"
+ar = "${TC}/llvm-ar"
+flags = ["-target", "arm64-apple-ios7.0", "-mcpu=apple-a7", "-B", "${TC}", "-mlinker-version=253", "-isysroot", "${SDK}"]
+[slice.arm64.vars]
+SDK = "${SDK_V64}"
+
+# the C core and the store tool
+
+[target.yozora]
+slices = ["armv7", "arm64"]
+link = "archive"
+output = "build/${slice}/libyozora.a"
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-O2", "-Icore"]
+[[target.yozora.src]]
+files = ["core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c"]
+
+[target.yozora-store]
+slices = ["armv7", "arm64"]
+output = "build/${slice}/yozora-store"
+objects_from = ["yozora"]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-O2", "-Icore"]
+ldflags = ["-lsqlite3"]
+[target.yozora-store.per_slice.armv7]
+# ios 5 starts executables with crt1.3.1.o, ld64 picks it by name only with the default start files
+ldflags = ["-nostartfiles", "${CRT_V7}"]
+[[target.yozora-store.src]]
+files = ["tools/yozora_store_cli.c"]
+
+[fat.yozora-fat]
+from = "yozora"
+output = "build/ios/libyozora.a"
+
+[fat.yozora-store-fat]
+from = "yozora-store"
+output = "build/ios/yozora-store"
+
+# the app: the objective-c sources compile here, the libraries come from the cmake tree
+
+# one target per slice for the single-slice ipas, so that an armv7 package does not wait for the arm64 WebKit build;
+# `app` has both slices for the universal ipa
+
+[target.app-armv7]
+slices = ["armv7"]
+output = "build/armv7/Yozora"
+# manual reference counting, every warning is an error, the same flags cmake gave the Yozora target
+cflags = ["-fno-objc-arc", "-fno-strict-aliasing", "-fno-exceptions", "-fPIE", "-std=gnu17", "-O3", "-DNDEBUG",
+          "-Wall", "-Wextra", "-Werror", "-Icore", "-Icore/core"]
+# the response file holds YozoraCore, WebCore, JavaScriptCore, the dependency archives, libc++ and the frameworks in
+# the order cmake linked them; CoreLocation is named here as well because a tree configured before the location
+# code did not list it
+ldflags = ["-Wl,-search_paths_first", "-Wl,-headerpad_max_install_names", "-Xlinker", "-dead_strip",
+           "-framework", "CoreLocation", "@build/${slice}/link.rsp"]
+needs = ["webcore-${slice}"]
+strip = true
+entitlements = "${ENTITLEMENTS}"
+[target.app-armv7.per_slice.armv7]
+ldflags = ["-nostartfiles", "${CRT_V7}"]
+[[target.app-armv7.src]]
+files = [
+  "app/app_main.m", "app/YZBrowserController.m", "app/YZPageView.m", "app/YZSceneView.m", "app/YZTheme.m",
+  "app/YZMotion.m", "app/YZControls.m", "app/YZFavicons.m", "app/YZStore.m", "app/YZTab.m", "app/YZHomeView.m",
+  "app/YZErrorPage.m", "app/YZTabsView.m", "app/YZMenuView.m", "app/YZListController.m", "app/YZDownloadsController.m",
+  "app/YZSettings.m", "app/YZSettingsController.m", "app/YZStrings.m", "app/YZLocation.m", "app/YZVideoController.m",
+  "app/YZAccentEditor.m", "app/YZWaveSeekBar.m", "app/YZPlayerViews.m", "app/YZStreamProxy.m", "app/YZMediaPlayer.m",
+  "app/YZFindBar.m", "app/YZSheets.m", "app/YZDialog.m", "app/YZErrorPopup.m", "app/YZShape.m", "app/YZLog.m",
+  "app/YZCrash.m", "app/YZLogController.m", "app/YZSystemNotifier.m", "app/YZSitesController.m",
+  "app/YZAdblockController.m", "app/YZDebugOverlay.m", "app/YZTranslation.m", "app/YZTranslateBar.m",
+  "app/YZTranslateSheet.m", "app/YZColorPicker.m", "app/YZSplashController.m", "app/YZTabStrip.m",
+]
+
+
+[target.app-arm64]
+slices = ["arm64"]
+output = "build/arm64/Yozora"
+# manual reference counting, every warning is an error, the same flags cmake gave the Yozora target
+cflags = ["-fno-objc-arc", "-fno-strict-aliasing", "-fno-exceptions", "-fPIE", "-std=gnu17", "-O3", "-DNDEBUG",
+          "-Wall", "-Wextra", "-Werror", "-Icore", "-Icore/core"]
+# the response file holds YozoraCore, WebCore, JavaScriptCore, the dependency archives, libc++ and the frameworks in
+# the order cmake linked them; CoreLocation is named here as well because a tree configured before the location
+# code did not list it
+ldflags = ["-Wl,-search_paths_first", "-Wl,-headerpad_max_install_names", "-Xlinker", "-dead_strip",
+           "-framework", "CoreLocation", "@build/${slice}/link.rsp"]
+needs = ["webcore-${slice}"]
+strip = true
+entitlements = "${ENTITLEMENTS}"
+[[target.app-arm64.src]]
+files = [
+  "app/app_main.m", "app/YZBrowserController.m", "app/YZPageView.m", "app/YZSceneView.m", "app/YZTheme.m",
+  "app/YZMotion.m", "app/YZControls.m", "app/YZFavicons.m", "app/YZStore.m", "app/YZTab.m", "app/YZHomeView.m",
+  "app/YZErrorPage.m", "app/YZTabsView.m", "app/YZMenuView.m", "app/YZListController.m", "app/YZDownloadsController.m",
+  "app/YZSettings.m", "app/YZSettingsController.m", "app/YZStrings.m", "app/YZLocation.m", "app/YZVideoController.m",
+  "app/YZAccentEditor.m", "app/YZWaveSeekBar.m", "app/YZPlayerViews.m", "app/YZStreamProxy.m", "app/YZMediaPlayer.m",
+  "app/YZFindBar.m", "app/YZSheets.m", "app/YZDialog.m", "app/YZErrorPopup.m", "app/YZShape.m", "app/YZLog.m",
+  "app/YZCrash.m", "app/YZLogController.m", "app/YZSystemNotifier.m", "app/YZSitesController.m",
+  "app/YZAdblockController.m", "app/YZDebugOverlay.m", "app/YZTranslation.m", "app/YZTranslateBar.m",
+  "app/YZTranslateSheet.m", "app/YZColorPicker.m", "app/YZSplashController.m", "app/YZTabStrip.m",
+]
+
+
+[target.app]
+slices = ["armv7", "arm64"]
+output = "build/both/${slice}/Yozora"
+# manual reference counting, every warning is an error, the same flags cmake gave the Yozora target
+cflags = ["-fno-objc-arc", "-fno-strict-aliasing", "-fno-exceptions", "-fPIE", "-std=gnu17", "-O3", "-DNDEBUG",
+          "-Wall", "-Wextra", "-Werror", "-Icore", "-Icore/core"]
+# the response file holds YozoraCore, WebCore, JavaScriptCore, the dependency archives, libc++ and the frameworks in
+# the order cmake linked them; CoreLocation is named here as well because a tree configured before the location
+# code did not list it
+ldflags = ["-Wl,-search_paths_first", "-Wl,-headerpad_max_install_names", "-Xlinker", "-dead_strip",
+           "-framework", "CoreLocation", "@build/${slice}/link.rsp"]
+needs = ["webcore-${slice}"]
+strip = true
+entitlements = "${ENTITLEMENTS}"
+[target.app.per_slice.armv7]
+ldflags = ["-nostartfiles", "${CRT_V7}"]
+[[target.app.src]]
+files = [
+  "app/app_main.m", "app/YZBrowserController.m", "app/YZPageView.m", "app/YZSceneView.m", "app/YZTheme.m",
+  "app/YZMotion.m", "app/YZControls.m", "app/YZFavicons.m", "app/YZStore.m", "app/YZTab.m", "app/YZHomeView.m",
+  "app/YZErrorPage.m", "app/YZTabsView.m", "app/YZMenuView.m", "app/YZListController.m", "app/YZDownloadsController.m",
+  "app/YZSettings.m", "app/YZSettingsController.m", "app/YZStrings.m", "app/YZLocation.m", "app/YZVideoController.m",
+  "app/YZAccentEditor.m", "app/YZWaveSeekBar.m", "app/YZPlayerViews.m", "app/YZStreamProxy.m", "app/YZMediaPlayer.m",
+  "app/YZFindBar.m", "app/YZSheets.m", "app/YZDialog.m", "app/YZErrorPopup.m", "app/YZShape.m", "app/YZLog.m",
+  "app/YZCrash.m", "app/YZLogController.m", "app/YZSystemNotifier.m", "app/YZSitesController.m",
+  "app/YZAdblockController.m", "app/YZDebugOverlay.m", "app/YZTranslation.m", "app/YZTranslateBar.m",
+  "app/YZTranslateSheet.m", "app/YZColorPicker.m", "app/YZSplashController.m", "app/YZTabStrip.m",
+]
+
+
+[fat.app-fat]
+from = "app"
+output = "build/Yozora"
+entitlements = "${ENTITLEMENTS}"
+
+[verify.release-armv7]
+file = "build/armv7/Yozora"
+slices = ["armv7"]
+min_ios = "5.0"
+signed = true
+allow_dylibs = ["/usr/lib/", "/System/Library/"]
+needs = ["app-armv7"]
+
+[verify.release-arm64]
+file = "build/arm64/Yozora"
+slices = ["arm64"]
+min_ios = "5.0"
+signed = true
+allow_dylibs = ["/usr/lib/", "/System/Library/"]
+needs = ["app-arm64"]
+
+[verify.release-universal]
+file = "build/Yozora"
+slices = ["armv7", "arm64"]
+min_ios = "5.0"
+signed = true
+allow_dylibs = ["/usr/lib/", "/System/Library/"]
+needs = ["app-fat"]
+
+# the packages: one ipa per slice, and one with both slices
+
+[ipa.ipa-armv7]
+output = "build/ipa/Yozora-armv7.ipa"
+prefix = "Payload/Yozora.app"
+needs = ["release-armv7"]
+
+[[ipa.ipa-armv7.file]]
+from = "build/armv7/Yozora"
+to = "Yozora"
+mode = "755"
+
+[[ipa.ipa-armv7.file]]
+from = "app/Info.plist"
+to = "Info.plist"
+
+[[ipa.ipa-armv7.file]]
+from = "app/ca-bundle.crt"
+to = "ca-bundle.crt"
+
+[[ipa.ipa-armv7.file]]
+from = "app/LICENSE-Roboto.txt"
+to = "LICENSE-Roboto.txt"
+
+[[ipa.ipa-armv7.file]]
+from = "app/LICENSE-JetBrainsMono.txt"
+to = "LICENSE-JetBrainsMono.txt"
+
+[[ipa.ipa-armv7.file]]
+from = "app/JetBrainsMono-Regular.ttf"
+to = "JetBrainsMono-Regular.ttf"
+
+[[ipa.ipa-armv7.file]]
+from = "app/LICENSE-MaterialSymbols.txt"
+to = "LICENSE-MaterialSymbols.txt"
+
+[[ipa.ipa-armv7.file]]
+from = "app/NOTICE-Emoji.txt"
+to = "NOTICE-Emoji.txt"
+
+[[ipa.ipa-armv7.file]]
+from = "app/NOTICE-Noto.txt"
+to = "NOTICE-Noto.txt"
+
+# the emoji font and the script fonts: tools/make_emoji_font.py and tools/make_fallback_fonts.py write them
+[[ipa.ipa-armv7.tree]]
+from = "app/fonts"
+to = "fonts"
+
+# the launch storyboard of ios 9 split view and slide over: an empty white view controller compiled by ibtool, so
+# this build needs no ibtool
+[[ipa.ipa-armv7.tree]]
+from = "app/LaunchScreen.storyboardc"
+to = "LaunchScreen.storyboardc"
+
+# the icons, the interface glyphs and the launch images sit flat in the bundle. meow puts a tree under a name, never at
+# the root, so these are files; tests/test_bundle_inputs.py fails when one is added to the folders and not listed here
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/Icon-60.png"
+to = "Icon-60.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/Icon-60@2x.png"
+to = "Icon-60@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/Icon-60@3x.png"
+to = "Icon-60@3x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/Icon-72.png"
+to = "Icon-72.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/Icon-72@2x.png"
+to = "Icon-72@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/Icon-76.png"
+to = "Icon-76.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/Icon-76@2x.png"
+to = "Icon-76@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/Icon.png"
+to = "Icon.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/Icon@2x.png"
+to = "Icon@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/yozora-error.png"
+to = "yozora-error.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/yozora-error@2x.png"
+to = "yozora-error@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/yozora-error@3x.png"
+to = "yozora-error@3x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/yozora-hero.png"
+to = "yozora-hero.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/yozora-hero@2x.png"
+to = "yozora-hero@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/yozora-sticker.png"
+to = "yozora-sticker.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/yozora-sticker@2x.png"
+to = "yozora-sticker@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/yozora-sticker@3x.png"
+to = "yozora-sticker@3x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-animation.png"
+to = "yz-animation.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-arrow-down.png"
+to = "yz-arrow-down.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-arrow-up.png"
+to = "yz-arrow-up.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-back.png"
+to = "yz-back.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-bolt.png"
+to = "yz-bolt.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-bookmarks.png"
+to = "yz-bookmarks.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-brush.png"
+to = "yz-brush.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-bug-report.png"
+to = "yz-bug-report.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-check.png"
+to = "yz-check.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-chevron.png"
+to = "yz-chevron.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-close.png"
+to = "yz-close.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-code.png"
+to = "yz-code.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-cookie.png"
+to = "yz-cookie.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-copy.png"
+to = "yz-copy.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-delete.png"
+to = "yz-delete.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-desktop.png"
+to = "yz-desktop.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-download.png"
+to = "yz-download.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-font.png"
+to = "yz-font.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-forward.png"
+to = "yz-forward.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-hardware.png"
+to = "yz-hardware.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-history.png"
+to = "yz-history.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-image.png"
+to = "yz-image.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-incognito.png"
+to = "yz-incognito.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-info.png"
+to = "yz-info.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-language.png"
+to = "yz-language.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-link.png"
+to = "yz-link.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-lock.png"
+to = "yz-lock.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-logo-duckduckgo.png"
+to = "yz-logo-duckduckgo.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-logo-google.png"
+to = "yz-logo-google.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-logo-yandex.png"
+to = "yz-logo-yandex.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-memory.png"
+to = "yz-memory.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-menu.png"
+to = "yz-menu.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-palette.png"
+to = "yz-palette.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-pause.png"
+to = "yz-pause.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-play.png"
+to = "yz-play.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-plus.png"
+to = "yz-plus.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-receipt-long.png"
+to = "yz-receipt-long.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-reload.png"
+to = "yz-reload.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-search.png"
+to = "yz-search.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-settings.png"
+to = "yz-settings.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-share.png"
+to = "yz-share.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-shield.png"
+to = "yz-shield.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-speed.png"
+to = "yz-speed.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-star-filled.png"
+to = "yz-star-filled.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-star.png"
+to = "yz-star.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-swap.png"
+to = "yz-swap.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-sweep.png"
+to = "yz-sweep.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-tab-new.png"
+to = "yz-tab-new.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-tabs.png"
+to = "yz-tabs.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-terminal.png"
+to = "yz-terminal.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-text-size.png"
+to = "yz-text-size.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-translate.png"
+to = "yz-translate.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/ui/yz-wordmark.png"
+to = "yz-wordmark.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/Default-568h@2x.png"
+to = "Default-568h@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/Default-Landscape@2x~ipad.png"
+to = "Default-Landscape@2x~ipad.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/Default-Landscape~ipad.png"
+to = "Default-Landscape~ipad.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/Default-Portrait@2x~ipad.png"
+to = "Default-Portrait@2x~ipad.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/Default-Portrait~ipad.png"
+to = "Default-Portrait~ipad.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/Default.png"
+to = "Default.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/Default@2x.png"
+to = "Default@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Landscape-1024x768.png"
+to = "LaunchImage-Landscape-1024x768.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Landscape-1024x768@2x.png"
+to = "LaunchImage-Landscape-1024x768@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Landscape-1080x810@2x.png"
+to = "LaunchImage-Landscape-1080x810@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Landscape-1112x834@2x.png"
+to = "LaunchImage-Landscape-1112x834@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Landscape-1133x744@2x.png"
+to = "LaunchImage-Landscape-1133x744@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Landscape-1180x820@2x.png"
+to = "LaunchImage-Landscape-1180x820@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Landscape-1194x834@2x.png"
+to = "LaunchImage-Landscape-1194x834@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Landscape-1366x1024@2x.png"
+to = "LaunchImage-Landscape-1366x1024@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Portrait-1024x1366@2x.png"
+to = "LaunchImage-Portrait-1024x1366@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Portrait-320x480@2x.png"
+to = "LaunchImage-Portrait-320x480@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Portrait-320x568@2x.png"
+to = "LaunchImage-Portrait-320x568@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Portrait-375x667@2x.png"
+to = "LaunchImage-Portrait-375x667@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Portrait-375x812@3x.png"
+to = "LaunchImage-Portrait-375x812@3x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Portrait-390x844@3x.png"
+to = "LaunchImage-Portrait-390x844@3x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Portrait-393x852@3x.png"
+to = "LaunchImage-Portrait-393x852@3x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Portrait-414x736@3x.png"
+to = "LaunchImage-Portrait-414x736@3x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Portrait-414x896@2x.png"
+to = "LaunchImage-Portrait-414x896@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Portrait-414x896@3x.png"
+to = "LaunchImage-Portrait-414x896@3x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Portrait-428x926@3x.png"
+to = "LaunchImage-Portrait-428x926@3x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Portrait-430x932@3x.png"
+to = "LaunchImage-Portrait-430x932@3x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Portrait-744x1133@2x.png"
+to = "LaunchImage-Portrait-744x1133@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Portrait-768x1024.png"
+to = "LaunchImage-Portrait-768x1024.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Portrait-768x1024@2x.png"
+to = "LaunchImage-Portrait-768x1024@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Portrait-810x1080@2x.png"
+to = "LaunchImage-Portrait-810x1080@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Portrait-820x1180@2x.png"
+to = "LaunchImage-Portrait-820x1180@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Portrait-834x1112@2x.png"
+to = "LaunchImage-Portrait-834x1112@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/launch/LaunchImage-Portrait-834x1194@2x.png"
+to = "LaunchImage-Portrait-834x1194@2x.png"
+
+[ipa.ipa-arm64]
+output = "build/ipa/Yozora-arm64.ipa"
+prefix = "Payload/Yozora.app"
+needs = ["release-arm64"]
+
+[[ipa.ipa-arm64.file]]
+from = "build/arm64/Yozora"
+to = "Yozora"
+mode = "755"
+
+[[ipa.ipa-arm64.file]]
+from = "app/Info.plist"
+to = "Info.plist"
+
+[[ipa.ipa-arm64.file]]
+from = "app/ca-bundle.crt"
+to = "ca-bundle.crt"
+
+[[ipa.ipa-arm64.file]]
+from = "app/LICENSE-Roboto.txt"
+to = "LICENSE-Roboto.txt"
+
+[[ipa.ipa-arm64.file]]
+from = "app/LICENSE-JetBrainsMono.txt"
+to = "LICENSE-JetBrainsMono.txt"
+
+[[ipa.ipa-arm64.file]]
+from = "app/JetBrainsMono-Regular.ttf"
+to = "JetBrainsMono-Regular.ttf"
+
+[[ipa.ipa-arm64.file]]
+from = "app/LICENSE-MaterialSymbols.txt"
+to = "LICENSE-MaterialSymbols.txt"
+
+[[ipa.ipa-arm64.file]]
+from = "app/NOTICE-Emoji.txt"
+to = "NOTICE-Emoji.txt"
+
+[[ipa.ipa-arm64.file]]
+from = "app/NOTICE-Noto.txt"
+to = "NOTICE-Noto.txt"
+
+# the emoji font and the script fonts: tools/make_emoji_font.py and tools/make_fallback_fonts.py write them
+[[ipa.ipa-arm64.tree]]
+from = "app/fonts"
+to = "fonts"
+
+# the launch storyboard of ios 9 split view and slide over: an empty white view controller compiled by ibtool, so
+# this build needs no ibtool
+[[ipa.ipa-arm64.tree]]
+from = "app/LaunchScreen.storyboardc"
+to = "LaunchScreen.storyboardc"
+
+# the icons, the interface glyphs and the launch images sit flat in the bundle. meow puts a tree under a name, never at
+# the root, so these are files; tests/test_bundle_inputs.py fails when one is added to the folders and not listed here
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/Icon-60.png"
+to = "Icon-60.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/Icon-60@2x.png"
+to = "Icon-60@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/Icon-60@3x.png"
+to = "Icon-60@3x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/Icon-72.png"
+to = "Icon-72.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/Icon-72@2x.png"
+to = "Icon-72@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/Icon-76.png"
+to = "Icon-76.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/Icon-76@2x.png"
+to = "Icon-76@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/Icon.png"
+to = "Icon.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/Icon@2x.png"
+to = "Icon@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/yozora-error.png"
+to = "yozora-error.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/yozora-error@2x.png"
+to = "yozora-error@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/yozora-error@3x.png"
+to = "yozora-error@3x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/yozora-hero.png"
+to = "yozora-hero.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/yozora-hero@2x.png"
+to = "yozora-hero@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/yozora-sticker.png"
+to = "yozora-sticker.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/yozora-sticker@2x.png"
+to = "yozora-sticker@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/yozora-sticker@3x.png"
+to = "yozora-sticker@3x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-animation.png"
+to = "yz-animation.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-arrow-down.png"
+to = "yz-arrow-down.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-arrow-up.png"
+to = "yz-arrow-up.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-back.png"
+to = "yz-back.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-bolt.png"
+to = "yz-bolt.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-bookmarks.png"
+to = "yz-bookmarks.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-brush.png"
+to = "yz-brush.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-bug-report.png"
+to = "yz-bug-report.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-check.png"
+to = "yz-check.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-chevron.png"
+to = "yz-chevron.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-close.png"
+to = "yz-close.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-code.png"
+to = "yz-code.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-cookie.png"
+to = "yz-cookie.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-copy.png"
+to = "yz-copy.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-delete.png"
+to = "yz-delete.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-desktop.png"
+to = "yz-desktop.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-download.png"
+to = "yz-download.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-font.png"
+to = "yz-font.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-forward.png"
+to = "yz-forward.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-hardware.png"
+to = "yz-hardware.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-history.png"
+to = "yz-history.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-image.png"
+to = "yz-image.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-incognito.png"
+to = "yz-incognito.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-info.png"
+to = "yz-info.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-language.png"
+to = "yz-language.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-link.png"
+to = "yz-link.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-lock.png"
+to = "yz-lock.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-logo-duckduckgo.png"
+to = "yz-logo-duckduckgo.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-logo-google.png"
+to = "yz-logo-google.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-logo-yandex.png"
+to = "yz-logo-yandex.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-memory.png"
+to = "yz-memory.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-menu.png"
+to = "yz-menu.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-palette.png"
+to = "yz-palette.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-pause.png"
+to = "yz-pause.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-play.png"
+to = "yz-play.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-plus.png"
+to = "yz-plus.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-receipt-long.png"
+to = "yz-receipt-long.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-reload.png"
+to = "yz-reload.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-search.png"
+to = "yz-search.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-settings.png"
+to = "yz-settings.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-share.png"
+to = "yz-share.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-shield.png"
+to = "yz-shield.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-speed.png"
+to = "yz-speed.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-star-filled.png"
+to = "yz-star-filled.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-star.png"
+to = "yz-star.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-swap.png"
+to = "yz-swap.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-sweep.png"
+to = "yz-sweep.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-tab-new.png"
+to = "yz-tab-new.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-tabs.png"
+to = "yz-tabs.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-terminal.png"
+to = "yz-terminal.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-text-size.png"
+to = "yz-text-size.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-translate.png"
+to = "yz-translate.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/ui/yz-wordmark.png"
+to = "yz-wordmark.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/Default-568h@2x.png"
+to = "Default-568h@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/Default-Landscape@2x~ipad.png"
+to = "Default-Landscape@2x~ipad.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/Default-Landscape~ipad.png"
+to = "Default-Landscape~ipad.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/Default-Portrait@2x~ipad.png"
+to = "Default-Portrait@2x~ipad.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/Default-Portrait~ipad.png"
+to = "Default-Portrait~ipad.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/Default.png"
+to = "Default.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/Default@2x.png"
+to = "Default@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Landscape-1024x768.png"
+to = "LaunchImage-Landscape-1024x768.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Landscape-1024x768@2x.png"
+to = "LaunchImage-Landscape-1024x768@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Landscape-1080x810@2x.png"
+to = "LaunchImage-Landscape-1080x810@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Landscape-1112x834@2x.png"
+to = "LaunchImage-Landscape-1112x834@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Landscape-1133x744@2x.png"
+to = "LaunchImage-Landscape-1133x744@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Landscape-1180x820@2x.png"
+to = "LaunchImage-Landscape-1180x820@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Landscape-1194x834@2x.png"
+to = "LaunchImage-Landscape-1194x834@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Landscape-1366x1024@2x.png"
+to = "LaunchImage-Landscape-1366x1024@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Portrait-1024x1366@2x.png"
+to = "LaunchImage-Portrait-1024x1366@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Portrait-320x480@2x.png"
+to = "LaunchImage-Portrait-320x480@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Portrait-320x568@2x.png"
+to = "LaunchImage-Portrait-320x568@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Portrait-375x667@2x.png"
+to = "LaunchImage-Portrait-375x667@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Portrait-375x812@3x.png"
+to = "LaunchImage-Portrait-375x812@3x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Portrait-390x844@3x.png"
+to = "LaunchImage-Portrait-390x844@3x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Portrait-393x852@3x.png"
+to = "LaunchImage-Portrait-393x852@3x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Portrait-414x736@3x.png"
+to = "LaunchImage-Portrait-414x736@3x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Portrait-414x896@2x.png"
+to = "LaunchImage-Portrait-414x896@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Portrait-414x896@3x.png"
+to = "LaunchImage-Portrait-414x896@3x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Portrait-428x926@3x.png"
+to = "LaunchImage-Portrait-428x926@3x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Portrait-430x932@3x.png"
+to = "LaunchImage-Portrait-430x932@3x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Portrait-744x1133@2x.png"
+to = "LaunchImage-Portrait-744x1133@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Portrait-768x1024.png"
+to = "LaunchImage-Portrait-768x1024.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Portrait-768x1024@2x.png"
+to = "LaunchImage-Portrait-768x1024@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Portrait-810x1080@2x.png"
+to = "LaunchImage-Portrait-810x1080@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Portrait-820x1180@2x.png"
+to = "LaunchImage-Portrait-820x1180@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Portrait-834x1112@2x.png"
+to = "LaunchImage-Portrait-834x1112@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/launch/LaunchImage-Portrait-834x1194@2x.png"
+to = "LaunchImage-Portrait-834x1194@2x.png"
+
+[ipa.ipa]
+output = "build/ipa/Yozora.ipa"
+prefix = "Payload/Yozora.app"
+needs = ["release-universal"]
+
+[[ipa.ipa.file]]
+from = "build/Yozora"
+to = "Yozora"
+mode = "755"
+
+[[ipa.ipa.file]]
+from = "app/Info.plist"
+to = "Info.plist"
+
+[[ipa.ipa.file]]
+from = "app/ca-bundle.crt"
+to = "ca-bundle.crt"
+
+[[ipa.ipa.file]]
+from = "app/LICENSE-Roboto.txt"
+to = "LICENSE-Roboto.txt"
+
+[[ipa.ipa.file]]
+from = "app/LICENSE-JetBrainsMono.txt"
+to = "LICENSE-JetBrainsMono.txt"
+
+[[ipa.ipa.file]]
+from = "app/JetBrainsMono-Regular.ttf"
+to = "JetBrainsMono-Regular.ttf"
+
+[[ipa.ipa.file]]
+from = "app/LICENSE-MaterialSymbols.txt"
+to = "LICENSE-MaterialSymbols.txt"
+
+[[ipa.ipa.file]]
+from = "app/NOTICE-Emoji.txt"
+to = "NOTICE-Emoji.txt"
+
+[[ipa.ipa.file]]
+from = "app/NOTICE-Noto.txt"
+to = "NOTICE-Noto.txt"
+
+# the emoji font and the script fonts: tools/make_emoji_font.py and tools/make_fallback_fonts.py write them
+[[ipa.ipa.tree]]
+from = "app/fonts"
+to = "fonts"
+
+# the launch storyboard of ios 9 split view and slide over: an empty white view controller compiled by ibtool, so
+# this build needs no ibtool
+[[ipa.ipa.tree]]
+from = "app/LaunchScreen.storyboardc"
+to = "LaunchScreen.storyboardc"
+
+# the icons, the interface glyphs and the launch images sit flat in the bundle. meow puts a tree under a name, never at
+# the root, so these are files; tests/test_bundle_inputs.py fails when one is added to the folders and not listed here
+
+[[ipa.ipa.file]]
+from = "app/icons/Icon-60.png"
+to = "Icon-60.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/Icon-60@2x.png"
+to = "Icon-60@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/Icon-60@3x.png"
+to = "Icon-60@3x.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/Icon-72.png"
+to = "Icon-72.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/Icon-72@2x.png"
+to = "Icon-72@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/Icon-76.png"
+to = "Icon-76.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/Icon-76@2x.png"
+to = "Icon-76@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/Icon.png"
+to = "Icon.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/Icon@2x.png"
+to = "Icon@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/yozora-error.png"
+to = "yozora-error.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/yozora-error@2x.png"
+to = "yozora-error@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/yozora-error@3x.png"
+to = "yozora-error@3x.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/yozora-hero.png"
+to = "yozora-hero.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/yozora-hero@2x.png"
+to = "yozora-hero@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/yozora-sticker.png"
+to = "yozora-sticker.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/yozora-sticker@2x.png"
+to = "yozora-sticker@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/yozora-sticker@3x.png"
+to = "yozora-sticker@3x.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-animation.png"
+to = "yz-animation.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-arrow-down.png"
+to = "yz-arrow-down.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-arrow-up.png"
+to = "yz-arrow-up.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-back.png"
+to = "yz-back.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-bolt.png"
+to = "yz-bolt.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-bookmarks.png"
+to = "yz-bookmarks.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-brush.png"
+to = "yz-brush.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-bug-report.png"
+to = "yz-bug-report.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-check.png"
+to = "yz-check.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-chevron.png"
+to = "yz-chevron.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-close.png"
+to = "yz-close.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-code.png"
+to = "yz-code.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-cookie.png"
+to = "yz-cookie.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-copy.png"
+to = "yz-copy.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-delete.png"
+to = "yz-delete.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-desktop.png"
+to = "yz-desktop.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-download.png"
+to = "yz-download.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-font.png"
+to = "yz-font.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-forward.png"
+to = "yz-forward.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-hardware.png"
+to = "yz-hardware.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-history.png"
+to = "yz-history.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-image.png"
+to = "yz-image.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-incognito.png"
+to = "yz-incognito.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-info.png"
+to = "yz-info.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-language.png"
+to = "yz-language.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-link.png"
+to = "yz-link.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-lock.png"
+to = "yz-lock.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-logo-duckduckgo.png"
+to = "yz-logo-duckduckgo.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-logo-google.png"
+to = "yz-logo-google.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-logo-yandex.png"
+to = "yz-logo-yandex.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-memory.png"
+to = "yz-memory.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-menu.png"
+to = "yz-menu.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-palette.png"
+to = "yz-palette.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-pause.png"
+to = "yz-pause.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-play.png"
+to = "yz-play.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-plus.png"
+to = "yz-plus.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-receipt-long.png"
+to = "yz-receipt-long.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-reload.png"
+to = "yz-reload.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-search.png"
+to = "yz-search.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-settings.png"
+to = "yz-settings.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-share.png"
+to = "yz-share.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-shield.png"
+to = "yz-shield.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-speed.png"
+to = "yz-speed.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-star-filled.png"
+to = "yz-star-filled.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-star.png"
+to = "yz-star.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-swap.png"
+to = "yz-swap.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-sweep.png"
+to = "yz-sweep.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-tab-new.png"
+to = "yz-tab-new.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-tabs.png"
+to = "yz-tabs.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-terminal.png"
+to = "yz-terminal.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-text-size.png"
+to = "yz-text-size.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-translate.png"
+to = "yz-translate.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/ui/yz-wordmark.png"
+to = "yz-wordmark.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/Default-568h@2x.png"
+to = "Default-568h@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/Default-Landscape@2x~ipad.png"
+to = "Default-Landscape@2x~ipad.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/Default-Landscape~ipad.png"
+to = "Default-Landscape~ipad.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/Default-Portrait@2x~ipad.png"
+to = "Default-Portrait@2x~ipad.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/Default-Portrait~ipad.png"
+to = "Default-Portrait~ipad.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/Default.png"
+to = "Default.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/Default@2x.png"
+to = "Default@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Landscape-1024x768.png"
+to = "LaunchImage-Landscape-1024x768.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Landscape-1024x768@2x.png"
+to = "LaunchImage-Landscape-1024x768@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Landscape-1080x810@2x.png"
+to = "LaunchImage-Landscape-1080x810@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Landscape-1112x834@2x.png"
+to = "LaunchImage-Landscape-1112x834@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Landscape-1133x744@2x.png"
+to = "LaunchImage-Landscape-1133x744@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Landscape-1180x820@2x.png"
+to = "LaunchImage-Landscape-1180x820@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Landscape-1194x834@2x.png"
+to = "LaunchImage-Landscape-1194x834@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Landscape-1366x1024@2x.png"
+to = "LaunchImage-Landscape-1366x1024@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Portrait-1024x1366@2x.png"
+to = "LaunchImage-Portrait-1024x1366@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Portrait-320x480@2x.png"
+to = "LaunchImage-Portrait-320x480@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Portrait-320x568@2x.png"
+to = "LaunchImage-Portrait-320x568@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Portrait-375x667@2x.png"
+to = "LaunchImage-Portrait-375x667@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Portrait-375x812@3x.png"
+to = "LaunchImage-Portrait-375x812@3x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Portrait-390x844@3x.png"
+to = "LaunchImage-Portrait-390x844@3x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Portrait-393x852@3x.png"
+to = "LaunchImage-Portrait-393x852@3x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Portrait-414x736@3x.png"
+to = "LaunchImage-Portrait-414x736@3x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Portrait-414x896@2x.png"
+to = "LaunchImage-Portrait-414x896@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Portrait-414x896@3x.png"
+to = "LaunchImage-Portrait-414x896@3x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Portrait-428x926@3x.png"
+to = "LaunchImage-Portrait-428x926@3x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Portrait-430x932@3x.png"
+to = "LaunchImage-Portrait-430x932@3x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Portrait-744x1133@2x.png"
+to = "LaunchImage-Portrait-744x1133@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Portrait-768x1024.png"
+to = "LaunchImage-Portrait-768x1024.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Portrait-768x1024@2x.png"
+to = "LaunchImage-Portrait-768x1024@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Portrait-810x1080@2x.png"
+to = "LaunchImage-Portrait-810x1080@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Portrait-820x1180@2x.png"
+to = "LaunchImage-Portrait-820x1180@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Portrait-834x1112@2x.png"
+to = "LaunchImage-Portrait-834x1112@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/launch/LaunchImage-Portrait-834x1194@2x.png"
+to = "LaunchImage-Portrait-834x1194@2x.png"
+
+# host tests: `meow test` builds and runs them, the c ones under asan and ubsan
+
+[test.types]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_types.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.navigation]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_navigation.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.store]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_store.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.address]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_address.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.accent]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_accent.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.playlist]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_playlist.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.icons]
+src = ["core/yozora_icons.c", "core/yozora_playlist.c", "tests/test_icons.c"]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+sanitize = "address,undefined"
+
+[test.mp4-ts]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_mp4_ts.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.hls]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_hls.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.log]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_log.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.blocklist]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_blocklist.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.filter]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_filter.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.sitegrants]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_sitegrants.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.budget]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_budget.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.httpcache]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_httpcache.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.keys]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_keys.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.motion]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_motion.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.zoom]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_zoom.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.debug]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_debug.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.transfer]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_transfer.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.translate]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_translate.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.color]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_color.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.render-plan]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_render_plan.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.scene-animation]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_scene_animation.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.clock]
+src = ["tests/test_clock.c", "core/darwin/yozora_clock.c"]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore/darwin"]
+sanitize = "address,undefined"
+
+[test.wait]
+src = ["tests/test_wait.c", "core/runtime/yozora_wait.c"]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore/runtime"]
+libs = ["pthread"]
+sanitize = "address,undefined"
+
+[test.system]
+src = ["tests/test_system.c", "core/darwin/yozora_system.c"]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore/darwin"]
+sanitize = "address,undefined"
+
+[test.macho]
+src = ["tests/test_macho.c", "core/darwin/yozora_macho.c"]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore/darwin"]
+sanitize = "address,undefined"
+
+[test.memory-bounds]
+src = ["tests/test_memory_bounds.c", "core/darwin/yozora_memory.c"]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore/darwin"]
+sanitize = "address,undefined"
+
+[test.wasm-engine]
+src = ["tests/test_wasm_engine.c", "core/wasm/yozora_wasm_module.c", "core/wasm/yozora_wasm_run.c"]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore/wasm"]
+libs = ["m"]
+sanitize = "address,undefined"
+
+[test.fft-frame]
+src = ["tests/test_fft_frame.cpp"]
+cflags = ["-std=c++23", "-O2", "-Wall", "-Wextra", "-Itests/fft_stubs"]
+# the host cc driver links the c++ library only when asked
+libs = ["stdc++", "m"]
+
+# the python tests that need nothing from webkit
+[test.cli]
+run = ["bash", "scripts/host_tool_test.sh", "store", "tests/test_cli.py"]
+env = { HOST_CC = "${MEOW_HOST_CC}" }
+inputs = ["core/*.c", "core/*.h", "tools/yozora_store_cli.c", "tests/test_cli.py"]
+
+[test.jit-probe]
+run = ["bash", "scripts/host_tool_test.sh", "jit-probe", "tests/test_jit_probe.py"]
+env = { HOST_CC = "${MEOW_HOST_CC}" }
+inputs = ["tools/yozora_jit_probe.c", "tests/test_jit_probe.py"]
+
+[test.render-trace]
+run = ["python3", "-B", "tests/test_render_trace.py"]
+inputs = ["scripts/analyze_render_trace.py", "tests/test_render_trace.py"]
+
+[test.core-source]
+run = ["python3", "-B", "tests/test_core_source.py"]
+inputs = ["core/source.json", "scripts/fetch_core.py", "tests/test_core_source.py"]
+
+[test.core-patches]
+run = ["python3", "-B", "tests/test_core_patches.py"]
+inputs = ["core/patches/*", "scripts/apply_core_patches.py", "tests/test_core_patches.py"]
+
+[test.source-inputs]
+run = ["python3", "-B", "tests/test_source_inputs.py"]
+inputs = ["core/*.json", "scripts/*.py", "tests/test_source_inputs.py"]
+
+[test.bundle-inputs]
+run = ["python3", "-B", "tests/test_bundle_inputs.py"]
+inputs = ["meow.toml", "app/icons/*", "app/icons/ui/*", "app/launch/*", "tests/test_bundle_inputs.py"]
+
+[test.text-woff2-check]
+run = ["python3", "-B", "tests/test_text_woff2_check.py"]
+inputs = ["scripts/check_text_woff2.sh", "tests/test_text_woff2_check.py"]
+
+# the stream proxy runs against local http and https servers and needs libcurl and sockets
+[test.proxy]
+run = ["bash", "scripts/host_tool_test.sh", "proxy", "tests/test_stream_proxy.py"]
+env = { HOST_CC = "${MEOW_HOST_CC}" }
+inputs = ["core/yozora_stream_proxy.*", "core/yozora_playlist.*", "tools/yozora_proxy_cli.c", "tests/test_stream_proxy.py", "tests/test_proxy_local.c"]
+
+# the numeric instructions of the wasm interpreter against V8, needs node
+[test.wasm]
+run = ["python3", "-B", "tests/test_wasm.py"]
+inputs = ["core/wasm/*", "tests/test_wasm.py"]
+
+# dependency builds and the cmake tree, run as scripts: meow orders them and skips what is built
+
+# the WebKit sources of core/source.json, the host gperf and the cross dependencies; each script wipes and refills its
+# own directory, so the steps run only while their outputs are missing (`meow clean NAME` then `meow build NAME` forces one)
+[step.core-fetch]
+run = [["python3", "-B", "scripts/fetch_core.py"]]
+inputs = ["core/source.json", "scripts/fetch_core.py"]
+stamp = "build/.stamps/core-fetch"
+
+[step.core-tools]
+run = [["python3", "-B", "scripts/build_core_tools.py"]]
+needs = ["core-fetch"]
+inputs = ["scripts/build_core_tools.py", "core/build-tools.json"]
+outputs = ["build/core/deps/host/tools/bin/gperf"]
+bootstrap = true
+
+[step.core-deps]
+run = [["bash", "scripts/build_core_deps.sh"]]
+needs = ["core-fetch"]
+env = { YOZORA_TC = "${TC}", YOZORA_SDK_V7 = "${SDK_V7}", YOZORA_SDK_V64 = "${SDK_V64}", YOZORA_CRT_V7 = "${CRT_V7}" }
+outputs = ["build/core/deps/armv7/runtime/lib/libc++.a", "build/core/deps/arm64/runtime/lib/libc++.a",
+           "build/core/deps/armv7/icu/lib/libicuuc.a", "build/core/deps/arm64/icu/lib/libicuuc.a"]
+bootstrap = true
+
+[step.text-deps]
+run = [["bash", "scripts/build_text_deps.sh", "ios"]]
+needs = ["core-deps"]
+env = { YOZORA_TC = "${TC}", YOZORA_SDK_V7 = "${SDK_V7}", YOZORA_SDK_V64 = "${SDK_V64}", YOZORA_CRT_V7 = "${CRT_V7}" }
+outputs = ["build/core/deps/armv7/text/lib/libharfbuzz.a", "build/core/deps/arm64/text/lib/libharfbuzz.a"]
+bootstrap = true
+
+[step.web-deps]
+run = [["python3", "-B", "scripts/build_web_deps.py", "ios"]]
+needs = ["core-deps"]
+env = { YOZORA_TC = "${TC}", YOZORA_SDK_V7 = "${SDK_V7}", YOZORA_SDK_V64 = "${SDK_V64}", YOZORA_CRT_V7 = "${CRT_V7}" }
+outputs = ["build/core/deps/armv7/web/yozora-inputs.json", "build/core/deps/arm64/web/yozora-inputs.json"]
+bootstrap = true
+
+# WebKit through cmake and ninja, one step per slice. YOZORA_BUILD_APP=0 leaves the Yozora executable to meow, then
+# the link line cmake computed for it is written as the response file the app target links with. ninja has its own
+# graph, so a stale step only asks it what changed
+
+[step.webcore-armv7]
+run = [["bash", "scripts/build_webcore_ios.sh", "webcore"],
+       ["python3", "-B", "scripts/export_link_line.py", "${WEB}/armv7", "build/armv7/link.rsp"]]
+needs = ["core-tools", "core-deps", "text-deps", "web-deps"]
+env = { YOZORA_TC = "${TC}", YOZORA_SDK_V7 = "${SDK_V7}", YOZORA_SDK_V64 = "${SDK_V64}", YOZORA_SLICES = "armv7", YOZORA_BUILD_APP = "0" }
+inputs = ["core/**/*.c", "core/**/*.cpp", "core/**/*.h", "core/**/*.hpp", "core/*.cmake", "core/patches/*.patch",
+          "core/*.json", "scripts/build_webcore_ios.sh", "scripts/apply_core_patches.py", "scripts/export_link_line.py"]
+outputs = ["build/armv7/link.rsp"]
+keep = true
+
+[step.webcore-arm64]
+run = [["bash", "scripts/build_webcore_ios.sh", "webcore"],
+       ["python3", "-B", "scripts/export_link_line.py", "${WEB}/arm64", "build/arm64/link.rsp"]]
+needs = ["core-tools", "core-deps", "text-deps", "web-deps"]
+env = { YOZORA_TC = "${TC}", YOZORA_SDK_V7 = "${SDK_V7}", YOZORA_SDK_V64 = "${SDK_V64}", YOZORA_SLICES = "arm64", YOZORA_BUILD_APP = "0" }
+inputs = ["core/**/*.c", "core/**/*.cpp", "core/**/*.h", "core/**/*.hpp", "core/*.cmake", "core/patches/*.patch",
+          "core/*.json", "scripts/build_webcore_ios.sh", "scripts/apply_core_patches.py", "scripts/export_link_line.py"]
+outputs = ["build/arm64/link.rsp"]
+keep = true
+
+# host builds and the other ios probes, by name: `meow build webcore-host`
+[step.core-host]
+run = [["bash", "scripts/build_core_host.sh"]]
+needs = ["core-fetch"]
+inputs = ["core/**/*", "scripts/build_core_host.sh"]
+stamp = "build/.stamps/core-host"
+
+[step.core-fat]
+run = [["bash", "scripts/build_core_ios.sh"]]
+needs = ["core-deps"]
+env = { YOZORA_TC = "${TC}", YOZORA_SDK_V7 = "${SDK_V7}", YOZORA_SDK_V64 = "${SDK_V64}", YOZORA_CRT_V7 = "${CRT_V7}" }
+inputs = ["core/**/*", "scripts/build_core_ios.sh"]
+stamp = "build/.stamps/core-fat"
+
+[step.runtime-host]
+run = [["bash", "scripts/build_runtime_host.sh"]]
+inputs = ["scripts/build_runtime_host.sh"]
+stamp = "build/.stamps/runtime-host"
+
+[step.runtime-fat]
+run = [["bash", "scripts/build_runtime_ios.sh"]]
+needs = ["core-deps"]
+env = { YOZORA_TC = "${TC}", YOZORA_SDK_V7 = "${SDK_V7}", YOZORA_SDK_V64 = "${SDK_V64}", YOZORA_CRT_V7 = "${CRT_V7}" }
+inputs = ["scripts/build_runtime_ios.sh"]
+stamp = "build/.stamps/runtime-fat"
+
+[step.text-host]
+run = [["bash", "scripts/build_text_deps.sh", "host"]]
+inputs = ["scripts/build_text_deps.sh", "core/text-deps.json"]
+stamp = "build/.stamps/text-host"
+
+[step.web-deps-host]
+run = [["python3", "-B", "scripts/build_web_deps.py", "host"]]
+inputs = ["scripts/build_web_deps.py", "core/web-deps.json"]
+stamp = "build/.stamps/web-deps-host"
+
+[step.graphics-fat]
+run = [["bash", "scripts/build_webcore_ios.sh", "graphics"]]
+needs = ["core-tools", "core-deps", "text-deps", "web-deps"]
+env = { YOZORA_TC = "${TC}", YOZORA_SDK_V7 = "${SDK_V7}", YOZORA_SDK_V64 = "${SDK_V64}", YOZORA_CRT_V7 = "${CRT_V7}" }
+inputs = ["core/**/*", "scripts/build_webcore_ios.sh"]
+stamp = "build/.stamps/graphics-fat"
+
+# both slices with the universal archives and the probes, the Yozora executable included: the cmake build of the app
+[step.webcore-fat]
+run = [["bash", "scripts/build_webcore_ios.sh", "webcore"]]
+needs = ["core-tools", "core-deps", "text-deps", "web-deps"]
+env = { YOZORA_TC = "${TC}", YOZORA_SDK_V7 = "${SDK_V7}", YOZORA_SDK_V64 = "${SDK_V64}", YOZORA_CRT_V7 = "${CRT_V7}" }
+inputs = ["core/**/*", "scripts/build_webcore_ios.sh", "app/*.m", "app/*.h"]
+stamp = "build/.stamps/webcore-fat"
+
+[step.graphics-host]
+run = [["bash", "scripts/build_webcore_host.sh", "graphics"]]
+needs = ["core-fetch"]
+inputs = ["core/**/*", "scripts/build_webcore_host.sh"]
+stamp = "build/.stamps/graphics-host"
+
+[step.raster-host]
+run = [["bash", "scripts/build_webcore_host.sh", "raster"]]
+needs = ["core-fetch"]
+inputs = ["core/**/*", "scripts/build_webcore_host.sh"]
+stamp = "build/.stamps/raster-host"
+
+[step.fonts-host]
+run = [["bash", "scripts/build_webcore_host.sh", "fonts"]]
+needs = ["core-fetch"]
+inputs = ["core/**/*", "scripts/build_webcore_host.sh"]
+stamp = "build/.stamps/fonts-host"
+
+[step.platform-host]
+run = [["bash", "scripts/build_webcore_host.sh", "platform"]]
+needs = ["core-fetch"]
+inputs = ["core/**/*", "scripts/build_webcore_host.sh"]
+stamp = "build/.stamps/platform-host"
+
+[step.page-host]
+run = [["bash", "scripts/build_webcore_host.sh", "page"]]
+needs = ["core-fetch"]
+inputs = ["core/**/*", "scripts/build_webcore_host.sh"]
+stamp = "build/.stamps/page-host"
+
+[step.core-web-host]
+run = [["bash", "scripts/build_webcore_host.sh", "core"]]
+needs = ["core-fetch"]
+inputs = ["core/**/*", "scripts/build_webcore_host.sh"]
+stamp = "build/.stamps/core-web-host"
+
+[step.page-adapter-sanitize]
+run = [["bash", "scripts/build_webcore_host.sh", "page-adapter-sanitize"]]
+needs = ["core-fetch"]
+inputs = ["core/**/*", "scripts/build_webcore_host.sh"]
+stamp = "build/.stamps/page-adapter-sanitize"
+
+[step.memory-host]
+run = [["bash", "scripts/build_webcore_host.sh", "memory"]]
+needs = ["core-fetch"]
+inputs = ["core/**/*", "scripts/build_webcore_host.sh"]
+stamp = "build/.stamps/memory-host"
+
+[step.webcore-host]
+run = [["bash", "scripts/build_webcore_host.sh"]]
+needs = ["core-fetch"]
+inputs = ["core/**/*", "scripts/build_webcore_host.sh"]
+stamp = "build/.stamps/webcore-host"
+
+[step.memory-fat]
+run = [["bash", "scripts/build_memory_ios.sh"]]
+needs = ["core-fat"]
+env = { YOZORA_TC = "${TC}", YOZORA_SDK_V7 = "${SDK_V7}", YOZORA_SDK_V64 = "${SDK_V64}", YOZORA_CRT_V7 = "${CRT_V7}" }
+inputs = ["core/**/*", "scripts/build_memory_ios.sh"]
+stamp = "build/.stamps/memory-fat"
+
+[step.jit-probe]
+run = [["bash", "scripts/build_jit_probe.sh"]]
+env = { YOZORA_TC = "${TC}", YOZORA_SDK_V7 = "${SDK_V7}", YOZORA_SDK_V64 = "${SDK_V64}", YOZORA_CRT_V7 = "${CRT_V7}" }
+inputs = ["tools/yozora_jit_probe.c", "tools/yozora-jit.entitlements", "scripts/build_jit_probe.sh"]
+stamp = "build/.stamps/jit-probe"
+
+[step.webcore-patches-test]
+run = [["python3", "-B", "tests/test_webcore_patches.py"]]
+inputs = ["core/patches/*", "tests/test_webcore_patches.py"]
+stamp = "build/.stamps/webcore-patches-test"

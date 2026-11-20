@@ -1,0 +1,1916 @@
+#import "YZSettingsController.h"
+#import "YZCrash.h"
+#import <objc/message.h>
+#import "YZCompat.h"
+#import "YZAccentEditor.h"
+#import "YZControls.h"
+#import "YZDialog.h"
+#import "YZLog.h"
+#import "YZAdblockController.h"
+#import "YZLogController.h"
+#import "YZSitesController.h"
+#import "YZShape.h"
+#import "YZMotion.h"
+#import "YZSettings.h"
+#import "YZStrings.h"
+#import "YZTheme.h"
+#include "yozora_core.h"
+#import <QuartzCore/QuartzCore.h>
+
+
+typedef enum {
+    YZRowLanguage,
+    YZRowTheme,
+    YZRowAccent,
+    YZRowPrivateAccent,
+    YZRowSearchEngine,
+    YZRowTextSize,
+    YZRowBlockTrackers,
+    YZRowAdblockRules,
+    YZRowSitePermissions,
+    YZRowBlockThirdPartyCookies,
+    YZRowSaveHistory,
+    YZRowClearHistory,
+    YZRowClearSiteData,
+    YZRowJavascript,
+    YZRowEconomy,
+    YZRowReduceMotion,
+    YZRowWebFonts,
+    YZRowDebug,
+    YZRowLogging,
+    YZRowLogOpen,
+    YZRowZombies,
+    YZRowJit,
+    YZRowJitState,
+    YZRowAbout
+} YZRow;
+
+// the navigation bar and the table take the colors of the chosen theme
+static void YZStyleTable(UITableViewController *controller) {
+    // every layer behind the rows takes the theme ground: a table, its controller and the navigation
+    // controller each have a view that shows through when the table is short. a ground view is the table
+    // background because the table's own background color left a dark ground between light rows on ios 6
+    UIView *ground = controller.tableView.backgroundView;
+    if (!ground || ground.tag != 9001) {
+        ground = [[[UIView alloc] initWithFrame:controller.tableView.bounds] autorelease];
+        ground.tag = 9001;
+        ground.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        controller.tableView.backgroundView = ground;
+    }
+    ground.backgroundColor = [YZTheme surfaceColor];
+    controller.tableView.opaque = YES;
+    controller.tableView.backgroundColor = [YZTheme surfaceColor];
+    controller.view.backgroundColor = [YZTheme surfaceColor];
+    YZPaintBehindScreens(controller.navigationController);
+    controller.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
+    // the bar is clear on every settings screen and each has its own fill behind it, a shared bar fill showed
+    // the other screen's color during push and pop
+    [YZTheme styleTransparentNavigationBar:controller.navigationController.navigationBar];
+}
+
+// a rounded rectangle with a radius of its own at each corner, the rows of a group share one outline
+static UIBezierPath *YZCornerPath(CGRect r, CGFloat tl, CGFloat tr, CGFloat br, CGFloat bl) {
+    UIBezierPath *path = [UIBezierPath bezierPath];
+    CGFloat left = CGRectGetMinX(r), top = CGRectGetMinY(r), right = CGRectGetMaxX(r), bottom = CGRectGetMaxY(r);
+    [path moveToPoint:CGPointMake(left + tl, top)];
+    [path addLineToPoint:CGPointMake(right - tr, top)];
+    [path addArcWithCenter:CGPointMake(right - tr, top + tr) radius:tr startAngle:-(CGFloat)M_PI_2 endAngle:0 clockwise:YES];
+    [path addLineToPoint:CGPointMake(right, bottom - br)];
+    [path addArcWithCenter:CGPointMake(right - br, bottom - br) radius:br startAngle:0 endAngle:(CGFloat)M_PI_2 clockwise:YES];
+    [path addLineToPoint:CGPointMake(left + bl, bottom)];
+    [path addArcWithCenter:CGPointMake(left + bl, bottom - bl) radius:bl startAngle:(CGFloat)M_PI_2 endAngle:(CGFloat)M_PI clockwise:YES];
+    [path addLineToPoint:CGPointMake(left, top + tl)];
+    [path addArcWithCenter:CGPointMake(left + tl, top + tl) radius:tl startAngle:(CGFloat)M_PI endAngle:(CGFloat)(M_PI + M_PI_2) clockwise:YES];
+    [path closePath];
+    return path;
+}
+
+typedef enum {
+    YZPositionSingle,
+    YZPositionFirst,
+    YZPositionMiddle,
+    YZPositionLast
+} YZPosition;
+
+static const CGFloat YZGroupRadius = 22;
+static const CGFloat YZInnerRadius = 6;
+
+// a row card is a stretchable picture and not a view cut by a mask: a mask makes the render server draw every
+// row twice, and a list of twenty rows dropped frames on an old phone. one picture per place in a group and
+// color, kept for the next row
+static UIImage *YZCardImage(YZPosition position, UIColor *color) {
+    static NSMutableDictionary *cache;
+    if (!cache)
+        cache = [[NSMutableDictionary alloc] init];
+    CGFloat c[4] = { 0, 0, 0, 1 };
+    [color getRed:&c[0] green:&c[1] blue:&c[2] alpha:&c[3]];
+    NSString *key = [NSString stringWithFormat:@"%d:%.3f:%.3f:%.3f:%.3f", (int)position, c[0], c[1], c[2], c[3]];
+    UIImage *image = [cache objectForKey:key];
+    if (image)
+        return image;
+    // a bound on the pictures held, a new accent makes a new set
+    if ([cache count] > 80)
+        [cache removeAllObjects];
+    CGFloat big = YZGroupRadius, small = YZInnerRadius;
+    CGFloat top = (position == YZPositionSingle || position == YZPositionFirst) ? big : small;
+    CGFloat bottom = (position == YZPositionSingle || position == YZPositionLast) ? big : small;
+    CGFloat side = 2 * big + 2;
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(side, side), NO, 0);
+    [color setFill];
+    [YZCornerPath(CGRectMake(0, 0, side, side), top, top, bottom, bottom) fill];
+    image = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    [cache setObject:image forKey:key];
+    return image;
+}
+
+// the height of a text at a width is asked twice per row (table and row) and again on every scroll of a new
+// row, so it is kept
+static NSMutableDictionary *YZHeightCache(void) {
+    static NSMutableDictionary *cache;
+    if (!cache)
+        cache = [[NSMutableDictionary alloc] init];
+    return cache;
+}
+
+// the height of a text at a width, wrapped on words: the titles of the rows are as long as they are and are never cut
+static CGFloat YZMeasureHeight(NSString *text, UIFont *font, CGFloat width) {
+    if (![text length])
+        return 0;
+    NSMutableDictionary *cache = YZHeightCache();
+    NSString *key = [NSString stringWithFormat:@"%.1f|%.0f|%@", font.pointSize, width, text];
+    NSNumber *known = [cache objectForKey:key];
+    if (known)
+        return (CGFloat)[known doubleValue];
+    if ([cache count] > 600)
+        [cache removeAllObjects];
+    static UILabel *probe;
+    if (!probe) {
+        probe = [[UILabel alloc] initWithFrame:CGRectZero];
+        probe.numberOfLines = 0;
+        probe.lineBreakMode = YZLineBreakWordWrapping;
+    }
+    probe.font = font;
+    probe.text = text;
+    CGFloat height = ceil([probe sizeThatFits:CGSizeMake(MAX(width, (CGFloat)10), 2000)].height);
+    [cache setObject:[NSNumber numberWithDouble:height] forKey:key];
+    return height;
+}
+
+// the width left for a row's texts: the card is 16 points in on each side, the glyph disc, switch and chevron
+// take their room
+static CGFloat YZRowTextWidth(CGFloat tableWidth, BOOL disc, BOOL toggle, BOOL accessory) {
+    CGFloat left = disc ? 16 + 40 + 14 : 16;
+    CGFloat right = toggle ? 16 + 52 + 12 : (accessory ? 12 + 24 + 4 : 16);
+    return MAX((CGFloat)0, tableWidth - 32 - left - right);
+}
+
+static CGFloat YZRowHeight(NSString *title, NSString *detail, CGFloat tableWidth, BOOL disc, BOOL toggle, BOOL accessory) {
+    CGFloat width = YZRowTextWidth(tableWidth, disc, toggle, accessory);
+    CGFloat titleHeight = YZMeasureHeight(title, [YZTheme systemFontOfSize:16], width);
+    CGFloat detailHeight = YZMeasureHeight(detail, [YZTheme systemFontOfSize:13], width);
+    CGFloat height = 16 + titleHeight + (detailHeight > 0 ? 3 + detailHeight : 0) + 16;
+    return MAX(detailHeight > 0 ? (CGFloat)68 : (CGFloat)58, height);
+}
+
+// a settings row: a card with corners by its place in the group, a glyph in a tonal disc, a title, a line
+// under it and a chevron or a switch. texts wrap and the row is as tall as they are
+@interface YZSettingsCell : UITableViewCell {
+@public
+    UIView *card;
+    UIView *disc;
+    UIImageView *icon;
+    UILabel *title;
+    UILabel *detail;
+    UIImageView *accessory;
+    YZToggle *toggle;
+    // the color ball of a row that shows a color and morphs, hidden in every other row
+    YZMorphView *ball;
+    // the color of the card at rest: the card color, or the tint of a chosen option
+    UIColor *restColor;
+    YZPosition position;
+    BOOL withDisc;
+    // the mark fills the disc's place without a disc: a flag or a preview in a Material shape
+    BOOL bareMark;
+}
+@end
+
+@implementation YZSettingsCell
+- (id)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)identifier {
+    self = [super initWithStyle:UITableViewCellStyleDefault reuseIdentifier:identifier];
+    (void)style;
+    if (!self)
+        return nil;
+    self.backgroundColor = [UIColor clearColor];
+    self.contentView.backgroundColor = [UIColor clearColor];
+    self.selectionStyle = UITableViewCellSelectionStyleNone;
+    card = [[UIView alloc] initWithFrame:CGRectZero];
+    // the picture has transparent corners: a view that is opaque would show them black
+    card.opaque = NO;
+    card.backgroundColor = [UIColor clearColor];
+    card.userInteractionEnabled = YES;
+    [self.contentView addSubview:card];
+    disc = [[UIView alloc] initWithFrame:CGRectZero];
+    disc.layer.cornerRadius = 20;
+    [card addSubview:disc];
+    icon = [[UIImageView alloc] initWithFrame:CGRectZero];
+    icon.contentMode = UIViewContentModeScaleAspectFit;
+    [disc addSubview:icon];
+    title = [[UILabel alloc] initWithFrame:CGRectZero];
+    title.font = [YZTheme systemFontOfSize:16];
+    title.backgroundColor = [UIColor clearColor];
+    title.numberOfLines = 0;
+    title.lineBreakMode = YZLineBreakWordWrapping;
+    [card addSubview:title];
+    detail = [[UILabel alloc] initWithFrame:CGRectZero];
+    detail.font = [YZTheme systemFontOfSize:13];
+    detail.backgroundColor = [UIColor clearColor];
+    detail.numberOfLines = 0;
+    detail.lineBreakMode = YZLineBreakWordWrapping;
+    [card addSubview:detail];
+    accessory = [[UIImageView alloc] initWithFrame:CGRectZero];
+    accessory.contentMode = UIViewContentModeCenter;
+    [card addSubview:accessory];
+    return self;
+}
+
+// the switch and the morphing ball belong to a few rows and are built when the first of those asks: a cell
+// that never shows them carries neither, and every ball in a visible cell runs two animations on the render
+// server while the table scrolls
+- (YZToggle *)switchControl {
+    if (!toggle) {
+        toggle = [[YZToggle alloc] initWithFrame:CGRectZero];
+        [card addSubview:toggle];
+    }
+    return toggle;
+}
+
+- (YZMorphView *)morphBall {
+    if (!ball) {
+        ball = [[YZMorphView alloc] initWithFrame:CGRectZero];
+        [disc addSubview:ball];
+    }
+    return ball;
+}
+
+- (BOOL)showsSwitch {
+    return toggle && !toggle.hidden;
+}
+
+// the card is the picture of its place in the group in the given color
+- (void)showCardColor:(UIColor *)color {
+    [YZTheme stretchImage:YZCardImage(position, color) caps:YZGroupRadius onView:card];
+}
+
+- (void)setHighlighted:(BOOL)highlighted animated:(BOOL)animated {
+    [super setHighlighted:highlighted animated:animated];
+    // a row with a switch changes by its switch, so only the other rows light up and bounce their glyph
+    BOOL pressed = highlighted && ![self showsSwitch];
+    [self showCardColor:pressed ? [YZTheme fieldColor] : (restColor ? restColor : [YZTheme cardColor])];
+    if (pressed)
+        [YZTheme animateFeedbackOfView:disc];
+}
+
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    CGFloat width = self.contentView.bounds.size.width, height = self.contentView.bounds.size.height;
+    card.frame = CGRectMake(16, 1, width - 32, height - 2);
+    CGFloat cw = card.bounds.size.width, ch = card.bounds.size.height;
+    disc.hidden = !withDisc;
+    if (withDisc) {
+        disc.bounds = CGRectMake(0, 0, 40, 40);
+        disc.center = CGPointMake(16 + 20, ch / 2);
+        icon.frame = bareMark ? disc.bounds : CGRectInset(disc.bounds, 8, 8);
+        ball.frame = CGRectInset(disc.bounds, 6, 6);
+    }
+    if ([self showsSwitch])
+        toggle.frame = CGRectMake(cw - 16 - 52, (ch - 32) / 2, 52, 32);
+    if (accessory.image)
+        accessory.frame = CGRectMake(cw - 12 - 24, (ch - 24) / 2, 24, 24);
+    CGFloat textWidth = YZRowTextWidth(width, withDisc, [self showsSwitch], accessory.image != nil);
+    CGFloat left = withDisc ? 16 + 40 + 14 : 16;
+    CGFloat titleHeight = YZMeasureHeight(title.text, title.font, textWidth);
+    CGFloat detailHeight = YZMeasureHeight(detail.text, detail.font, textWidth);
+    CGFloat block = titleHeight + (detailHeight > 0 ? 3 + detailHeight : 0);
+    CGFloat y = floor((ch - block) / 2);
+    title.frame = CGRectMake(left, y, textWidth, titleHeight);
+    detail.frame = detailHeight > 0 ? CGRectMake(left, y + titleHeight + 3, textWidth, detailHeight) : CGRectZero;
+}
+
+- (void)dealloc {
+    [card release];
+    [disc release];
+    [icon release];
+    [ball release];
+    [title release];
+    [detail release];
+    [accessory release];
+    [toggle release];
+    [restColor release];
+    [super dealloc];
+}
+@end
+
+// fills a cell: texts, theme colors, glyph or mark, place in the group. plate is the color of a chosen
+// option, nil for a row at rest. a bare mark has no disc
+static void YZConfigureCell(YZSettingsCell *cell, NSString *title, NSString *detail, YZIcon glyph, UIImage *picture, BOOL hasGlyph, BOOL bare,
+                            BOOL destructive, YZPosition position, UIColor *plate, BOOL chevron) {
+    cell->position = position;
+    cell->withDisc = hasGlyph || picture;
+    cell->bareMark = bare && picture;
+    [cell->restColor release];
+    cell->restColor = [(plate ? plate : [YZTheme cardColor]) retain];
+    [cell showCardColor:cell->restColor];
+    cell->disc.layer.cornerRadius = cell->bareMark ? 0 : 20;
+    cell->disc.backgroundColor = cell->bareMark ? [UIColor clearColor]
+        : (picture ? [UIColor whiteColor] : (destructive ? [[YZTheme errorColor] colorWithAlphaComponent:0.16f] : [YZTheme stateColor]));
+    cell->disc.layer.borderWidth = (picture && !cell->bareMark) ? 1 : 0;
+    cell->disc.layer.borderColor = [[YZTheme separatorColor] CGColor];
+    cell->icon.image = picture ? picture : (hasGlyph ? [YZTheme icon:glyph size:24 color:destructive ? [YZTheme errorColor] : [YZTheme accentColor]] : nil);
+    cell->ball.hidden = YES;
+    cell->icon.hidden = NO;
+    // a row that is reused takes the size of the text of the moment
+    cell->title.font = [YZTheme systemFontOfSize:16];
+    cell->detail.font = [YZTheme systemFontOfSize:13];
+    cell->title.text = title;
+    cell->title.textColor = destructive ? [YZTheme errorColor] : [YZTheme textColor];
+    cell->detail.text = detail;
+    cell->detail.textColor = [YZTheme subtleTextColor];
+    cell->accessory.image = chevron ? [YZTheme icon:YZIconChevron size:24 color:[YZTheme subtleTextColor]] : nil;
+    [cell setNeedsLayout];
+}
+
+// the head of a section is its first row: the name in the accent, a chevron that turns down while open, a
+// material 3 pill under it while pressed. a row and not a table header because headers of a plain table stay
+// at the top while their rows go by
+@interface YZSectionCell : UITableViewCell {
+@public
+    UILabel *name;
+    UIImageView *mark;
+    UIImageView *chevron;
+    UIView *pill;
+    BOOL expanded;
+}
+@end
+
+@implementation YZSectionCell
+- (id)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)identifier {
+    self = [super initWithStyle:UITableViewCellStyleDefault reuseIdentifier:identifier];
+    (void)style;
+    if (!self)
+        return nil;
+    self.backgroundColor = [UIColor clearColor];
+    self.contentView.backgroundColor = [UIColor clearColor];
+    self.selectionStyle = UITableViewCellSelectionStyleNone;
+    pill = [[UIView alloc] initWithFrame:CGRectZero];
+    pill.alpha = 0;
+    pill.userInteractionEnabled = NO;
+    [self.contentView addSubview:pill];
+    mark = [[UIImageView alloc] initWithFrame:CGRectZero];
+    [self.contentView addSubview:mark];
+    name = [[UILabel alloc] initWithFrame:CGRectZero];
+    name.backgroundColor = [UIColor clearColor];
+    [self.contentView addSubview:name];
+    chevron = [[UIImageView alloc] initWithFrame:CGRectZero];
+    chevron.contentMode = UIViewContentModeCenter;
+    [self.contentView addSubview:chevron];
+    return self;
+}
+
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    CGFloat width = self.contentView.bounds.size.width, height = self.contentView.bounds.size.height;
+    CGFloat labelLeft = mark.image ? 32 + 24 : 32;
+    mark.frame = CGRectMake(32, height - 28, 20, 20);
+    name.frame = CGRectMake(labelLeft, height - 28, MAX((CGFloat)0, width - labelLeft - 72), 20);
+    chevron.bounds = CGRectMake(0, 0, 20, 20);
+    chevron.center = CGPointMake(width - 42, height - 18);
+    pill.bounds = CGRectMake(0, 0, 44, 32);
+    pill.center = chevron.center;
+    pill.layer.cornerRadius = 16;
+}
+
+- (void)setHighlighted:(BOOL)highlighted animated:(BOOL)animated {
+    [super setHighlighted:highlighted animated:animated];
+    pill.backgroundColor = [YZTheme stateColor];
+    if (highlighted) {
+        if (pill.alpha == 0)
+            pill.transform = CGAffineTransformMakeScale(0.7f, 0.7f);
+        YZMotionAnimateView(pill, CGAffineTransformIdentity, 1, YOZORA_MOTION_WOBBLE, 0, nil);
+    } else {
+        YZMotionAnimateView(pill, CGAffineTransformMakeScale(0.92f, 0.92f), 0, YOZORA_MOTION_DISMISS, 0, nil);
+    }
+}
+
+- (void)dealloc {
+    [name release];
+    [mark release];
+    [chevron release];
+    [pill release];
+    [super dealloc];
+}
+@end
+
+static YZPosition YZPositionOf(NSInteger row, NSInteger count) {
+    if (count == 1)
+        return YZPositionSingle;
+    if (row == 0)
+        return YZPositionFirst;
+    return row == count - 1 ? YZPositionLast : YZPositionMiddle;
+}
+
+// a color between two others, t from 0 (the first) to 1 (the second)
+static UIColor *YZMixColors(UIColor *first, UIColor *second, CGFloat t) {
+    CGFloat a[4] = { 0, 0, 0, 1 }, b[4] = { 0, 0, 0, 1 };
+    [first getRed:&a[0] green:&a[1] blue:&a[2] alpha:&a[3]];
+    [second getRed:&b[0] green:&b[1] blue:&b[2] alpha:&b[3]];
+    return [UIColor colorWithRed:a[0] + (b[0] - a[0]) * t green:a[1] + (b[1] - a[1]) * t blue:a[2] + (b[2] - a[2]) * t alpha:1];
+}
+
+// the accent screen: the editor and a button back to the palette purple. a color is taken when a track is let
+// go, a chip picked or the digits finished, and the app follows through the changed block
+@interface YZAccentController : UIViewController {
+    UIScrollView *_scroll;
+    YZAccentEditor *_editor;
+    UIButton *_reset;
+    // the name of the screen, set in the bar next to the back arrow
+    NSString *_heading;
+    // the private accent screen shows the private palette whatever the session is, the disc morphs and a glow
+    // of the accent lies behind the title
+    BOOL _private;
+    CAGradientLayer *_glow;
+    void (^_changed)(void);
+}
+- (id)initWithChanged:(void (^)(void))changed;
+- (id)initPrivateWithChanged:(void (^)(void))changed;
+@end
+
+@implementation YZAccentController
+- (id)initWithChanged:(void (^)(void))changed {
+    self = [super initWithNibName:nil bundle:nil];
+    if (!self)
+        return nil;
+    _heading = [YZT(@"Цвет акцента") copy];
+    _changed = [changed copy];
+    return self;
+}
+
+- (id)initPrivateWithChanged:(void (^)(void))changed {
+    self = [self initWithChanged:changed];
+    if (!self)
+        return nil;
+    _private = YES;
+    [_heading release];
+    _heading = [YZT(@"Акцент приватной вкладки") copy];
+    return self;
+}
+
+// the editor shows the accent in use, the purple of the palette when none is chosen
+- (void)loadAccent {
+    // the private palette starts from its own purple, 269 degrees, and the normal one from the 286 of the app
+    yozora_accent accent = { _private ? YOZORA_PRIVATE_PALETTE_HUE : YOZORA_ACCENT_PALETTE_HUE, YOZORA_ACCENT_PALETTE_SATURATION, 1 };
+    if (_private)
+        [YZSettings customPrivateAccent:&accent];
+    else
+        [YZSettings customAccent:&accent];
+    _editor.hue = accent.hue;
+    _editor.saturation = accent.saturation;
+    _editor.brightness = accent.brightness;
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    _scroll = [[UIScrollView alloc] initWithFrame:self.view.bounds];
+    _scroll.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [self.view addSubview:_scroll];
+    // ios 5 and 6: the view reaches under the bar (later systems do it for a clear bar by themselves)
+    if ([self respondsToSelector:NSSelectorFromString(@"setWantsFullScreenLayout:")])
+        [self setValue:[NSNumber numberWithBool:YES] forKey:@"wantsFullScreenLayout"];
+    _editor = [[YZAccentEditor alloc] initWithFrame:CGRectZero];
+    // both accent screens look the same: gradient ground, clear bar, gradient card, the morphing ball. the
+    // private one adds its palette and its own stored color
+    _editor.morphing = YES;
+    [self loadAccent];
+    [_editor addTarget:self action:@selector(commit) forControlEvents:UIControlEventTouchUpInside];
+    [_scroll addSubview:_editor];
+    _reset = [[UIButton buttonWithType:UIButtonTypeCustom] retain];
+    [_reset setTitle:YZT(@"Фиолетовый по умолчанию") forState:UIControlStateNormal];
+    _reset.titleLabel.font = [YZTheme boldSystemFontOfSize:16];
+    _reset.layer.cornerRadius = 24;
+    [_reset addTarget:self action:@selector(resetAccent) forControlEvents:UIControlEventTouchUpInside];
+    [_scroll addSubview:_reset];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardShown:) name:UIKeyboardWillShowNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardHidden:) name:UIKeyboardWillHideNotification object:nil];
+    [self restyle];
+}
+
+// the colors of the screen come from the accent that was just taken
+- (void)restyle {
+    self.view.backgroundColor = [YZTheme surfaceColor];
+    {
+        // the whole ground is one gradient: the accent mixed into the private ground at the top, the private
+        // ground in the middle, darker below. it runs under the clear status strip and bar so no part is a
+        // flat color
+        if (!_glow) {
+            _glow = [[CAGradientLayer alloc] init];
+            [self.view.layer insertSublayer:_glow atIndex:0];
+        }
+        UIColor *base = [YZTheme surfaceColor], *accent = [YZTheme accentColor];
+        // the accent runs through the whole screen, deepest at the top left and fading to the dark of the private ground at the bottom right
+        _glow.startPoint = CGPointMake(0, 0);
+        _glow.endPoint = CGPointMake(0.85f, 1);
+        // a dark ground deepens toward black at the bottom, a light one toward a pale touch of the accent
+        UIColor *bottom = [YZTheme isDark] ? YZMixColors(base, [UIColor blackColor], 0.55f) : YZMixColors(base, accent, 0.07f);
+        _glow.colors = [NSArray arrayWithObjects:(id)YZMixColors(base, accent, [YZTheme isDark] ? 0.8f : 0.5f).CGColor,
+                        (id)YZMixColors(base, accent, [YZTheme isDark] ? 0.45f : 0.28f).CGColor, (id)YZMixColors(base, accent, 0.16f).CGColor, (id)bottom.CGColor, nil];
+        _glow.locations = [NSArray arrayWithObjects:[NSNumber numberWithFloat:0], [NSNumber numberWithFloat:0.3f], [NSNumber numberWithFloat:0.65f], [NSNumber numberWithFloat:1], nil];
+        _glow.frame = self.view.bounds;
+        YZPaintBehindScreens(self.navigationController);
+        _scroll.backgroundColor = [UIColor clearColor];
+        [YZTheme styleTransparentNavigationBar:self.navigationController.navigationBar];
+    }
+    _reset.backgroundColor = [YZTheme cardColor];
+    [_reset setTitleColor:[YZTheme accentColor] forState:UIControlStateNormal];
+    [_editor applyTheme];
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [YZCrash note:[NSString stringWithFormat:@"screen %@", NSStringFromClass([self class])]];
+    // the private palette is on for as long as this screen is, the settings list restyles itself when it comes back
+    if (_private)
+        [YZTheme setPrivatePalettePreview:YES];
+    YZInstallBarTitle(self, _heading, self, @selector(back));
+    [self restyle];
+}
+
+- (void)viewWillDisappear:(BOOL)animated {
+    [super viewWillDisappear:animated];
+    if (_private)
+        [YZTheme setPrivatePalettePreview:NO];
+}
+
+// the private palette goes off before the pop starts, the settings behind restyle while this screen still
+// slides away and took the private colors for a moment
+- (void)back {
+    if (_private)
+        [YZTheme setPrivatePalettePreview:NO];
+    [self.navigationController popViewControllerAnimated:YES];
+}
+
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    CGFloat width = MIN((CGFloat)480, _scroll.bounds.size.width);
+    CGFloat x = floor((_scroll.bounds.size.width - width) / 2);
+    // the screen reaches under the bar, so its content starts below it
+    CGFloat inset = CGRectGetMaxY(self.navigationController.navigationBar.frame);
+    CGFloat top = inset + 8;
+    YZInstallBarTitle(self, _heading, self, @selector(back));
+    _glow.frame = self.view.bounds;
+    _editor.frame = CGRectMake(x, top, width, _editor.preferredHeight);
+    _reset.frame = CGRectMake(x + 16, top + _editor.preferredHeight + 8, width - 32, 48);
+    _scroll.contentSize = CGSizeMake(_scroll.bounds.size.width, top + _editor.preferredHeight + 72);
+}
+
+- (void)commit {
+    yozora_accent accent = { _editor.hue, _editor.saturation, _editor.brightness };
+    if (_private)
+        [YZSettings setCustomPrivateAccent:accent];
+    else
+        [YZSettings setCustomAccent:accent];
+    [self applied];
+}
+
+- (void)resetAccent {
+    if (_private)
+        [YZSettings resetPrivateAccent];
+    else
+        [YZSettings resetAccent];
+    [self loadAccent];
+    [YZTheme animateFeedbackOfView:_reset];
+    [self applied];
+}
+
+- (void)applied {
+    // the settings behind and the browser restyle in the palette of the session, not the private one this
+    // screen shows
+    if (_private)
+        [YZTheme setPrivatePalettePreview:NO];
+    if (_changed)
+        _changed();
+    if (_private)
+        [YZTheme setPrivatePalettePreview:YES];
+    [self restyle];
+    [self.view setNeedsLayout];
+}
+
+- (void)keyboardShown:(NSNotification *)note {
+    CGRect frame = [[[note userInfo] objectForKey:UIKeyboardFrameEndUserInfoKey] CGRectValue];
+    CGRect keyboard = [self.view convertRect:frame fromView:nil];
+    CGFloat overlap = MAX((CGFloat)0, CGRectGetMaxY(self.view.bounds) - CGRectGetMinY(keyboard));
+    _scroll.contentInset = UIEdgeInsetsMake(0, 0, overlap, 0);
+    _scroll.scrollIndicatorInsets = _scroll.contentInset;
+    [_scroll scrollRectToVisible:[_editor convertRect:_editor.editingRect toView:_scroll] animated:YES];
+}
+
+- (void)keyboardHidden:(NSNotification *)note {
+    (void)note;
+    _scroll.contentInset = UIEdgeInsetsZero;
+    _scroll.scrollIndicatorInsets = UIEdgeInsetsZero;
+}
+
+- (void)dealloc {
+    [YZCrash noteLifecycle:@"dealloc" object:self];
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [_scroll release];
+    [_editor release];
+    [_reset release];
+    [_heading release];
+    [_glow removeFromSuperlayer];
+    [_glow release];
+    [_changed release];
+    [super dealloc];
+}
+@end
+
+// the text size screen: a sample card, a track of the percent and a button back to 100. the browser and
+// settings take the size when the finger leaves the track
+@interface YZTextSizeController : UIViewController {
+    UIScrollView *_scroll;
+    UIView *_card;
+    UILabel *_value;
+    UILabel *_sample;
+    YZAccentTrack *_track;
+    UILabel *_low;
+    UILabel *_high;
+    UIButton *_reset;
+    YZBarFill *_fill;
+    NSInteger _percent;
+    void (^_changed)(void);
+}
+- (id)initWithChanged:(void (^)(void))changed;
+@end
+
+@interface YZAboutController : UITableViewController {
+    YZBarFill *_barFill;
+    UIImageView *_hero;
+    CGFloat _heroWidth;
+}
+@end
+
+// sections fold: the developer one starts folded, the choice is kept between visits. a section is told by its
+// place, the names change with the language
+// the handles of the people who tested the builds, the same list as the about screen of Senko
+static NSString *const YZAboutTesters =
+    @"@menstry, @kfrom7, @Lineysom, @inraxx, @LimeDev, @shizotoaster, "
+    @"@xaxaxaxaxxaxaxaxaxaxaxaxaxaxa, @fly1ngangel, @CookieValerka, @Siqvw, "
+    @"@rakamaqfo, @s3dativee, @appIebionic, @merwleem, @libertea, @not_a_modder";
+
+static NSString *const YZCollapsedSectionsKey = @"yozora.settings.collapsed";
+static const NSInteger YZDeveloperSection = 3;
+
+static BOOL YZSectionCollapsed(NSInteger section) {
+    NSDictionary *stored = [[NSUserDefaults standardUserDefaults] dictionaryForKey:YZCollapsedSectionsKey];
+    NSNumber *value = [stored objectForKey:[NSString stringWithFormat:@"%ld", (long)section]];
+    return value ? [value boolValue] : section == YZDeveloperSection;
+}
+
+static void YZSetSectionCollapsed(NSInteger section, BOOL collapsed) {
+    NSMutableDictionary *stored = [NSMutableDictionary dictionaryWithDictionary:[[NSUserDefaults standardUserDefaults] dictionaryForKey:YZCollapsedSectionsKey]];
+    [stored setObject:[NSNumber numberWithBool:collapsed] forKey:[NSString stringWithFormat:@"%ld", (long)section]];
+    [[NSUserDefaults standardUserDefaults] setObject:stored forKey:YZCollapsedSectionsKey];
+}
+
+// the marks of the choice screens are drawn here and clipped to a Material shape of YZShape, as the avatar of exteria is
+static void YZBeginMark(CGFloat side, UIBezierPath **shape, YZShape kind) {
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(side, side), NO, 0);
+    *shape = YZShapePath(kind, side);
+    CGContextSaveGState(UIGraphicsGetCurrentContext());
+    [*shape addClip];
+}
+
+static UIImage *YZEndMark(UIBezierPath *shape) {
+    // the clip is undone so the hairline outline is not cut at its outer half
+    CGContextRestoreGState(UIGraphicsGetCurrentContext());
+    [[UIColor colorWithWhite:0 alpha:0.16f] setStroke];
+    shape.lineWidth = 1;
+    [shape stroke];
+    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return image;
+}
+
+static UIColor *YZHex(unsigned rgb) {
+    return [UIColor colorWithRed:((rgb >> 16) & 255) / 255.0f green:((rgb >> 8) & 255) / 255.0f blue:(rgb & 255) / 255.0f alpha:1];
+}
+
+// the Russian flag as three bands, the British one as the union jack (the red diagonals are not offset, at this size nobody sees it)
+static UIImage *YZFlagMark(BOOL english, CGFloat side) {
+    UIBezierPath *shape = nil;
+    YZBeginMark(side, &shape, english ? YZShapeFlower : YZShapeCookie);
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+    if (!english) {
+        [[UIColor whiteColor] setFill];
+        CGContextFillRect(ctx, CGRectMake(0, 0, side, side / 3));
+        [YZHex(0x0039A6) setFill];
+        CGContextFillRect(ctx, CGRectMake(0, side / 3, side, side / 3));
+        [YZHex(0xD52B1E) setFill];
+        CGContextFillRect(ctx, CGRectMake(0, 2 * side / 3, side, side / 3 + 1));
+    } else {
+        [YZHex(0x012169) setFill];
+        CGContextFillRect(ctx, CGRectMake(0, 0, side, side));
+        [[UIColor whiteColor] setStroke];
+        CGContextSetLineWidth(ctx, side * 0.2f);
+        CGContextMoveToPoint(ctx, 0, 0);
+        CGContextAddLineToPoint(ctx, side, side);
+        CGContextMoveToPoint(ctx, side, 0);
+        CGContextAddLineToPoint(ctx, 0, side);
+        CGContextStrokePath(ctx);
+        [YZHex(0xC8102E) setStroke];
+        CGContextSetLineWidth(ctx, side * 0.07f);
+        CGContextMoveToPoint(ctx, 0, 0);
+        CGContextAddLineToPoint(ctx, side, side);
+        CGContextMoveToPoint(ctx, side, 0);
+        CGContextAddLineToPoint(ctx, 0, side);
+        CGContextStrokePath(ctx);
+        [[UIColor whiteColor] setFill];
+        CGContextFillRect(ctx, CGRectMake(side * 0.33f, 0, side * 0.34f, side));
+        CGContextFillRect(ctx, CGRectMake(0, side * 0.33f, side, side * 0.34f));
+        [YZHex(0xC8102E) setFill];
+        CGContextFillRect(ctx, CGRectMake(side * 0.4f, 0, side * 0.2f, side));
+        CGContextFillRect(ctx, CGRectMake(0, side * 0.4f, side, side * 0.2f));
+    }
+    return YZEndMark(shape);
+}
+
+// what a theme looks like: its ground, a card with two lines of text and the accent as a dot, in the three
+// themes' own colors whatever theme is on
+static UIImage *YZThemeMark(YZThemeKind kind, UIColor *accent, CGFloat side) {
+    UIColor *ground, *card, *lines;
+    switch (kind) {
+    case YZThemeDark: ground = YZHex(0x1e1a2b); card = YZHex(0x2f2a44); lines = YZHex(0xc9c3dd); break;
+    case YZThemeBlack: ground = YZHex(0x000000); card = YZHex(0x1c1c1e); lines = YZHex(0x98989d); break;
+    default: ground = YZHex(0xfbf8ff); card = YZHex(0xe9e1f5); lines = YZHex(0x655a7a); break;
+    }
+    UIBezierPath *shape = nil;
+    YZBeginMark(side, &shape, YZShapeSunny);
+    [ground setFill];
+    CGContextFillRect(UIGraphicsGetCurrentContext(), CGRectMake(0, 0, side, side));
+    [accent setFill];
+    [[UIBezierPath bezierPathWithOvalInRect:CGRectMake(side * 0.5f - side * 0.09f, side * 0.18f, side * 0.18f, side * 0.18f)] fill];
+    [card setFill];
+    [[UIBezierPath bezierPathWithRoundedRect:CGRectMake(side * 0.2f, side * 0.44f, side * 0.6f, side * 0.34f) cornerRadius:side * 0.1f] fill];
+    [lines setFill];
+    [[UIBezierPath bezierPathWithRoundedRect:CGRectMake(side * 0.3f, side * 0.53f, side * 0.4f, side * 0.05f) cornerRadius:side * 0.025f] fill];
+    [[UIBezierPath bezierPathWithRoundedRect:CGRectMake(side * 0.3f, side * 0.64f, side * 0.26f, side * 0.05f) cornerRadius:side * 0.025f] fill];
+    return YZEndMark(shape);
+}
+
+// the address each engine answers at, under its name
+static NSArray *YZEngineAddresses(void) {
+    return [NSArray arrayWithObjects:@"https://www.google.com", @"https://duckduckgo.com", @"https://yandex.ru", nil];
+}
+
+// the color of each brand, which tints the chosen engine's plate
+static NSArray *YZEngineTints(void) {
+    return [NSArray arrayWithObjects:YZHex(0x4285f4), YZHex(0xde5833), YZHex(0xfc3f1d), nil];
+}
+
+@implementation YZSettingsController
+@synthesize settingsDelegate = _settingsDelegate;
+
+- (id)initWithStore:(YZStore *)store {
+    self = [super initWithStyle:UITableViewStylePlain];
+    if (!self)
+        return nil;
+    _store = [store retain];
+    return self;
+}
+
+- (void)dealloc {
+    [YZCrash noteLifecycle:@"dealloc" object:self];
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    YZShapeSetMorphPaused(NO);
+    [_barFill removeFromSuperview];
+    [_barFill release];
+    [_store release];
+    [_sections release];
+    [_jitText release];
+    [super dealloc];
+}
+
+#pragma mark content
+
+- (NSArray *)buildSections {
+    NSNumber *(^row)(YZRow) = ^(YZRow kind) { return [NSNumber numberWithInt:kind]; };
+    return [NSArray arrayWithObjects:
+        [NSArray arrayWithObjects:YZT(@"Основные"), row(YZRowLanguage), row(YZRowTheme), row(YZRowAccent), row(YZRowPrivateAccent), row(YZRowSearchEngine), row(YZRowTextSize), nil],
+        [NSArray arrayWithObjects:YZT(@"Приватность и безопасность"), row(YZRowBlockTrackers), row(YZRowAdblockRules), row(YZRowSitePermissions), row(YZRowBlockThirdPartyCookies),
+         row(YZRowSaveHistory), row(YZRowClearHistory), row(YZRowClearSiteData), nil],
+        [NSArray arrayWithObjects:YZT(@"Страницы"), row(YZRowJavascript), row(YZRowEconomy), row(YZRowReduceMotion), row(YZRowWebFonts), nil],
+        [NSArray arrayWithObjects:YZT(@"Для разработчиков"), row(YZRowDebug), row(YZRowLogging), row(YZRowLogOpen), row(YZRowZombies), row(YZRowJit), row(YZRowJitState), nil],
+        [NSArray arrayWithObjects:YZT(@"О программе"), row(YZRowAbout), nil],
+        nil];
+}
+
+- (void)refresh {
+    [YZCrash note:@"settings: refresh"];
+    YZInstallBarTitle(self, YZT(@"Настройки"), self, @selector(finish));
+    [_sections release];
+    _sections = [[self buildSections] retain];
+    [_jitText release];
+    _jitText = [[self jitStateText] retain];
+    YZStyleTable(self);
+    [self styleBar];
+    self.tableView.tableHeaderView = nil;
+    [self.tableView reloadData];
+}
+
+#pragma mark bar over the list
+
+// the list runs under the bar: the fill behind the bar is the solid ground at the top of the list and the
+// blur of what is under it once the list has gone by
+- (void)styleBar {
+    if (!self.navigationController.navigationBar)
+        return;
+    [YZTheme styleTransparentNavigationBar:self.navigationController.navigationBar];
+    if (!_barFill)
+        _barFill = [[YZBarFill alloc] initWithFrame:CGRectZero];
+    [_barFill applyTheme];
+    [_barFill attachToScrollView:self.tableView controller:self];
+}
+
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView {
+    [_barFill attachToScrollView:scrollView controller:self];
+}
+
+// ios 5 and 6 put the list below the bar unless the controller asks for the whole screen, then the bar inset
+// is the controller's. it runs on every scroll step, so it touches the bar and fill only when the bar or the
+// list width changed
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    UINavigationBar *bar = self.navigationController.navigationBar;
+    BOOL moved = NO;
+    if (bar && [[[UIDevice currentDevice] systemVersion] floatValue] < 7.0f) {
+        CGFloat top = CGRectGetMaxY(bar.frame);
+        UIEdgeInsets inset = self.tableView.contentInset;
+        if (fabs(inset.top - top) > 0.5) {
+            BOOL atTop = self.tableView.contentOffset.y <= -inset.top + 1;
+            inset.top = top;
+            self.tableView.contentInset = inset;
+            self.tableView.scrollIndicatorInsets = inset;
+            if (atTop)
+                self.tableView.contentOffset = CGPointMake(0, -top);
+            moved = YES;
+        }
+    }
+    CGFloat width = self.tableView.bounds.size.width;
+    if (fabs(width - _layoutWidth) > 0.5) {
+        _layoutWidth = width;
+        moved = YES;
+    }
+    if (moved) {
+        YZInstallBarTitle(self, YZT(@"Настройки"), self, @selector(finish));
+        [_barFill attachToScrollView:self.tableView controller:self];
+    }
+}
+
+// the balls of the accent rows hold still while the list is dragged or coasts, and go on when it rests
+- (void)setBallsMoving:(BOOL)moving {
+    YZShapeSetMorphPaused(!moving);
+    for (UITableViewCell *cell in [self.tableView visibleCells]) {
+        if ([cell isKindOfClass:[YZSettingsCell class]])
+            [((YZSettingsCell *)cell)->ball sync];
+    }
+}
+
+- (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView { [self setBallsMoving:NO]; }
+
+- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate {
+    if (!decelerate)
+        [self setBallsMoving:YES];
+}
+
+- (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView { [self setBallsMoving:YES]; }
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    // ios 5 and 6: the table reaches under the bar
+    if ([self respondsToSelector:NSSelectorFromString(@"setWantsFullScreenLayout:")])
+        [self setValue:[NSNumber numberWithBool:YES] forKey:@"wantsFullScreenLayout"];
+    [self refresh];
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [YZCrash note:[NSString stringWithFormat:@"screen %@", NSStringFromClass([self class])]];
+    [self refresh];
+}
+
+- (void)viewWillDisappear:(BOOL)animated {
+    [super viewWillDisappear:animated];
+    [YZCrash noteLifecycle:@"disappear" object:self];
+    // a screen left in the middle of a drag must not leave the balls of the next one stopped
+    YZShapeSetMorphPaused(NO);
+}
+
+- (void)finish {
+    [YZCrash note:@"settings: closing"];
+    [_settingsDelegate settingsControllerDidFinish:self];
+}
+
+- (void)changed {
+    [YZCrash note:@"settings: changed"];
+    [self refresh];
+    [_settingsDelegate settingsControllerDidChange:self];
+}
+
+#pragma mark values
+
+- (NSString *)languageName { return [YZSettings language] == YZLanguageEnglish ? @"English" : @"Русский"; }
+
+// the hex digits of the chosen accent, or the word for the purple of the palette
+- (NSString *)accentName {
+    yozora_accent accent;
+    if (![YZSettings customAccent:&accent])
+        return YZT(@"Фиолетовый по умолчанию");
+    char hex[7];
+    yozora_accent_hex(&accent, hex);
+    return [NSString stringWithFormat:@"#%s", hex];
+}
+
+- (NSString *)privateAccentName {
+    yozora_accent accent;
+    if (![YZSettings customPrivateAccent:&accent])
+        return YZT(@"Фиолетовый по умолчанию");
+    char hex[7];
+    yozora_accent_hex(&accent, hex);
+    return [NSString stringWithFormat:@"#%s", hex];
+}
+
+// what the jit is doing in this run, from what JavaScriptCore reports after it started, and whether the setting waits for a restart
+- (NSString *)jitStateText {
+    yozora_jit_info info;
+    yozora_jit_info_read(&info);
+    NSString *state;
+    if (!info.compiled)
+        state = YZT(@"В этой сборке JIT нет, скрипты идут в интерпретаторе");
+    else if (info.forced_off)
+        state = YZT(@"Выключен переменной YOZORA_NO_JIT, скрипты идут в интерпретаторе");
+    else if (!info.requested)
+        state = YZT(@"Выключен, скрипты идут в интерпретаторе");
+    else if (!info.active)
+        state = YZT(@"Система не дала исполняемую память, JIT не работает");
+    else {
+        NSMutableArray *tiers = [NSMutableArray arrayWithObject:@"Baseline"];
+        if (info.dfg)
+            [tiers addObject:@"DFG"];
+        if (info.regexp)
+            [tiers addObject:@"RegExp"];
+        state = [NSString stringWithFormat:YZT(@"Работает: %@"), [tiers componentsJoinedByString:@" · "]];
+        // the pool of compiled code: when it is full the functions that are left run in the interpreter, which nothing else shows
+        if (info.pool_size)
+            state = [state stringByAppendingFormat:YZT(@". Код: %.1f из %.0f МБ"), info.pool_used / 1048576.0, info.pool_size / 1048576.0];
+    }
+    if (([YZSettings jit] ? 1 : 0) != info.requested)
+        state = [state stringByAppendingString:YZT(@". Изменение вступит в силу после перезапуска")];
+    return state;
+}
+
+- (NSString *)themeName {
+    switch ([YZSettings theme]) {
+    case YZThemeDark: return YZT(@"Тёмная");
+    case YZThemeBlack: return YZT(@"Чёрная");
+    default: return YZT(@"Светлая");
+    }
+}
+
+// the engines in the order of yozora_search_engine: the name of each and the file of its mark
+static NSArray *YZEngineNames(void) { return [NSArray arrayWithObjects:@"Google", @"DuckDuckGo", YZT(@"Яндекс"), nil]; }
+// a mark missing from the bundle is an NSNull, arrayWithObjects: would stop at a nil and shorten the list
+static NSArray *YZEngineLogos(void) {
+    NSMutableArray *marks = [NSMutableArray array];
+    for (NSString *name in [NSArray arrayWithObjects:@"google", @"duckduckgo", @"yandex", nil]) {
+        UIImage *mark = [YZTheme logoNamed:name];
+        [marks addObject:mark ? (id)mark : (id)[NSNull null]];
+    }
+    return marks;
+}
+
+- (NSString *)coreName { return [YZEngineNames() objectAtIndex:[YZSettings searchEngine]]; }
+
+- (NSString *)titleForRow:(YZRow)kind {
+    switch (kind) {
+    case YZRowLanguage: return YZT(@"Язык");
+    case YZRowTheme: return YZT(@"Тема");
+    case YZRowAccent: return YZT(@"Цвет акцента");
+    case YZRowPrivateAccent: return YZT(@"Акцент приватной вкладки");
+    case YZRowSearchEngine: return YZT(@"Поисковая система");
+    case YZRowTextSize: return YZT(@"Размер текста");
+    case YZRowBlockTrackers: return YZT(@"Блокировать рекламу и трекеры");
+    case YZRowAdblockRules: return YZT(@"Правила блокировщика");
+    case YZRowSitePermissions: return YZT(@"Разрешения сайтов");
+    case YZRowBlockThirdPartyCookies: return YZT(@"Блокировать cookie сторонних сайтов");
+    case YZRowSaveHistory: return YZT(@"Сохранять историю");
+    case YZRowClearHistory: return YZT(@"Очистить историю");
+    case YZRowClearSiteData: return YZT(@"Очистить данные сайтов");
+    case YZRowJavascript: return @"JavaScript";
+    case YZRowEconomy: return YZT(@"Экономная отрисовка");
+    case YZRowReduceMotion: return YZT(@"Меньше анимаций");
+    case YZRowWebFonts: return YZT(@"Шрифты сайтов");
+    case YZRowDebug: return YZT(@"Отладка");
+    case YZRowLogging: return YZT(@"Логирование");
+    case YZRowLogOpen: return YZT(@"Логи");
+    case YZRowZombies: return YZT(@"Зомби-объекты");
+    case YZRowJit: return @"JIT";
+    case YZRowJitState: return YZT(@"Состояние JIT");
+    case YZRowAbout: return YZT(@"Об Yozora");
+    }
+    return @"";
+}
+
+- (NSString *)detailForRow:(YZRow)kind {
+    switch (kind) {
+    case YZRowLanguage: return [self languageName];
+    case YZRowTheme: return [self themeName];
+    case YZRowAccent: return [self accentName];
+    case YZRowPrivateAccent: return [self privateAccentName];
+    case YZRowSearchEngine: return [self coreName];
+    case YZRowTextSize: return [NSString stringWithFormat:@"%d%%", (int)[YZSettings textZoom]];
+    case YZRowAdblockRules: return YZT(@"Свои правила, как в списках Adblock Plus");
+    case YZRowSitePermissions: return YZT(@"Место, уведомления и сайты без блокировщика");
+    case YZRowEconomy: return YZT(@"Страницы рисуются быстрее и мягче");
+    case YZRowReduceMotion: return YZT(@"Сайты анимируют меньше и реже");
+    case YZRowWebFonts: return YZT(@"Без них страницы грузятся быстрее");
+    case YZRowDebug: return YZT(@"Нагрузка, память, трафик и fps в углу экрана");
+    case YZRowLogging: return YZT(@"Копить журнал приложения и страниц");
+    case YZRowLogOpen: return [YZLog capturing] ? YZT(@"Терминал с записями, захват идёт") : YZT(@"Терминал с записями, захват выключен");
+    case YZRowZombies: return YZT(@"Называет класс освобождённого, но использованного объекта, нужен перезапуск и больше памяти");
+    case YZRowJit: return YZT(@"Нужен перезапуск приложения");
+    case YZRowJitState: return _jitText ? _jitText : [self jitStateText];
+    default: return nil;
+    }
+}
+
+- (YZIcon)glyphForRow:(YZRow)kind {
+    switch (kind) {
+    case YZRowLanguage: return YZIconLanguage;
+    case YZRowTheme: return YZIconPalette;
+    case YZRowAccent: return YZIconPalette;
+    case YZRowPrivateAccent: return YZIconBrush;
+    case YZRowSearchEngine: return YZIconSearch;
+    case YZRowTextSize: return YZIconTextSize;
+    case YZRowBlockTrackers: return YZIconShield;
+    case YZRowAdblockRules: return YZIconCode;
+    case YZRowSitePermissions: return YZIconLink;
+    case YZRowBlockThirdPartyCookies: return YZIconCookie;
+    case YZRowSaveHistory: return YZIconHistory;
+    case YZRowClearHistory: return YZIconDelete;
+    case YZRowClearSiteData: return YZIconSweep;
+    case YZRowJavascript: return YZIconCode;
+    case YZRowEconomy: return YZIconSpeed;
+    case YZRowReduceMotion: return YZIconAnimation;
+    case YZRowWebFonts: return YZIconFont;
+    case YZRowDebug: return YZIconBugReport;
+    case YZRowLogging: return YZIconTerminal;
+    case YZRowZombies: return YZIconBugReport;
+    case YZRowLogOpen: return YZIconReceiptLong;
+    case YZRowJit: return YZIconBolt;
+    case YZRowJitState: return YZIconMemory;
+    case YZRowAbout: return YZIconInfo;
+    }
+    return YZIconInfo;
+}
+
+- (BOOL)isSwitch:(YZRow)kind {
+    return kind == YZRowBlockTrackers || kind == YZRowBlockThirdPartyCookies || kind == YZRowSaveHistory
+        || kind == YZRowJavascript || kind == YZRowEconomy || kind == YZRowReduceMotion || kind == YZRowWebFonts
+        || kind == YZRowDebug || kind == YZRowLogging || kind == YZRowZombies || kind == YZRowJit;
+}
+
+- (BOOL)switchValue:(YZRow)kind {
+    switch (kind) {
+    case YZRowBlockTrackers: return [YZSettings blockTrackers];
+    case YZRowBlockThirdPartyCookies: return [YZSettings blockThirdPartyCookies];
+    case YZRowSaveHistory: return [YZSettings saveHistory];
+    case YZRowJavascript: return [YZSettings javascript];
+    case YZRowEconomy: return [YZSettings economyRaster];
+    case YZRowReduceMotion: return [YZSettings reduceMotion];
+    case YZRowWebFonts: return [YZSettings webFonts];
+    case YZRowDebug: return [YZSettings debugOverlay];
+    case YZRowLogging: return [YZSettings logging];
+    case YZRowZombies: return [YZSettings zombies];
+    case YZRowJit: return [YZSettings jit];
+    default: return NO;
+    }
+}
+
+- (void)switchChanged:(YZToggle *)toggle {
+    BOOL on = toggle.on;
+    switch ((YZRow)toggle.tag) {
+    case YZRowBlockTrackers: [YZSettings setBlockTrackers:on]; break;
+    case YZRowBlockThirdPartyCookies: [YZSettings setBlockThirdPartyCookies:on]; break;
+    case YZRowSaveHistory: [YZSettings setSaveHistory:on]; break;
+    case YZRowJavascript: [YZSettings setJavascript:on]; break;
+    case YZRowEconomy: [YZSettings setEconomyRaster:on]; break;
+    case YZRowReduceMotion: [YZSettings setReduceMotion:on]; break;
+    case YZRowWebFonts: [YZSettings setWebFonts:on]; break;
+    case YZRowDebug:
+        [YZSettings setDebugOverlay:on];
+        // the browser shows or hides the overlay
+        [_settingsDelegate settingsControllerDidChange:self];
+        break;
+    case YZRowLogging:
+        [YZSettings setLogging:on];
+        [YZLog setCapturing:on];
+        [self refreshAfterSwitch];
+        break;
+    case YZRowZombies:
+        // the names of freed objects come through the log, so it is kept while they are on
+        [YZSettings setZombies:on];
+        if (on) {
+            [YZSettings setLogging:YES];
+            [YZLog setCapturing:YES];
+        }
+        [self refreshAfterSwitch];
+        break;
+    case YZRowJit:
+        [YZSettings setJit:on];
+        [self refreshAfterSwitch];
+        break;
+    default: break;
+    }
+}
+
+// rows that read from the switch (the state of the jit, the line of the log) change once the switch has finished moving
+- (void)refreshAfterSwitch {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(refresh) object:nil];
+    [self performSelector:@selector(refresh) withObject:nil afterDelay:0.4];
+}
+
+#pragma mark table
+
+// the first row of a section is its head, so the place in the section array is the row
+- (YZRow)rowAtIndexPath:(NSIndexPath *)path {
+    return (YZRow)[[[_sections objectAtIndex:path.section] objectAtIndex:path.row] intValue];
+}
+
+- (NSInteger)numberOfSectionsInTableView:(UITableView *)table { return [_sections count]; }
+
+// the rows of a folded section are not in the table but its head is, the table must be told the same count as
+// the rows it inserts or deletes or the update is refused
+- (NSInteger)tableView:(UITableView *)table numberOfRowsInSection:(NSInteger)section {
+    return YZSectionCollapsed(section) ? 1 : (NSInteger)[[_sections objectAtIndex:section] count];
+}
+
+- (BOOL)isDestructive:(YZRow)kind { return kind == YZRowClearHistory || kind == YZRowClearSiteData; }
+
+// the rows that open another screen carry a chevron
+- (BOOL)hasChevron:(YZRow)kind { return ![self isSwitch:kind] && ![self isDestructive:kind] && kind != YZRowJitState; }
+
+- (CGFloat)tableView:(UITableView *)table heightForHeaderInSection:(NSInteger)section { return 0; }
+- (CGFloat)tableView:(UITableView *)table heightForFooterInSection:(NSInteger)section { return 4; }
+- (UIView *)tableView:(UITableView *)table viewForFooterInSection:(NSInteger)section { return [[[UIView alloc] initWithFrame:CGRectZero] autorelease]; }
+
+- (CGFloat)tableView:(UITableView *)table heightForRowAtIndexPath:(NSIndexPath *)path {
+    if (path.row == 0)
+        return path.section == 0 ? 48 : 60;
+    YZRow kind = [self rowAtIndexPath:path];
+    return YZRowHeight([self titleForRow:kind], [self detailForRow:kind], table.bounds.size.width, YES, [self isSwitch:kind], [self hasChevron:kind]);
+}
+
+- (UITableViewCell *)headCellForSection:(NSInteger)section table:(UITableView *)table {
+    YZSectionCell *cell = (YZSectionCell *)[table dequeueReusableCellWithIdentifier:@"YZSectionHead"];
+    if (!cell)
+        cell = [[[YZSectionCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"YZSectionHead"] autorelease];
+    cell.accessibilityLabel = [[_sections objectAtIndex:section] objectAtIndex:0];
+    cell->name.text = [[_sections objectAtIndex:section] objectAtIndex:0];
+    cell->name.font = [YZTheme boldSystemFontOfSize:13];
+    cell->name.textColor = [YZTheme accentColor];
+    // the developer section carries the hammer in front of its name
+    cell->mark.image = section == YZDeveloperSection ? [YZTheme icon:YZIconHardware size:20 color:[YZTheme accentColor]] : nil;
+    cell->chevron.image = [YZTheme icon:YZIconChevron size:20 color:[YZTheme subtleTextColor]];
+    cell->expanded = !YZSectionCollapsed(section);
+    cell->chevron.transform = cell->expanded ? CGAffineTransformMakeRotation((CGFloat)M_PI_2) : CGAffineTransformIdentity;
+    [cell setNeedsLayout];
+    return cell;
+}
+
+// folds or opens a section: the chevron turns on the app spring and passes its mark, rows fade out together,
+// on opening they fade in and rise one after another
+- (void)toggleSection:(NSInteger)section {
+    BOOL collapse = !YZSectionCollapsed(section);
+    NSInteger count = (NSInteger)[[_sections objectAtIndex:section] count] - 1;
+    NSMutableArray *paths = [NSMutableArray array];
+    for (NSInteger i = 1; i <= count; ++i)
+        [paths addObject:[NSIndexPath indexPathForRow:i inSection:section]];
+    YZSetSectionCollapsed(section, collapse);
+    YZSectionCell *head = (YZSectionCell *)[self.tableView cellForRowAtIndexPath:[NSIndexPath indexPathForRow:0 inSection:section]];
+    if (head) {
+        head->expanded = !collapse;
+        YZMotionAnimateView(head->chevron, collapse ? CGAffineTransformIdentity : CGAffineTransformMakeRotation((CGFloat)M_PI_2), 1, YOZORA_MOTION_WOBBLE, 0, nil);
+    }
+    [self.tableView beginUpdates];
+    if (collapse)
+        [self.tableView deleteRowsAtIndexPaths:paths withRowAnimation:UITableViewRowAnimationFade];
+    else
+        [self.tableView insertRowsAtIndexPaths:paths withRowAnimation:UITableViewRowAnimationFade];
+    [self.tableView endUpdates];
+    if (!collapse) {
+        for (NSInteger i = 1; i <= count; ++i) {
+            YZSettingsCell *cell = (YZSettingsCell *)[self.tableView cellForRowAtIndexPath:[NSIndexPath indexPathForRow:i inSection:section]];
+            if (cell)
+                [YZTheme animateEntranceOfView:cell->card offset:CGPointMake(0, -16) delay:0.04 * (i - 1)];
+        }
+    }
+}
+
+- (UITableViewCell *)tableView:(UITableView *)table cellForRowAtIndexPath:(NSIndexPath *)path {
+    if (path.row == 0)
+        return [self headCellForSection:path.section table:table];
+    YZRow kind = [self rowAtIndexPath:path];
+    NSString *detail = [self detailForRow:kind];
+    BOOL toggle = [self isSwitch:kind];
+    YZSettingsCell *cell = (YZSettingsCell *)[table dequeueReusableCellWithIdentifier:@"YZSettingsRow"];
+    if (!cell)
+        cell = [[[YZSettingsCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"YZSettingsRow"] autorelease];
+    BOOL destructive = [self isDestructive:kind];
+    // the search engine shows its own mark in place of a glyph
+    id mark = kind == YZRowSearchEngine ? [YZEngineLogos() objectAtIndex:[YZSettings searchEngine]] : nil;
+    UIImage *picture = [mark isKindOfClass:[UIImage class]] ? mark : nil;
+    YZConfigureCell(cell, [self titleForRow:kind], detail, [self glyphForRow:kind], picture, YES, NO, destructive,
+                    YZPositionOf(path.row - 1, (NSInteger)[[_sections objectAtIndex:path.section] count] - 1), nil, [self hasChevron:kind]);
+    if (kind == YZRowAccent) {
+        // the accent shows itself as a ball of its color that changes its form, the way the private accent does
+        cell->disc.backgroundColor = [YZTheme cardColor];
+        cell->disc.layer.borderWidth = 1;
+        cell->disc.layer.borderColor = [[[YZTheme accentColor] colorWithAlphaComponent:0.5f] CGColor];
+        cell->icon.hidden = YES;
+        YZMorphView *ball = [cell morphBall];
+        ball.hidden = NO;
+        ball.color = [YZTheme accentColor];
+    }
+    if (kind == YZRowPrivateAccent) {
+        // the private accent is a ball of its color that morphs, on a disc of the private ground
+        yozora_accent shown = { YOZORA_PRIVATE_PALETTE_HUE, YOZORA_ACCENT_PALETTE_SATURATION, 1 };
+        [YZSettings customPrivateAccent:&shown];
+        float r, g, b;
+        yozora_accent_rgb(&shown, &r, &g, &b);
+        [YZTheme setPrivatePalettePreview:YES];
+        cell->disc.backgroundColor = [YZTheme cardColor];
+        cell->disc.layer.borderWidth = 1;
+        cell->disc.layer.borderColor = [[[YZTheme accentColor] colorWithAlphaComponent:0.5f] CGColor];
+        [YZTheme setPrivatePalettePreview:NO];
+        cell->icon.hidden = YES;
+        YZMorphView *ball = [cell morphBall];
+        ball.hidden = NO;
+        ball.color = [UIColor colorWithRed:r green:g blue:b alpha:1];
+    }
+    cell->toggle.hidden = !toggle;
+    if (toggle) {
+        YZToggle *control = [cell switchControl];
+        control.hidden = NO;
+        control.tag = kind;
+        [control removeTarget:self action:NULL forControlEvents:UIControlEventValueChanged];
+        [control addTarget:self action:@selector(switchChanged:) forControlEvents:UIControlEventValueChanged];
+        [control setOn:[self switchValue:kind] animated:NO];
+        [control applyTheme];
+    }
+    return cell;
+}
+
+- (UIView *)dialogHost {
+    return self.navigationController ? self.navigationController.view : self.view;
+}
+
+- (void)confirmClearHistory {
+    YZSettingsController *me = self;
+    YZDialog *dialog = [YZDialog dialogWithTitle:YZT(@"Очистить историю?") message:nil cancelTitle:YZT(@"Отмена") confirmTitle:YZT(@"Очистить") destructive:YES
+                                         handler:^(NSInteger index, NSArray *texts) {
+        (void)texts;
+        // stored pages are history too
+        if (index == 1 && [me->_store clearHistory]) {
+            yozora_clear_http_cache();
+            yozora_clear_bytecode_cache();
+        }
+    }];
+    [dialog showInView:[self dialogHost]];
+}
+
+- (void)confirmClearSiteData {
+    YZDialog *dialog = [YZDialog dialogWithTitle:YZT(@"Очистить данные сайтов?")
+                                         message:YZT(@"Cookie и локальные данные будут удалены, во все сайты придётся войти заново.")
+                                     cancelTitle:YZT(@"Отмена") confirmTitle:YZT(@"Очистить") destructive:YES
+                                         handler:^(NSInteger index, NSArray *texts) {
+        (void)texts;
+        if (index == 1)
+            yozora_clear_site_data();
+    }];
+    [dialog showInView:[self dialogHost]];
+}
+
+// a choice screen shows the setting read again each time, a choice can change the language the screen is
+// written in
+- (void)fillChoice:(YZChoiceController *)choice kind:(YZRow)kind {
+    switch (kind) {
+    case YZRowLanguage:
+        choice.heading = YZT(@"Язык");
+        choice.titles = [NSArray arrayWithObjects:@"Русский", @"English", nil];
+        choice.details = nil;
+        choice.pictures = [NSArray arrayWithObjects:YZFlagMark(NO, 40), YZFlagMark(YES, 40), nil];
+        choice.tints = nil;
+        choice.bareMarks = YES;
+        choice.selected = [YZSettings language];
+        break;
+    case YZRowTheme:
+        choice.heading = YZT(@"Тема");
+        choice.titles = [NSArray arrayWithObjects:YZT(@"Светлая"), YZT(@"Тёмная"), YZT(@"Чёрная"), nil];
+        choice.details = nil;
+        choice.pictures = [NSArray arrayWithObjects:YZThemeMark(YZThemeLight, [YZTheme accentColor], 40), YZThemeMark(YZThemeDark, [YZTheme accentColor], 40),
+                           YZThemeMark(YZThemeBlack, [YZTheme accentColor], 40), nil];
+        choice.tints = nil;
+        choice.bareMarks = YES;
+        choice.selected = [YZSettings theme];
+        break;
+    case YZRowSearchEngine:
+        choice.heading = YZT(@"Поисковая система");
+        choice.titles = YZEngineNames();
+        choice.details = YZEngineAddresses();
+        choice.pictures = YZEngineLogos();
+        choice.tints = YZEngineTints();
+        choice.bareMarks = NO;
+        choice.selected = [YZSettings searchEngine];
+        break;
+    default:
+        break;
+    }
+}
+
+- (void)pushChoice:(YZRow)kind {
+    YZSettingsController *me = self;
+    YZChoiceController *choice = [[YZChoiceController alloc] initWithTitle:@"" options:[NSArray array] selected:0 choose:^(NSInteger index) {
+        switch (kind) {
+        case YZRowLanguage: [YZSettings setLanguage:(YZLanguage)index]; break;
+        case YZRowTheme: [YZSettings setTheme:(YZThemeKind)index]; break;
+        case YZRowSearchEngine: [YZSettings setSearchEngine:(yozora_search_engine)index]; break;
+        default: break;
+        }
+        [me changed];
+    }];
+    choice.refill = ^(YZChoiceController *shown) { [me fillChoice:shown kind:kind]; };
+    [self fillChoice:choice kind:kind];
+    [self.navigationController pushViewController:choice animated:YES];
+    [choice release];
+}
+
+- (void)tableView:(UITableView *)table didSelectRowAtIndexPath:(NSIndexPath *)path {
+    [table deselectRowAtIndexPath:path animated:YES];
+    if (path.row == 0) {
+        [self toggleSection:path.section];
+        return;
+    }
+    YZRow kind = [self rowAtIndexPath:path];
+    YZSettingsController *me = self;
+    switch (kind) {
+    case YZRowLanguage:
+    case YZRowTheme:
+    case YZRowSearchEngine:
+        [self pushChoice:kind];
+        break;
+    case YZRowAccent: {
+        YZAccentController *accent = [[YZAccentController alloc] initWithChanged:^{ [me changed]; }];
+        [self.navigationController pushViewController:accent animated:YES];
+        [accent release];
+        break;
+    }
+    case YZRowPrivateAccent: {
+        YZAccentController *accent = [[YZAccentController alloc] initPrivateWithChanged:^{ [me changed]; }];
+        [self.navigationController pushViewController:accent animated:YES];
+        [accent release];
+        break;
+    }
+    case YZRowAdblockRules: {
+        YZAdblockController *rules = [[YZAdblockController alloc] init];
+        [self.navigationController pushViewController:rules animated:YES];
+        [rules release];
+        break;
+    }
+    case YZRowSitePermissions: {
+        YZSitesController *sites = [[YZSitesController alloc] init];
+        [self.navigationController pushViewController:sites animated:YES];
+        [sites release];
+        break;
+    }
+    case YZRowLogOpen: {
+        [YZCrash note:@"logs: tapped"];
+        YZLogController *log = [[YZLogController alloc] init];
+        [YZCrash note:@"logs: created"];
+        [self.navigationController pushViewController:log animated:YES];
+        [log release];
+        [YZCrash note:@"logs: pushed"];
+        break;
+    }
+    case YZRowTextSize: {
+        YZTextSizeController *size = [[YZTextSizeController alloc] initWithChanged:^{ [me changed]; }];
+        [self.navigationController pushViewController:size animated:YES];
+        [size release];
+        break;
+    }
+    case YZRowClearHistory:
+        [self confirmClearHistory];
+        break;
+    case YZRowClearSiteData:
+        [self confirmClearSiteData];
+        break;
+    case YZRowAbout: {
+        YZAboutController *about = [[YZAboutController alloc] init];
+        [self.navigationController pushViewController:about animated:YES];
+        [about release];
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+@end
+
+@implementation YZChoiceController
+@synthesize heading = _heading;
+@synthesize titles = _titles;
+@synthesize details = _details;
+@synthesize pictures = _pictures;
+@synthesize tints = _tints;
+@synthesize bareMarks = _bareMarks;
+@synthesize selected = _selected;
+@synthesize refill = _refill;
+
+- (id)initWithTitle:(NSString *)title options:(NSArray *)titles selected:(NSInteger)selected choose:(void (^)(NSInteger index))choose {
+    self = [super initWithStyle:UITableViewStylePlain];
+    if (!self)
+        return nil;
+    _heading = [title copy];
+    _titles = [titles retain];
+    _selected = selected;
+    _choose = [choose copy];
+    return self;
+}
+
+- (void)dealloc {
+    [YZCrash noteLifecycle:@"dealloc" object:self];
+    [_barFill removeFromSuperview];
+    [_barFill release];
+    [_heading release];
+    [_titles release];
+    [_details release];
+    [_pictures release];
+    [_tints release];
+    [_refill release];
+    [_choose release];
+    [super dealloc];
+}
+
+- (void)restyle {
+    YZStyleTable(self);
+    if (!_barFill)
+        _barFill = [[YZBarFill alloc] initWithFrame:CGRectZero];
+    [_barFill applyTheme];
+    [_barFill attachToScrollView:self.tableView controller:self];
+    YZInstallBarTitle(self, _heading, self, @selector(back));
+    self.tableView.tableHeaderView = nil;
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    if ([self respondsToSelector:NSSelectorFromString(@"setWantsFullScreenLayout:")])
+        [self setValue:[NSNumber numberWithBool:YES] forKey:@"wantsFullScreenLayout"];
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [YZCrash note:[NSString stringWithFormat:@"screen %@", NSStringFromClass([self class])]];
+    [self restyle];
+    [self.tableView reloadData];
+}
+
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    UINavigationBar *bar = self.navigationController.navigationBar;
+    if (bar && [[[UIDevice currentDevice] systemVersion] floatValue] < 7.0f) {
+        CGFloat top = CGRectGetMaxY(bar.frame);
+        UIEdgeInsets inset = self.tableView.contentInset;
+        if (fabs(inset.top - top) > 0.5) {
+            BOOL atTop = self.tableView.contentOffset.y <= -inset.top + 1;
+            inset.top = top;
+            self.tableView.contentInset = inset;
+            self.tableView.scrollIndicatorInsets = inset;
+            if (atTop)
+                self.tableView.contentOffset = CGPointMake(0, -top);
+        }
+    }
+    YZInstallBarTitle(self, _heading, self, @selector(back));
+    [_barFill attachToScrollView:self.tableView controller:self];
+}
+
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView {
+    [_barFill attachToScrollView:scrollView controller:self];
+}
+
+- (void)back { [self.navigationController popViewControllerAnimated:YES]; }
+
+- (NSInteger)tableView:(UITableView *)table numberOfRowsInSection:(NSInteger)section { return (NSInteger)[_titles count]; }
+
+- (id)markAt:(NSInteger)row {
+    id picture = row < (NSInteger)[_pictures count] ? [_pictures objectAtIndex:row] : nil;
+    return [picture isKindOfClass:[UIImage class]] ? picture : nil;
+}
+
+- (NSString *)detailAt:(NSInteger)row {
+    return row < (NSInteger)[_details count] ? [_details objectAtIndex:row] : nil;
+}
+
+- (CGFloat)tableView:(UITableView *)table heightForRowAtIndexPath:(NSIndexPath *)path {
+    return YZRowHeight([_titles objectAtIndex:path.row], [self detailAt:path.row], table.bounds.size.width, [self markAt:path.row] != nil, NO, NO);
+}
+
+- (UITableViewCell *)tableView:(UITableView *)table cellForRowAtIndexPath:(NSIndexPath *)path {
+    YZSettingsCell *cell = (YZSettingsCell *)[table dequeueReusableCellWithIdentifier:@"YZChoice"];
+    if (!cell)
+        cell = [[[YZSettingsCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"YZChoice"] autorelease];
+    // the chosen option is a plate in its own color (the accent, or the brand of an engine), not a check mark
+    UIColor *plate = nil;
+    if (path.row == _selected) {
+        id tint = path.row < (NSInteger)[_tints count] ? [_tints objectAtIndex:path.row] : nil;
+        plate = YZMixColors([YZTheme cardColor], [tint isKindOfClass:[UIColor class]] ? tint : [YZTheme accentColor], [YZTheme isDark] ? 0.38f : 0.3f);
+    }
+    UIImage *mark = [self markAt:path.row];
+    YZConfigureCell(cell, [_titles objectAtIndex:path.row], [self detailAt:path.row], YZIconCheck, mark, NO, _bareMarks, NO,
+                    YZPositionOf(path.row, (NSInteger)[_titles count]), plate, NO);
+    // the address under a name is a half-seen line
+    cell->detail.textColor = [[YZTheme subtleTextColor] colorWithAlphaComponent:0.7f];
+    cell->toggle.hidden = YES;
+    return cell;
+}
+
+// the screen stays when a value is chosen, the settings behind and the browser take the change and this
+// screen does too, with a cross fade so a new theme does not snap
+- (void)tableView:(UITableView *)table didSelectRowAtIndexPath:(NSIndexPath *)path {
+    [table deselectRowAtIndexPath:path animated:NO];
+    if (path.row == _selected)
+        return;
+    _selected = path.row;
+    if (_choose)
+        _choose(path.row);
+    if (_refill)
+        _refill(self);
+    void (^apply)(void) = ^{
+        [self restyle];
+        [self.tableView reloadData];
+    };
+    if ([YZTheme animationsEnabled])
+        [UIView transitionWithView:self.view duration:0.28 options:UIViewAnimationOptionTransitionCrossDissolve animations:apply completion:nil];
+    else
+        apply();
+}
+
+@end
+
+// the screen of the text size: a card that shows the size, a slider like the ones of the accent and a button that goes back to 100
+@implementation YZTextSizeController
+
+- (id)initWithChanged:(void (^)(void))changed {
+    self = [super initWithNibName:nil bundle:nil];
+    if (!self)
+        return nil;
+    _changed = [changed copy];
+    _percent = [YZSettings textZoom];
+    return self;
+}
+
+- (void)dealloc {
+    [YZCrash noteLifecycle:@"dealloc" object:self];
+    [_scroll release];
+    [_card release];
+    [_value release];
+    [_sample release];
+    [_track release];
+    [_low release];
+    [_high release];
+    [_reset release];
+    [_fill release];
+    [_changed release];
+    [super dealloc];
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    if ([self respondsToSelector:NSSelectorFromString(@"setWantsFullScreenLayout:")])
+        [self setValue:[NSNumber numberWithBool:YES] forKey:@"wantsFullScreenLayout"];
+    _scroll = [[UIScrollView alloc] initWithFrame:self.view.bounds];
+    _scroll.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [self.view addSubview:_scroll];
+    _card = [[UIView alloc] initWithFrame:CGRectZero];
+    _card.layer.cornerRadius = 28;
+    _card.clipsToBounds = YES;
+    [_scroll addSubview:_card];
+    _value = [[UILabel alloc] initWithFrame:CGRectZero];
+    _value.backgroundColor = [UIColor clearColor];
+    [_card addSubview:_value];
+    _sample = [[UILabel alloc] initWithFrame:CGRectZero];
+    _sample.backgroundColor = [UIColor clearColor];
+    _sample.numberOfLines = 0;
+    _sample.lineBreakMode = YZLineBreakWordWrapping;
+    [_card addSubview:_sample];
+    _track = [[YZAccentTrack alloc] initWithFrame:CGRectZero];
+    _track.spokenName = YZT(@"Размер текста");
+    [_track addTarget:self action:@selector(moved) forControlEvents:UIControlEventValueChanged];
+    [_track addTarget:self action:@selector(commit) forControlEvents:UIControlEventTouchUpInside];
+    [_scroll addSubview:_track];
+    _low = [[UILabel alloc] initWithFrame:CGRectZero];
+    _low.backgroundColor = [UIColor clearColor];
+    [_scroll addSubview:_low];
+    _high = [[UILabel alloc] initWithFrame:CGRectZero];
+    _high.backgroundColor = [UIColor clearColor];
+    _high.textAlignment = YZTextAlignmentRight;
+    [_scroll addSubview:_high];
+    _reset = [[UIButton buttonWithType:UIButtonTypeCustom] retain];
+    _reset.layer.cornerRadius = 24;
+    [_reset addTarget:self action:@selector(resetSize) forControlEvents:UIControlEventTouchUpInside];
+    [_scroll addSubview:_reset];
+    _fill = [[YZBarFill alloc] initWithFrame:CGRectZero];
+    [self restyle];
+}
+
+// the percent of the track: a step of 5 over the range of the setting
+- (NSInteger)percentForFraction:(float)fraction {
+    NSInteger raw = YZTextZoomMin + (NSInteger)lroundf(fraction * (YZTextZoomMax - YZTextZoomMin));
+    return MIN((NSInteger)YZTextZoomMax, MAX((NSInteger)YZTextZoomMin, ((raw + 2) / 5) * 5));
+}
+
+- (void)showPercent {
+    _value.text = [NSString stringWithFormat:@"%d%%", (int)_percent];
+    // the sample is set at the size of a page, not scaled again by the text size of the interface
+    _sample.font = [UIFont systemFontOfSize:round(16.0f * _percent / 100.0f * 2) / 2];
+    _track.fraction = (float)(_percent - YZTextZoomMin) / (YZTextZoomMax - YZTextZoomMin);
+    [self.view setNeedsLayout];
+}
+
+- (void)restyle {
+    self.view.backgroundColor = [YZTheme surfaceColor];
+    _scroll.backgroundColor = [UIColor clearColor];
+    YZPaintBehindScreens(self.navigationController);
+    [YZTheme styleTransparentNavigationBar:self.navigationController.navigationBar];
+    [_fill applyTheme];
+    _card.backgroundColor = [YZTheme cardColor];
+    _value.font = [YZTheme boldSystemFontOfSize:40];
+    _value.textColor = [YZTheme accentColor];
+    _sample.text = YZT(@"Так страницы выглядят при выбранном размере текста. Быстрая бурая лиса прыгает через ленивую собаку.");
+    _sample.textColor = [YZTheme textColor];
+    [_track setColors:[NSArray arrayWithObjects:YZMixColors([YZTheme cardColor], [YZTheme accentColor], 0.3f), [YZTheme accentColor], nil]];
+    [_track setHandleColor:[YZTheme accentColor]];
+    _low.font = [YZTheme systemFontOfSize:13];
+    _low.textColor = [YZTheme subtleTextColor];
+    _low.text = [NSString stringWithFormat:@"%d%%", YZTextZoomMin];
+    _high.font = _low.font;
+    _high.textColor = [YZTheme subtleTextColor];
+    _high.text = [NSString stringWithFormat:@"%d%%", YZTextZoomMax];
+    _reset.backgroundColor = [YZTheme cardColor];
+    _reset.titleLabel.font = [YZTheme boldSystemFontOfSize:16];
+    [_reset setTitle:YZT(@"100% по умолчанию") forState:UIControlStateNormal];
+    [_reset setTitleColor:[YZTheme accentColor] forState:UIControlStateNormal];
+    YZInstallBarTitle(self, YZT(@"Размер текста"), self, @selector(back));
+    [self showPercent];
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [YZCrash note:[NSString stringWithFormat:@"screen %@", NSStringFromClass([self class])]];
+    [self restyle];
+}
+
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    CGFloat inset = CGRectGetMaxY(self.navigationController.navigationBar.frame);
+    CGFloat width = MIN((CGFloat)480, _scroll.bounds.size.width);
+    CGFloat x = floor((_scroll.bounds.size.width - width) / 2);
+    CGFloat top = inset + 8;
+    _card.frame = CGRectMake(x + 16, top, width - 32, 240);
+    CGFloat cw = _card.bounds.size.width;
+    _value.frame = CGRectMake(24, 16, cw - 48, 52);
+    _sample.frame = CGRectMake(24, 74, cw - 48, 240 - 74 - 16);
+    CGFloat trackTop = CGRectGetMaxY(_card.frame) + 28;
+    _track.frame = CGRectMake(x + 16, trackTop, width - 32, 40);
+    _low.frame = CGRectMake(x + 16 + 8, trackTop + 42, 80, 18);
+    _high.frame = CGRectMake(x + width - 16 - 8 - 80, trackTop + 42, 80, 18);
+    _reset.frame = CGRectMake(x + 16, trackTop + 84, width - 32, 48);
+    _scroll.contentSize = CGSizeMake(_scroll.bounds.size.width, CGRectGetMaxY(_reset.frame) + 24);
+    YZInstallBarTitle(self, YZT(@"Размер текста"), self, @selector(back));
+    [_fill placeInView:self.view controller:self];
+}
+
+- (void)back { [self.navigationController popViewControllerAnimated:YES]; }
+
+// the card follows the finger, the setting is taken when the finger is lifted
+- (void)moved {
+    _percent = [self percentForFraction:_track.fraction];
+    _value.text = [NSString stringWithFormat:@"%d%%", (int)_percent];
+    _sample.font = [UIFont systemFontOfSize:round(16.0f * _percent / 100.0f * 2) / 2];
+}
+
+- (void)commit {
+    _percent = [self percentForFraction:_track.fraction];
+    [YZSettings setTextZoom:_percent];
+    if (_changed)
+        _changed();
+    [self restyle];
+}
+
+- (void)resetSize {
+    _percent = 100;
+    [YZSettings setTextZoom:100];
+    [YZTheme animateFeedbackOfView:_reset];
+    if (_changed)
+        _changed();
+    [self restyle];
+}
+
+@end
+
+// the app screen: the sticker card, name, version from the bundle, a line about it and the links
+@implementation YZAboutController
+
+- (id)init {
+    self = [super initWithStyle:UITableViewStylePlain];
+    return self;
+}
+
+- (void)dealloc {
+    [YZCrash noteLifecycle:@"dealloc" object:self];
+    [_barFill removeFromSuperview];
+    [_barFill release];
+    [_hero release];
+    [super dealloc];
+}
+
+- (NSString *)versionText {
+    NSString *version = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
+    if (![version length])
+        version = [[NSBundle mainBundle] objectForInfoDictionaryKey:(NSString *)kCFBundleVersionKey];
+    return [NSString stringWithFormat:@"v%@", version ? version : @"?"];
+}
+
+// the card is made for the width of the table
+- (UIView *)makeHero:(CGFloat)width {
+    CGFloat cardWidth = MIN((CGFloat)520, width - 32);
+    UIView *host = [[[UIView alloc] initWithFrame:CGRectMake(0, 0, width, 100)] autorelease];
+    UIView *card = [[[UIView alloc] initWithFrame:CGRectZero] autorelease];
+    card.backgroundColor = [YZTheme cardColor];
+    card.layer.cornerRadius = 28;
+    [host addSubview:card];
+    CGFloat inner = cardWidth - 48;
+    CGFloat y = 28;
+    UIImageView *sticker = [[[UIImageView alloc] initWithImage:[UIImage imageNamed:@"yozora-sticker.png"]] autorelease];
+    sticker.contentMode = UIViewContentModeScaleAspectFit;
+    sticker.frame = CGRectMake((cardWidth - 144) / 2, y, 144, 144);
+    [card addSubview:sticker];
+    _hero = [sticker retain];
+    y += 144 + 12;
+    UILabel *name = [[[UILabel alloc] initWithFrame:CGRectMake(24, y, inner, 42)] autorelease];
+    name.text = @"Yozora";
+    name.font = [YZTheme boldSystemFontOfSize:32];
+    name.textColor = [YZTheme textColor];
+    name.textAlignment = YZTextAlignmentCenter;
+    name.backgroundColor = [UIColor clearColor];
+    [card addSubview:name];
+    y += 46;
+    // the version in a pill of the accent
+    UILabel *version = [[[UILabel alloc] initWithFrame:CGRectZero] autorelease];
+    version.text = [self versionText];
+    version.font = [YZTheme boldSystemFontOfSize:13];
+    version.textColor = [YZTheme accentColor];
+    version.textAlignment = YZTextAlignmentCenter;
+    version.backgroundColor = [YZTheme stateColor];
+    CGFloat pill = MIN(inner, YZTextSize(version.text, version.font).width + 28);
+    version.frame = CGRectMake((cardWidth - pill) / 2, y, pill, 28);
+    version.layer.cornerRadius = 14;
+    version.clipsToBounds = YES;
+    [card addSubview:version];
+    y += 28 + 16;
+    UILabel *text = [[[UILabel alloc] initWithFrame:CGRectZero] autorelease];
+    text.text = YZT(@"Современный браузер для iOS 5 и новее на новейшем WebKit.");
+    text.font = [YZTheme systemFontOfSize:15];
+    text.textColor = [YZTheme subtleTextColor];
+    text.textAlignment = YZTextAlignmentCenter;
+    text.numberOfLines = 0;
+    text.lineBreakMode = YZLineBreakWordWrapping;
+    text.backgroundColor = [UIColor clearColor];
+    CGFloat textHeight = YZMeasureHeight(text.text, text.font, inner);
+    text.frame = CGRectMake(24, y, inner, textHeight);
+    [card addSubview:text];
+    y += textHeight + 28;
+    card.frame = CGRectMake(floor((width - cardWidth) / 2), 8, cardWidth, y);
+    host.frame = CGRectMake(0, 0, width, y + 8 + 12);
+    return host;
+}
+
+- (void)restyle {
+    YZStyleTable(self);
+    if (!_barFill)
+        _barFill = [[YZBarFill alloc] initWithFrame:CGRectZero];
+    [_barFill applyTheme];
+    [_barFill attachToScrollView:self.tableView controller:self];
+    YZInstallBarTitle(self, YZT(@"Об Yozora"), self, @selector(back));
+    [_hero release];
+    _hero = nil;
+    self.tableView.tableHeaderView = [self makeHero:self.tableView.bounds.size.width];
+    _heroWidth = self.tableView.bounds.size.width;
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    if ([self respondsToSelector:NSSelectorFromString(@"setWantsFullScreenLayout:")])
+        [self setValue:[NSNumber numberWithBool:YES] forKey:@"wantsFullScreenLayout"];
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    [YZCrash note:[NSString stringWithFormat:@"screen %@", NSStringFromClass([self class])]];
+    [self restyle];
+    [self.tableView reloadData];
+}
+
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    // the sticker wobbles in once, like the one of the splash
+    [YZTheme animateEntranceOfView:_hero offset:CGPointMake(0, 18) delay:0.05];
+}
+
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    UINavigationBar *bar = self.navigationController.navigationBar;
+    if (bar && [[[UIDevice currentDevice] systemVersion] floatValue] < 7.0f) {
+        CGFloat top = CGRectGetMaxY(bar.frame);
+        UIEdgeInsets inset = self.tableView.contentInset;
+        if (fabs(inset.top - top) > 0.5) {
+            BOOL atTop = self.tableView.contentOffset.y <= -inset.top + 1;
+            inset.top = top;
+            self.tableView.contentInset = inset;
+            self.tableView.scrollIndicatorInsets = inset;
+            if (atTop)
+                self.tableView.contentOffset = CGPointMake(0, -top);
+        }
+    }
+    // a turn of the device makes the card again for the new width
+    if (fabs(self.tableView.bounds.size.width - _heroWidth) > 0.5) {
+        [_hero release];
+        _hero = nil;
+        self.tableView.tableHeaderView = [self makeHero:self.tableView.bounds.size.width];
+        _heroWidth = self.tableView.bounds.size.width;
+    }
+    YZInstallBarTitle(self, YZT(@"Об Yozora"), self, @selector(back));
+    [_barFill attachToScrollView:self.tableView controller:self];
+}
+
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView {
+    [_barFill attachToScrollView:scrollView controller:self];
+}
+
+- (void)back { [self.navigationController popViewControllerAnimated:YES]; }
+
+// the links: the title, the address under it
+- (NSArray *)links {
+    return [NSArray arrayWithObjects:
+        [NSArray arrayWithObjects:@"GitHub", @"https://github.com/sqmrak/yozora", @"https://github.com/sqmrak/yozora", [NSNumber numberWithInt:YZIconCode], nil],
+        [NSArray arrayWithObjects:YZT(@"Telegram-канал"), @"@sqmrakdev", @"https://t.me/sqmrakdev", [NSNumber numberWithInt:YZIconShare], nil],
+        // no address: the row only shows the names
+        [NSArray arrayWithObjects:YZT(@"Официальные тестеры"), YZAboutTesters, @"", [NSNumber numberWithInt:YZIconInfo], nil],
+        nil];
+}
+
+- (NSInteger)tableView:(UITableView *)table numberOfRowsInSection:(NSInteger)section { return (NSInteger)[[self links] count]; }
+
+- (CGFloat)tableView:(UITableView *)table heightForRowAtIndexPath:(NSIndexPath *)path {
+    NSArray *link = [[self links] objectAtIndex:path.row];
+    return YZRowHeight([link objectAtIndex:0], [link objectAtIndex:1], table.bounds.size.width, YES, NO, [[link objectAtIndex:2] length] > 0);
+}
+
+- (UITableViewCell *)tableView:(UITableView *)table cellForRowAtIndexPath:(NSIndexPath *)path {
+    YZSettingsCell *cell = (YZSettingsCell *)[table dequeueReusableCellWithIdentifier:@"YZLink"];
+    if (!cell)
+        cell = [[[YZSettingsCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"YZLink"] autorelease];
+    NSArray *link = [[self links] objectAtIndex:path.row];
+    YZConfigureCell(cell, [link objectAtIndex:0], [link objectAtIndex:1], (YZIcon)[[link objectAtIndex:3] intValue], nil, YES, NO, NO,
+                    YZPositionOf(path.row, (NSInteger)[[self links] count]), nil, [[link objectAtIndex:2] length] > 0);
+    cell->toggle.hidden = YES;
+    return cell;
+}
+
+- (void)tableView:(UITableView *)table didSelectRowAtIndexPath:(NSIndexPath *)path {
+    [table deselectRowAtIndexPath:path animated:YES];
+    NSString *address = [[[self links] objectAtIndex:path.row] objectAtIndex:2];
+    NSURL *url = [address length] ? [NSURL URLWithString:address] : nil;
+    if (url)
+        [[UIApplication sharedApplication] openURL:url];
+}
+
+@end

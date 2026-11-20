@@ -1,0 +1,36 @@
+if (APPLE)
+    set(CMAKE_OBJCXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++23 -fno-objc-arc")
+    set(CMAKE_OBJC_FLAGS "${CMAKE_C_FLAGS} -fno-objc-arc")
+    enable_language(OBJC)
+    enable_language(OBJCXX)
+endif ()
+
+function(yozora_add_js_probe)
+    get_filename_component(yozora_root "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/.." ABSOLUTE)
+    get_target_property(yozora_jsc_type JavaScriptCore TYPE)
+    if (yozora_jsc_type STREQUAL "STATIC_LIBRARY" AND TARGET JavaScriptCoreJIT)
+        # upstream passes prefix-header subtargets outside the static archive
+        target_sources(JavaScriptCore PRIVATE
+            "$<FILTER:$<TARGET_OBJECTS:JavaScriptCoreJIT>,EXCLUDE,\\.(g|p)ch$>")
+        get_target_property(yozora_links JavaScriptCore INTERFACE_LINK_LIBRARIES)
+        list(FILTER yozora_links EXCLUDE REGEX "TARGET_OBJECTS:JavaScriptCoreJIT>")
+        set_property(TARGET JavaScriptCore PROPERTY INTERFACE_LINK_LIBRARIES "${yozora_links}")
+    endif ()
+    add_executable(yozora-js
+        "${yozora_root}/tools/yozora_js_cli.c"
+        "${yozora_root}/core/yozora_types.c")
+    target_include_directories(yozora-js PRIVATE "${yozora_root}/core")
+    target_link_libraries(yozora-js PRIVATE WebKit::JavaScriptCore)
+    set_target_properties(yozora-js PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED YES)
+    target_compile_options(yozora-js PRIVATE -Wall -Wextra -Werror)
+    if (APPLE)
+        target_sources(yozora-js PRIVATE "${yozora_root}/tools/yozora_js_crash.cpp")
+    endif ()
+    add_executable(yozora-js-lifecycle "${yozora_root}/tests/test_js_lifecycle.c")
+    target_include_directories(yozora-js-lifecycle PRIVATE "${yozora_root}/core/darwin")
+    target_link_libraries(yozora-js-lifecycle PRIVATE WebKit::JavaScriptCore)
+    set_target_properties(yozora-js-lifecycle PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED YES)
+    target_compile_options(yozora-js-lifecycle PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+endfunction()
+
+cmake_language(DEFER CALL yozora_add_js_probe)

@@ -1,0 +1,36 @@
+# debug
+
+## in the app
+
+developer settings (a section with its own glyphs):
+
+- debug: a card in the corner of the page with the frames of the interface and the scenes put on screen each second, the processor load of the process, the share of time the core spends in layout and painting, resident memory against the memory of the phone, the bytes received and sent by the page loader and downloads (the media proxy is not counted), the phone by name (`core/yozora_debug.c` maps the system identifier) and the host of the page. there is no gpu line, see [graphics](graphics.md)
+- logging: keeps the stderr of the app (`NSLog`, the core, console errors of pages) in a buffer of 256 KB and passes it on
+- logs: opens it as a terminal card (`YZLogController`): this run, the run before, crashes, a filter by level (all, info, important, errors), copy and clear. the file of a run is kept up to 1 MB and the run before is kept as `yozora-previous.log`
+- jit: a switch and a line with what javascriptcore reports, read once at start
+
+the core writes lines as `HH:MM:SS.mmm L category: message`, `core/yozora_log.c`. a line has a level (D, I, W, E), a short category and no line break.
+
+## crashes
+
+the app keeps its own record of the last run (`YZCrash`): the screen it was on, notes at the steps of a launch, memory warnings, faults. the log screen shows it as crashes. a signal handler writes the addresses of the stack and `tools/yozora_crash.py LOG UNSTRIPPED_BINARY` symbolizes them.
+
+## environment
+
+- `YOZORA_LOG_REQUESTS=1`: every request and failure, blocked requests as `net: blocked HOST`
+- `YOZORA_GL_TRACE=1`: forwarded gl calls that left an error
+- `YOZORA_NO_JIT=1`: turns the jit off at run time
+- `YOZORA_RASTER_THREADS=1..4`: raster threads
+- `YOZORA_DEVICE_MEMORY_MB`: the memory the core acts on
+- `YOZORA_RENDER_BUSY=1`: the share of each second the core thread worked
+- `YOZORA_RENDER_BYTECODE=DIR`: the bytecode cache of a run and what it did, mode 0700
+- `YOZORA_RENDER_PROFILE=FILE` (`_US` for the interval, `_DEPTH` for the frames): samples the running threads
+
+## tools
+
+- `yozora-render`: the headless page runner. it prints the page console, and on a fatal signal the addresses of the stack
+- `tools/yozora_profile.py FILE UNSTRIPPED_BINARY`: self time, inclusive time and phases (`--core`, `--callers NAME`)
+- `tools/yozora_crash.py`: the symbolizer
+- `tools/yzdev.m`: screenshot, launch by bundle id and synthesized touches for driving the app over a shell on a jailbroken phone, needs `tools/yzdev.entitlements`
+- `yozora-js`: a javascript shell of the same engine, `tests/js/features.js` is its feature script
+- `tools/yozora_proxy_cli.c`, `tools/yozora_store_cli.c`, `tools/yozora_wasm_run.c`: the proxy, the store and the webassembly engine from a shell

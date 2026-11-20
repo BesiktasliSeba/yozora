@@ -1,0 +1,215 @@
+{
+  "upstream_commit": "628d6ce1850e17225185a5807a9d0aa375bae2be",
+  "files": [
+    {
+      "path": "Source/WTF/wtf/cf/CFURLExtras.h",
+      "size": 1975,
+      "sha256": "634325f416beeaf11eae66d2e22ea92d8348bff2adabc9ac7059c5dd95b2f5f0"
+    },
+    {
+      "path": "Source/WTF/wtf/cf/NotificationCenterCF.h",
+      "size": 2148,
+      "sha256": "f3309f1e721987ed162ef09797be4ec5a8c1099d6af951c2ea24bc9559e70d83"
+    },
+    {
+      "path": "Source/WTF/wtf/cf/TypeCastsCF.h",
+      "size": 3545,
+      "sha256": "617eb8e3ff824aba7e5e35eecdb5d96136f4c4e4db40a6f85bf6d982fa580bd4"
+    },
+    {
+      "path": "Source/WTF/wtf/cf/VectorCF.h",
+      "size": 10250,
+      "sha256": "16ab5d3dc409a1c8d5181e53b8cd51563afe502d58cdd9edf0d706dac2c58989"
+    },
+    {
+      "path": "Source/WTF/wtf/cocoa/AuditToken.h",
+      "size": 1553,
+      "sha256": "e2b6243bdc6441c84faba04f230d47eac7e376792abee3b165d370f970cd1d32"
+    },
+    {
+      "path": "Source/WTF/wtf/cocoa/CrashReporter.h",
+      "size": 1448,
+      "sha256": "4af988c8814bc8e17c7b33d2ae264bd719cba31a86272e44c1d4a031e89882b1"
+    },
+    {
+      "path": "Source/WTF/wtf/cocoa/Entitlements.h",
+      "size": 2230,
+      "sha256": "888b52179504779a8ca1f69ad494020853efdf8a44dbefcc9abaeb5d0abe0f11"
+    },
+    {
+      "path": "Source/WTF/wtf/cocoa/NSStringExtras.h",
+      "size": 1889,
+      "sha256": "568142a54ace79663d19de88e268aef8631fd08649b8c62e27778caed3552bf4"
+    },
+    {
+      "path": "Source/WTF/wtf/cocoa/NSURLExtras.h",
+      "size": 2536,
+      "sha256": "76d7d39028044e30694fe52cede5b181ace51bafe1a88c7363efe4d72ea2a04c"
+    },
+    {
+      "path": "Source/WTF/wtf/cocoa/RuntimeApplicationChecksCocoa.h",
+      "size": 9774,
+      "sha256": "60adc0b911d02c209649dae2c2259d0b9963c4279160545e58d154f2e97e6ef6"
+    },
+    {
+      "path": "Source/WTF/wtf/cocoa/SoftLinking.h",
+      "size": 36988,
+      "sha256": "3b2ddee9a9632236889378001c631a1a284c278e8a7a1714815a4e5291775187"
+    },
+    {
+      "path": "Source/WTF/wtf/cocoa/SpanCocoa.h",
+      "size": 2568,
+      "sha256": "96bc6181012a677f5422894b68a7af03d4dd1e30d0aa750c5446fb1532e95552"
+    },
+    {
+      "path": "Source/WTF/wtf/cocoa/TollFreeBridging.h",
+      "size": 3761,
+      "sha256": "af6d66fb81a60f4ba069f47c5497da13a2abb2a0675c079e055fd414ee01de75"
+    },
+    {
+      "path": "Source/WTF/wtf/cocoa/TypeCastsCocoa.h",
+      "size": 6455,
+      "sha256": "81b5d3df75a0c47ea8c44d9c31158da689d7083b28be9ce084c2075b291041a4"
+    },
+    {
+      "path": "Source/WTF/wtf/cocoa/VectorCocoa.h",
+      "size": 5962,
+      "sha256": "1121b02e2fbcce884a60f0ebd55b357319a70a34a8f4f83728f1e102cc44cfc2"
+    },
+    {
+      "path": "Source/WTF/wtf/darwin/OSLogPrintStream.mm",
+      "size": 3513,
+      "sha256": "b8856e220cfb5265df1c42f302f805a38c3f485017317d4da36c46bb86e80958"
+    },
+    {
+      "path": "Source/WTF/wtf/spi/cf/CFBundleSPI.h",
+      "size": 2187,
+      "sha256": "f40aeeb7800441fc5de338c09ca65ebc338fd4c5a177190cf2447dfd51641747"
+    },
+    {
+      "path": "Source/WTF/wtf/spi/cf/CFPrivSPI.h",
+      "size": 1620,
+      "sha256": "cabf63c0c83903e5a8675cfe8f4f62095a06aa636523e97544a309c3637268b3"
+    },
+    {
+      "path": "Source/WTF/wtf/spi/cf/CFRunLoopSPI.h",
+      "size": 1723,
+      "sha256": "084af4b4efe2228c0d6cb8156a6c73d2daf98ad33ad1810fcdf3b88ab621a063"
+    },
+    {
+      "path": "Source/WTF/wtf/spi/cf/CFStringSPI.h",
+      "size": 2051,
+      "sha256": "90b6fd01a0495b82d0984798ad34628c671c1da74bcc0d8e6e34e53b5ffe97d4"
+    },
+    {
+      "path": "Source/WTF/wtf/spi/cocoa/BOMSPI.h",
+      "size": 1458,
+      "sha256": "afbf3477f4630608bd29a597bd6da7b240d284cdad91198844771ec15c2b7d29"
+    },
+    {
+      "path": "Source/WTF/wtf/spi/cocoa/CFXPCBridgeSPI.h",
+      "size": 1987,
+      "sha256": "74aee4b9da3347b9c7c23ee601420e35ffe4b4074b4c1d448f72d39f530e2bc2"
+    },
+    {
+      "path": "Source/WTF/wtf/spi/cocoa/CrashReporterClientSPI.h",
+      "size": 2326,
+      "sha256": "1b708a681a1a14a7db8b25f0e9b0b096fdde04a8a6ff17d0e9d7902c3193e33f"
+    },
+    {
+      "path": "Source/WTF/wtf/spi/cocoa/IOReturnSPI.h",
+      "size": 1644,
+      "sha256": "cbf2acf044e8e13fe2a888edbfa9cb01b0eb84142e8a1b3bf48ac4953aa6060f"
+    },
+    {
+      "path": "Source/WTF/wtf/spi/cocoa/IOSurfaceSPI.h",
+      "size": 6364,
+      "sha256": "b18953b0ad52298d77124dfdc9b286ddd2a113f2a79bd034b92b95438e40a118"
+    },
+    {
+      "path": "Source/WTF/wtf/spi/cocoa/IOTypesSPI.h",
+      "size": 1837,
+      "sha256": "39a885d0dec3c5098af3a2c0ab89e749e06029f5614f53407a4cc18fea627395"
+    },
+    {
+      "path": "Source/WTF/wtf/spi/cocoa/MachVMSPI.h",
+      "size": 2964,
+      "sha256": "f12cc04a9656302916cf8399f22bfc8dbf3199b30b5b15177ee0c8bd63dfaeef"
+    },
+    {
+      "path": "Source/WTF/wtf/spi/cocoa/NSLocaleSPI.h",
+      "size": 1960,
+      "sha256": "7f18f93c17c6a288fb47f7db05cfb4320a38b2383c40de09da1245f25ee6f247"
+    },
+    {
+      "path": "Source/WTF/wtf/spi/cocoa/NSObjCRuntimeSPI.h",
+      "size": 2024,
+      "sha256": "5532cf21f9178d33ae5033a5a327515b9aea714ead943bb3314a79b64476bf07"
+    },
+    {
+      "path": "Source/WTF/wtf/spi/cocoa/OSLogSPI.h",
+      "size": 2814,
+      "sha256": "f93bc7f6f2cc2e2ac53805aa388f3f1fff0e9df3e49f45fd46263135f1e3e60c"
+    },
+    {
+      "path": "Source/WTF/wtf/spi/cocoa/SecuritySPI.h",
+      "size": 5473,
+      "sha256": "bf635eeb176aee4335d37a71d6267bdf272e8769aab8c5289eaed0d67cda6231"
+    },
+    {
+      "path": "Source/WTF/wtf/spi/cocoa/XTSPI.h",
+      "size": 1804,
+      "sha256": "4d92aa486eba7f1cabf17f74c34a602a17aa2c682396206317faa2ce2595c5a4"
+    },
+    {
+      "path": "Source/WTF/wtf/spi/cocoa/objcSPI.h",
+      "size": 1989,
+      "sha256": "d96613bb14fed5fbe7fc6c2182316d1505638973c0cdf2353c3b0cbf5123e968"
+    },
+    {
+      "path": "Source/WTF/wtf/spi/mac/MetadataSPI.h",
+      "size": 1760,
+      "sha256": "f30e527d5505615e6f1d63d59b6fc8135c2640c9f67b1c056b05f38f48f8043a"
+    },
+    {
+      "path": "Source/WTF/wtf/text/cf/StringConcatenateCF.h",
+      "size": 2744,
+      "sha256": "d6f3428dc289123123079490ec47836a10849470ef0322a1953ec5df60bab2f1"
+    },
+    {
+      "path": "Source/WTF/wtf/text/cf/TextBreakIteratorCF.h",
+      "size": 4182,
+      "sha256": "884418a62a7cde0bf062ddd307a9b10d97fd12907be8522baa4234188c3a4d14"
+    },
+    {
+      "path": "Source/WTF/wtf/text/cf/TextBreakIteratorCFCharacterCluster.h",
+      "size": 3797,
+      "sha256": "8484257fb068b95cc4410cfe2f3cdcec4e363cb8afda5894e2ced6c87d3c563e"
+    },
+    {
+      "path": "Source/WTF/wtf/text/cf/TextBreakIteratorCFStringTokenizer.h",
+      "size": 5570,
+      "sha256": "16a663dcd6059309b01c61aa5d9add58883c71b3476398a717f9846e2a28d87a"
+    },
+    {
+      "path": "Source/WTF/wtf/text/cocoa/ContextualizedCFString.h",
+      "size": 1775,
+      "sha256": "9f91047c96fb153ac05061f7bda91b3a2d1f2580928b892bea8c9331db76c56c"
+    },
+    {
+      "path": "Source/WTF/wtf/text/cocoa/ContextualizedNSString.h",
+      "size": 1610,
+      "sha256": "c194d07bd01dffc552629119ae393f34a353af9767ab87dd8d6ef3757df2d025"
+    },
+    {
+      "path": "Source/bmalloc/bmalloc/ProcessCheck.mm",
+      "size": 6084,
+      "sha256": "a207e8efe72b3923101e7a623f5f079f908370fd53b1ecb9ed66275a74783c29"
+    },
+    {
+      "path": "Source/WTF/wtf/cocoa/NSTypeTraits.h",
+      "size": 1242,
+      "sha256": "4121670b6a1f13f48ab679aa018ffe382ab7f84bb67fa253b9afba148ad967ab"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "icu": {
+    "version": "78.3",
+    "archive": "icu4c-78.3-sources.tgz",
+    "url": "https://github.com/unicode-org/icu/releases/download/release-78.3/icu4c-78.3-sources.tgz",
+    "size": 27977255,
+    "sha256": "3a2e7a47604ba702f345878308e6fefeca612ee895cf4a5f222e7955fabfe0c0",
+    "directory": "icu"
+  },
+  "llvm": {
+    "version": "23.1.1",
+    "url": "https://github.com/llvm/llvm-project.git",
+    "tag": "llvmorg-23.1.1",
+    "commit": "6dfe1677ab8dffbc6ec13d53a1e0215d75147689",
+    "directory": "llvm-project-23.1.1",
+    "paths": ["libcxx", "libcxxabi", "libunwind", "libc/shared", "libc/src/__support", "libc/include", "libc/hdr", "libc/cmake", "runtimes", "cmake", "llvm/cmake", "llvm/utils/llvm-lit", "compiler-rt/lib/builtins", "compiler-rt/cmake"]
+  }
+}

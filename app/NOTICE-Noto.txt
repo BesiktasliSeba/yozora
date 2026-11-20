@@ -1,0 +1,5 @@
+the fonts in fonts/ named Noto*.ttf and NotoSansCJK-*.otf are Noto fonts, Copyright The Noto Project Authors (https://github.com/notofonts),
+licensed under the SIL Open Font License 1.1 (https://openfontlicense.org), and Noto Sans CJK, Copyright 2014-2021 Adobe (http://www.adobe.com/),
+licensed under the SIL Open Font License 1.1 as well. they hold the scripts and symbols that Roboto lacks, so a page shows letters and not boxes.
+the four NotoSansCJK files are cut from the Noto Sans CJK collection to the everyday characters of JIS X 0208, KS X 1001, GB2312 and Big5
+by tools/make_fallback_fonts.py

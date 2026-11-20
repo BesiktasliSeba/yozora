@@ -1,0 +1,2796 @@
+#import <objc/message.h>
+#import "YZBrowserController.h"
+#import "YZSystemNotifier.h"
+#import "YZControls.h"
+#import "YZLog.h"
+#import "YZCrash.h"
+#import "YZMediaPlayer.h"
+#import "YZMotion.h"
+#import "YZCompat.h"
+#import "YZSettings.h"
+#import "YZSettingsController.h"
+#import "YZStrings.h"
+#import "YZTab.h"
+#import "YZTheme.h"
+#include "yozora_address.h"
+
+static NSString *const YZTabsDefaultsKey = @"YZTabs";
+static NSString *const YZCurrentTabDefaultsKey = @"YZCurrentTab";
+static const NSUInteger YZTabLimit = 24;
+static const NSInteger YZBottomSkirtTag = 7701;
+static const NSUInteger YZSuggestionLimit = 6;
+static const CGFloat YZThumbnailPixels = 280;
+
+// the display link retains its target, this one holds the controller without retaining it
+@interface YZCoreLinkTarget : NSObject {
+@public
+    YZBrowserController *controller;
+}
+- (void)fire:(CADisplayLink *)link;
+@end
+@implementation YZCoreLinkTarget
+- (void)fire:(CADisplayLink *)link {
+    [controller noteDisplayFrame];
+    [controller pumpCore:link];
+}
+@end
+
+// the status calls run every display frame, a new string is made only when the text changed
+static NSString *YZStringReusing(const char *text, NSString *previous) {
+    if (!text)
+        text = "";
+    if (previous && strcmp(text, [previous UTF8String]) == 0)
+        return previous;
+    NSString *string = [NSString stringWithUTF8String:text];
+    return string ? string : @"";
+}
+
+static BOOL YZSameString(NSString *a, NSString *b) {
+    return a == b || (a && b && [a isEqualToString:b]);
+}
+
+// the view of a page as the tiles hold it at the scroll position, scaled down
+static UIImage *YZThumbnailFromView(UIView *view) {
+    CGSize size = view.bounds.size;
+    if (size.width < 1 || size.height < 1)
+        return nil;
+    CGFloat captureScale = MIN((CGFloat)1, (CGFloat)2048 / MAX(size.width, size.height));
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(size.width * captureScale, size.height * captureScale), YES, 1);
+    CGContextRef context = UIGraphicsGetCurrentContext();
+    if (!context) {
+        UIGraphicsEndImageContext();
+        return nil;
+    }
+    CGContextScaleCTM(context, captureScale, captureScale);
+    [view.layer renderInContext:context];
+    UIImage *capture = [UIGraphicsGetImageFromCurrentImageContext() retain];
+    UIGraphicsEndImageContext();
+    if (!capture)
+        return nil;
+    CGFloat scale = MIN((CGFloat)1, YZThumbnailPixels / size.width);
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(size.width * scale, size.height * scale), YES, 1);
+    context = UIGraphicsGetCurrentContext();
+    if (!context) {
+        UIGraphicsEndImageContext();
+        [capture release];
+        return nil;
+    }
+    // shrinking after the tile layers are flattened avoids seams between scaled tiles
+    [capture drawInRect:CGRectMake(0, 0, size.width * scale, size.height * scale)];
+    UIImage *result = UIGraphicsGetImageFromCurrentImageContext();
+    [capture release];
+    UIGraphicsEndImageContext();
+    return result;
+}
+
+// iOS 11 and later, absent from the iOS 5 headers
+@interface UIViewController (YZSafeArea)
+- (void)viewSafeAreaInsetsDidChange;
+@end
+
+@interface YZBrowserController ()
+- (YZTab *)currentTab;
+- (void)layoutChrome;
+- (void)updateChromeForced:(BOOL)forced;
+- (void)updateAddressDisplay;
+- (BOOL)createCore;
+- (void)destroyCore;
+- (void)parkCoreKeepingTab:(YZTab *)kept;
+- (void)loadURL:(NSString *)url;
+- (void)openAddressText:(NSString *)text;
+- (void)showBanner:(NSString *)text;
+- (void)watchExternalLinks;
+- (void)showError:(NSString *)text;
+- (void)showHome;
+- (void)trackScrollForBars;
+- (void)setBottomBarShown:(BOOL)shown animated:(BOOL)animated;
+- (YZTranslation *)currentTranslation;
+- (void)updateTranslationAnimated:(BOOL)animated;
+- (void)presentTranslateSheet;
+- (void)setTranslateBarShown:(BOOL)shown animated:(BOOL)animated;
+- (void)switchToTab:(NSUInteger)index;
+- (void)addBlankTab;
+- (void)closeTabAtIndex:(NSUInteger)index;
+- (void)setIncognito:(BOOL)incognito;
+- (void)wobbleChrome;
+- (void)styleBarButton:(UIButton *)button icon:(YZIcon)icon;
+- (void)restoreTabs;
+- (void)openSiteData;
+- (void)openHTTPCache;
+- (void)openBytecodeCache;
+- (void)setEditing:(BOOL)editing;
+- (void)refreshSuggestions;
+- (NSString *)currentURL;
+- (void)closePopup;
+- (void)handleMedia:(const yozora_media_request *)request;
+- (void)dismissVideoAnimated:(BOOL)animated;
+- (void)presentVideoOfPlayer:(YZMediaPlayer *)player;
+@end
+
+@implementation YZBrowserController
+
+#pragma mark setup
+
+// a button of the bottom bar: the glyph in the text color, a pill of the accent under it while pressed, a bounce of the whole button
+- (UIButton *)barButtonWithIcon:(YZIcon)icon action:(SEL)action label:(NSString *)label {
+    YZStateButton *button = [YZStateButton buttonWithType:UIButtonTypeCustom];
+    button.pillSize = CGSizeMake(56, 32);
+    [self styleBarButton:button icon:icon];
+    [button addTarget:self action:action forControlEvents:UIControlEventTouchUpInside];
+    YZMotionAttachBounce(button, 0.06f);
+    button.accessibilityLabel = label;
+    button.tag = icon;
+    return button;
+}
+
+- (void)styleBarButton:(UIButton *)button icon:(YZIcon)icon {
+    [button setImage:[YZTheme icon:icon size:24 color:[YZTheme textColor]] forState:UIControlStateNormal];
+    [button setImage:[YZTheme icon:icon size:24 color:[[YZTheme subtleTextColor] colorWithAlphaComponent:0.4f]] forState:UIControlStateDisabled];
+}
+
+- (void)loadView {
+    UIView *root = [[UIView alloc] initWithFrame:[[UIScreen mainScreen] applicationFrame]];
+    root.backgroundColor = [YZTheme surfaceColor];
+    self.view = root;
+    [root release];
+
+    _pageView = [[YZPageView alloc] initWithFrame:CGRectZero];
+    _pageView.delegate = self;
+    [self.view addSubview:_pageView];
+
+    _home = [[YZHomeView alloc] initWithFrame:CGRectZero];
+    _home.homeDelegate = self;
+    [self.view addSubview:_home];
+
+    _errorPage = [[YZErrorPage alloc] initWithTarget:self action:@selector(retryPagePressed)];
+    _errorPage.hidden = YES;
+    [self.view addSubview:_errorPage];
+
+    _banner = [[UILabel alloc] initWithFrame:CGRectZero];
+    _banner.backgroundColor = [YZTheme cardColor];
+    _banner.textColor = [YZTheme textColor];
+    // the fonts of the views that live on follow the text size of the settings
+    _banner.font = [YZTheme systemFontOfSize:14];
+    _input.font = [YZTheme systemFontOfSize:15];
+    _cancelButton.titleLabel.font = [YZTheme boldSystemFontOfSize:15];
+    _banner.layer.cornerRadius = 14;
+    _banner.layer.masksToBounds = YES;
+    _banner.font = [YZTheme systemFontOfSize:14];
+    _banner.numberOfLines = 2;
+    _banner.textAlignment = YZTextAlignmentCenter;
+    _banner.hidden = YES;
+    [self.view addSubview:_banner];
+
+    _suggestionsTable = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStylePlain];
+    _suggestionsTable.dataSource = self;
+    _suggestionsTable.delegate = self;
+    _suggestionsTable.hidden = YES;
+    _suggestionsTable.backgroundColor = [YZTheme surfaceColor];
+    _suggestionsTable.separatorStyle = UITableViewCellSeparatorStyleNone;
+    _suggestionsTable.rowHeight = 62;
+    [self.view addSubview:_suggestionsTable];
+    _suggestions = [[NSMutableArray alloc] init];
+
+    _topBar = [[UIView alloc] initWithFrame:CGRectZero];
+    _topBar.backgroundColor = [YZTheme toolbarColor];
+    [self.view addSubview:_topBar];
+    // the status bar text is light on every theme, so the strip under it is always black
+    UIView *statusStrip = [[[UIView alloc] initWithFrame:CGRectZero] autorelease];
+    statusStrip.backgroundColor = [YZTheme statusStripColor];
+    statusStrip.tag = 2;
+    [_topBar addSubview:statusStrip];
+    _tabStrip = [[YZTabStrip alloc] initWithFrame:CGRectZero];
+    _tabStrip.delegate = self;
+    _tabStrip.hidden = YES;
+    [_topBar addSubview:_tabStrip];
+
+    _field = [[UIView alloc] initWithFrame:CGRectZero];
+    _field.backgroundColor = [YZTheme fieldColor];
+    _field.layer.cornerRadius = 20;
+    [_topBar addSubview:_field];
+
+    _securityView = [[UIImageView alloc] initWithFrame:CGRectZero];
+    _securityView.contentMode = UIViewContentModeCenter;
+    [_field addSubview:_securityView];
+
+    _input = [[UITextField alloc] initWithFrame:CGRectZero];
+    _input.borderStyle = UITextBorderStyleNone;
+    YZSetPlaceholder(_input, YZT(@"Поиск или адрес"), [[YZTheme textColor] colorWithAlphaComponent:0.7f]);
+    // the url keyboard has no space key, the web search keyboard (10) has it but exists from ios 7
+    _input.keyboardType = [UIViewController instancesRespondToSelector:NSSelectorFromString(@"topLayoutGuide")] ? (UIKeyboardType)10 : UIKeyboardTypeDefault;
+    _input.returnKeyType = UIReturnKeyGo;
+    _input.autocapitalizationType = UITextAutocapitalizationTypeNone;
+    _input.autocorrectionType = UITextAutocorrectionTypeNo;
+    _input.clearButtonMode = UITextFieldViewModeWhileEditing;
+    _input.font = [YZTheme systemFontOfSize:15];
+    _input.textColor = [YZTheme textColor];
+    _input.keyboardAppearance = [YZTheme isDark] ? UIKeyboardAppearanceAlert : UIKeyboardAppearanceDefault;
+    _input.textAlignment = YZTextAlignmentCenter;
+    _input.contentVerticalAlignment = UIControlContentVerticalAlignmentCenter;
+    _input.delegate = self;
+    _input.accessibilityLabel = YZT(@"Адрес страницы");
+    [_input addTarget:self action:@selector(inputChanged) forControlEvents:UIControlEventEditingChanged];
+    [_field addSubview:_input];
+
+    _reloadButton = [[YZStateButton buttonWithType:UIButtonTypeCustom] retain];
+    [(YZStateButton *)_reloadButton setPillSize:CGSizeMake(32, 32)];
+    [_reloadButton addTarget:self action:@selector(reloadPressed) forControlEvents:UIControlEventTouchUpInside];
+    YZMotionAttachBounce(_reloadButton, 0.1f);
+    [_field addSubview:_reloadButton];
+
+    // the translation of the page: a glyph in the field that appears when there is something to do, and a card at the bottom of the page
+    _translateButton = [[YZStateButton buttonWithType:UIButtonTypeCustom] retain];
+    [(YZStateButton *)_translateButton setPillSize:CGSizeMake(32, 32)];
+    [_translateButton addTarget:self action:@selector(translateButtonPressed) forControlEvents:UIControlEventTouchUpInside];
+    YZMotionAttachBounce(_translateButton, 0.1f);
+    _translateButton.hidden = YES;
+    _translateButton.accessibilityLabel = YZT(@"Перевод страницы");
+    [_field addSubview:_translateButton];
+    _translateBar = [[YZTranslateBar alloc] initWithFrame:CGRectZero];
+    _translateBar.delegate = self;
+    // grows from its bottom edge so the card does not overshoot upward as a whole
+    _translateBar.layer.anchorPoint = CGPointMake(0.5f, 1);
+    _translateBar.hidden = YES;
+    [self.view addSubview:_translateBar];
+    _bottomBarShown = YES;
+    _pageReservesBar = YES;
+
+    _cancelButton = [[YZStateButton buttonWithType:UIButtonTypeCustom] retain];
+    [(YZStateButton *)_cancelButton setPillInsets:UIEdgeInsetsMake(10, 6, 10, 6)];
+    [_cancelButton setTitle:YZT(@"Отмена") forState:UIControlStateNormal];
+    [_cancelButton setTitleColor:[YZTheme accentColor] forState:UIControlStateNormal];
+    _cancelButton.titleLabel.font = [YZTheme boldSystemFontOfSize:15];
+    [_cancelButton addTarget:self action:@selector(cancelPressed) forControlEvents:UIControlEventTouchUpInside];
+    _cancelButton.hidden = YES;
+    [_topBar addSubview:_cancelButton];
+
+    _progress = [[UIView alloc] initWithFrame:CGRectZero];
+    _progress.backgroundColor = [YZTheme accentColor];
+    _progress.hidden = YES;
+    [_topBar addSubview:_progress];
+
+    _bottomBar = [[UIView alloc] initWithFrame:CGRectZero];
+    _bottomBar.backgroundColor = [YZTheme toolbarColor];
+    // the wobble lifts the bar's lower edge above the screen for a moment, a skirt of its color hides the
+    // page strip
+    UIView *skirt = [[[UIView alloc] initWithFrame:CGRectZero] autorelease];
+    skirt.tag = YZBottomSkirtTag;
+    skirt.backgroundColor = [YZTheme toolbarColor];
+    [_bottomBar addSubview:skirt];
+    [self.view addSubview:_bottomBar];
+    _backButton = [[self barButtonWithIcon:YZIconBack action:@selector(backPressed) label:YZT(@"Назад")] retain];
+    _forwardButton = [[self barButtonWithIcon:YZIconForward action:@selector(forwardPressed) label:YZT(@"Вперёд")] retain];
+    _starButton = [[self barButtonWithIcon:YZIconStar action:@selector(starPressed) label:YZT(@"Закладка")] retain];
+    _tabsButton = [[self barButtonWithIcon:YZIconTabs action:@selector(tabsPressed) label:YZT(@"Вкладки")] retain];
+    _menuButton = [[self barButtonWithIcon:YZIconMenu action:@selector(menuPressed) label:YZT(@"Меню")] retain];
+    for (UIButton *button in [NSArray arrayWithObjects:_backButton, _forwardButton, _starButton, _tabsButton, _menuButton, nil])
+        [_bottomBar addSubview:button];
+
+    _tabsView = [[YZTabsView alloc] initWithFrame:CGRectZero];
+    _tabsView.delegate = self;
+    _tabsView.hidden = YES;
+    [self.view addSubview:_tabsView];
+
+    NSString *failure = nil;
+    _store = [[YZStore openDefaultStore:&failure] retain];
+    _tabs = [[NSMutableArray alloc] init];
+    if (_popupMode) {
+        [_tabs addObject:[[[YZTab alloc] init] autorelease]];
+        [_tabsButton removeTarget:self action:@selector(tabsPressed) forControlEvents:UIControlEventTouchUpInside];
+        [_tabsButton addTarget:self action:@selector(closePopup) forControlEvents:UIControlEventTouchUpInside];
+        [_tabsButton setImage:[YZTheme icon:YZIconClose size:24 color:[YZTheme textColor]] forState:UIControlStateNormal];
+        _tabsButton.accessibilityLabel = YZT(@"Закрыть");
+    } else {
+        [self restoreTabs];
+        [self openSiteData];
+        [self openHTTPCache];
+        [self openBytecodeCache];
+    }
+    if (![self createCore])
+        return;
+    if (!_store)
+        [self showError:[NSString stringWithFormat:YZT(@"История недоступна: %@"), failure ? failure : YZT(@"профиль не открыт")]];
+    YZCoreLinkTarget *target = [[YZCoreLinkTarget alloc] init];
+    target->controller = self;
+    _linkTarget = target;
+    _link = [[CADisplayLink displayLinkWithTarget:target selector:@selector(fire:)] retain];
+    _link.frameInterval = 1;
+    [_link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardChanged:)
+                                                 name:UIKeyboardWillShowNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardChanged:)
+                                                 name:UIKeyboardWillHideNotification object:nil];
+    [self showHome];
+    [self applyDeveloperSettings];
+}
+
+#pragma mark tabs
+
+// cookies and local storage are the user's logins, they live in the profile directory the store made, not in the caches
+- (void)openSiteData {
+    // the folder of the files that pages hand over is set with the other places, the core makes it when the first file comes
+    yozora_downloads_set_directory([[YZDownloadsController directory] fileSystemRepresentation]);
+    char error[256] = {0};
+    NSString *directory = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Yozora"];
+    if (!yozora_set_site_data([directory fileSystemRepresentation], error, sizeof(error)))
+        NSLog(@"yozora: cookies and local storage are kept in memory only: %s", error);
+}
+
+// stored pages live in the caches directory, which the system may empty and does not back up
+- (void)openHTTPCache {
+    NSArray *roots = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
+    if (![roots count])
+        return;
+    NSString *directory = [[roots objectAtIndex:0] stringByAppendingPathComponent:@"Yozora"];
+    NSDictionary *private_mode = [NSDictionary dictionaryWithObject:[NSNumber numberWithUnsignedLong:0700] forKey:NSFilePosixPermissions];
+    NSFileManager *files = [NSFileManager defaultManager];
+    NSError *failure = nil;
+    if (![files createDirectoryAtPath:directory withIntermediateDirectories:YES attributes:private_mode error:&failure]
+        || ![files setAttributes:private_mode ofItemAtPath:directory error:&failure]) {
+        NSLog(@"yozora: cache directory unavailable: %@", failure);
+        return;
+    }
+    char error[256] = {0};
+    if (!yozora_set_http_cache([directory fileSystemRepresentation], 64 * 1024 * 1024, error, sizeof(error)))
+        NSLog(@"yozora: http cache disabled: %s", error);
+}
+
+// compiled scripts of the sites the user visits, in a directory of their own beside the stored pages
+- (void)openBytecodeCache {
+    NSArray *roots = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
+    if (![roots count])
+        return;
+    NSString *directory = [[roots objectAtIndex:0] stringByAppendingPathComponent:@"YozoraBytecode"];
+    NSDictionary *private_mode = [NSDictionary dictionaryWithObject:[NSNumber numberWithUnsignedLong:0700] forKey:NSFilePosixPermissions];
+    NSFileManager *files = [NSFileManager defaultManager];
+    NSError *failure = nil;
+    if (![files createDirectoryAtPath:directory withIntermediateDirectories:YES attributes:private_mode error:&failure]
+        || ![files setAttributes:private_mode ofItemAtPath:directory error:&failure]) {
+        NSLog(@"yozora: bytecode cache directory unavailable: %@", failure);
+        return;
+    }
+    char error[256] = {0};
+    if (!yozora_set_bytecode_cache([directory fileSystemRepresentation], 64 * 1024 * 1024, error, sizeof(error)))
+        NSLog(@"yozora: bytecode cache disabled: %s", error);
+}
+
+- (YZTab *)currentTab {
+    return [_tabs objectAtIndex:_current];
+}
+
+- (void)restoreTabs {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    [YZSettings applyToCore];
+    NSArray *saved = [defaults objectForKey:YZTabsDefaultsKey];
+    if ([saved isKindOfClass:[NSArray class]]) {
+        for (id item in saved) {
+            if (![item isKindOfClass:[NSDictionary class]] || [_tabs count] >= YZTabLimit)
+                continue;
+            id url = [item objectForKey:@"url"], title = [item objectForKey:@"title"];
+            YZTab *tab = [[[YZTab alloc] init] autorelease];
+            id identifier = [item objectForKey:@"id"];
+            if ([identifier isKindOfClass:[NSString class]])
+                tab.identifier = identifier;
+            tab.url = [url isKindOfClass:[NSString class]] ? url : @"";
+            tab.title = [title isKindOfClass:[NSString class]] ? title : @"";
+            // the preview of the last run is read when the tray asks for it
+            [tab noteStoredThumbnail];
+            [_tabs addObject:tab];
+        }
+    }
+    NSMutableArray *kept = [NSMutableArray array];
+    for (YZTab *tab in _tabs)
+        [kept addObject:tab.identifier];
+    [YZTab removeStoredThumbnailsExcept:kept];
+    if (![_tabs count])
+        [_tabs addObject:[[[YZTab alloc] init] autorelease]];
+    NSInteger index = [defaults integerForKey:YZCurrentTabDefaultsKey];
+    _current = (index >= 0 && (NSUInteger)index < [_tabs count]) ? (NSUInteger)index : 0;
+}
+
+- (void)writeTabsAndWait:(BOOL)wait {
+    // private tabs are never written, the profile's list is the one that is not shown while the private session is
+    NSMutableArray *profile = [YZSettings incognito] ? _otherTabs : _tabs;
+    NSMutableArray *saved = [NSMutableArray array];
+    for (YZTab *tab in profile)
+        [saved addObject:[NSDictionary dictionaryWithObjectsAndKeys:tab.url ? tab.url : @"", @"url", tab.title ? tab.title : @"", @"title",
+                          tab.identifier, @"id", nil]];
+    NSInteger current = (NSInteger)([YZSettings incognito] ? _otherCurrent : _current);
+    if (!_saveQueue)
+        _saveQueue = dispatch_queue_create("yozora.tabs", DISPATCH_QUEUE_SERIAL);
+    // the plist is rewritten on flash, which can take long enough to be seen as a stall of the page
+    void (^write)(void) = ^{
+        NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+        [defaults setObject:saved forKey:YZTabsDefaultsKey];
+        [defaults setInteger:current forKey:YZCurrentTabDefaultsKey];
+        if (![defaults synchronize]) {
+            NSLog(@"yozora: tab list was not written");
+            [self retain];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [self showError:YZT(@"Вкладки не сохранены")];
+                [self release];
+            });
+        }
+    };
+    if (wait)
+        dispatch_sync(_saveQueue, write);
+    else
+        dispatch_async(_saveQueue, write);
+}
+
+- (void)saveTabs {
+    if (_popupMode)
+        return;
+    [self writeTabsAndWait:NO];
+}
+
+- (void)saveTabsAndWait {
+    if (_popupMode)
+        return;
+    // the preview of the open page is stored with the list, so the tray has it after the next start
+    [self captureCurrentTab];
+    [self writeTabsAndWait:YES];
+    [_store flush];
+}
+
+- (void)captureCurrentTab {
+    if (!_core)
+        return;
+    YZTab *tab = [self currentTab];
+    if (_hasFrame && ![tab isBlank]) {
+        UIImage *picture = YZThumbnailFromView(_pageView);
+        if (picture)
+            tab.thumbnail = picture;
+    }
+    tab.scrollY = yozora_core_scroll_y(_core);
+}
+
+- (BOOL)createCore {
+    NSString *resources = [[NSBundle mainBundle] resourcePath];
+    char error[256] = {0};
+    YZTab *tab = [self currentTab];
+    _core = [tab takeSuspendedCore];
+    if (_core && !yozora_core_set_suspended(_core, 0)) {
+        NSLog(@"yozora: suspended tab could not resume, reloading its address");
+        yozora_core_destroy(_core);
+        _core = NULL;
+    }
+    BOOL restored = _core != NULL;
+    if (!_core) {
+        if (_initialPopupCore) {
+            _core = _initialPopupCore;
+            _initialPopupCore = NULL;
+        } else
+            _core = yozora_core_create([[resources stringByAppendingPathComponent:@"fonts"] fileSystemRepresentation],
+                                      [[resources stringByAppendingPathComponent:@"ca-bundle.crt"] fileSystemRepresentation],
+                                      error, sizeof(error));
+    }
+    if (!_core) {
+        NSLog(@"yozora: core initialization failed: %s", error);
+        [self showError:[NSString stringWithUTF8String:error]];
+        return NO;
+    }
+    _pageView.core = _core;
+    _hasFrame = NO;
+    // the translation belongs to the core: a core that came back from the cache brings its own, a new one gets a new one
+    YZTranslation *translation = tab.translation;
+    if (!restored || !translation) {
+        [translation invalidate];
+        translation = [[[YZTranslation alloc] initWithCore:_core] autorelease];
+        tab.translation = translation;
+    }
+    translation.delegate = self;
+    [self layoutChrome];
+    // a new core starts in the mobile mode, a tab that was asked for the desktop site asks again
+    if (!restored)
+        yozora_core_set_desktop(_core, tab.desktop ? 1 : 0);
+    if (!restored && ![tab isBlank]) {
+        _restoreScroll = tab.scrollY;
+        [self loadURL:tab.url];
+    }
+    return YES;
+}
+
+- (void)destroyCore {
+    if (!_core)
+        return;
+    // a question of the page that goes away has nobody to answer
+    if (_authAlert) {
+        [_authAlert dismissSilently];
+        [_authAlert release];
+        _authAlert = nil;
+    }
+    if (_geoAlert) {
+        [_geoAlert dismissSilently];
+        [_geoAlert release];
+        _geoAlert = nil;
+    }
+    if (_notificationAlert) {
+        [_notificationAlert dismissSilently];
+        [_notificationAlert release];
+        _notificationAlert = nil;
+    }
+    [_location detachCore:_core];
+    [self dismissVideoAnimated:NO];
+    [self closePageControls];
+    [self closeFindBar];
+    [_pageView stopFling];
+    [self captureCurrentTab];
+    for (YZMediaPlayer *player in [_mediaPlayers allValues])
+        [player shutDown];
+    [_mediaPlayers release];
+    _mediaPlayers = nil;
+    [_pageView clearFrame];
+    _pageView.core = NULL;
+    _pageEditing = NO;
+    // the translation is told before the core goes
+    [[self currentTab].translation invalidate];
+    [self currentTab].translation.delegate = nil;
+    [self currentTab].translation = nil;
+    yozora_core_destroy(_core);
+    _core = NULL;
+    [self updateTranslationAnimated:NO];
+    _hasFrame = NO;
+    _restoreScroll = 0;
+    _thumbnailDue = 0;
+    _lastLoadState = 0;
+}
+
+- (void)parkCoreKeepingTab:(YZTab *)kept {
+    [self closePageControls];
+    [self closeFindBar];
+    // media players belong to the controller, a cached page must not keep an orphaned native player
+    if (!_core || _popupMode || _popupController || [_mediaPlayers count] || _authAlert
+        || (_memoryWarningTime && CACurrentMediaTime() - _memoryWarningTime < 20)
+        || !yozora_core_set_suspended(_core, 1)) {
+        [self destroyCore];
+        return;
+    }
+    for (YZTab *tab in _tabs) {
+        if (tab != kept)
+            [tab discardSuspendedCore];
+    }
+    [self captureCurrentTab];
+    [_pageView stopFling];
+    [_pageView clearSelection];
+    [_pageView resignFirstResponder];
+    [_pageView clearFrame];
+    _pageView.core = NULL;
+    _pageEditing = NO;
+    [[self currentTab] keepSuspendedCore:_core];
+    _core = NULL;
+    _hasFrame = NO;
+    _restoreScroll = 0;
+    _thumbnailDue = 0;
+    _lastLoadState = 0;
+}
+
+- (void)switchToTab:(NSUInteger)index {
+    if (index >= [_tabs count] || index == _current)
+        return;
+    [self parkCoreKeepingTab:[_tabs objectAtIndex:index]];
+    _current = index;
+    [self createCore];
+    [self saveTabs];
+    [self updateChromeForced:YES];
+    [self updateTranslationAnimated:NO];
+    // the page of the chosen tab fades in over the tray that leaves
+    _pageView.alpha = 0;
+    [YZTheme animate:^{ _pageView.alpha = 1; } completion:nil];
+}
+
+- (void)addBlankTab {
+    if ([_tabs count] >= YZTabLimit) {
+        [self showError:YZT(@"Открыто слишком много вкладок")];
+        return;
+    }
+    // a blank tab is already open, parking and rebuilding made the screen shake for nothing
+    if (_current < [_tabs count] && [(YZTab *)[_tabs objectAtIndex:_current] isBlank] && !_editing) {
+        [self dismissMenu];
+        return;
+    }
+    [self parkCoreKeepingTab:nil];
+    YZTab *blank = [[[YZTab alloc] init] autorelease];
+    blank.isPrivate = [YZSettings incognito];
+    [_tabs addObject:blank];
+    _current = [_tabs count] - 1;
+    [self createCore];
+    [self saveTabs];
+    [self updateChromeForced:YES];
+}
+
+- (void)closeTabAtIndex:(NSUInteger)index {
+    if (index >= [_tabs count])
+        return;
+    BOOL closingCurrent = index == _current;
+    if (closingCurrent)
+        [self destroyCore];
+    [[_tabs objectAtIndex:index] removeStoredThumbnail];
+    [_tabs removeObjectAtIndex:index];
+    if (![_tabs count]) {
+        YZTab *blank = [[[YZTab alloc] init] autorelease];
+        blank.isPrivate = [YZSettings incognito];
+        [_tabs addObject:blank];
+    }
+    if (index < _current)
+        --_current;
+    if (_current >= [_tabs count])
+        _current = [_tabs count] - 1;
+    if (closingCurrent)
+        [self createCore];
+    [self saveTabs];
+    [self updateChromeForced:YES];
+    [_tabsView showTabs:_tabs selected:_current];
+    if ([YZSettings incognito])
+        [self endPrivateSessionIfEmpty];
+}
+
+#pragma mark private session
+
+// park the shown page before the core learns the session and make the opened core after, so each page starts
+// in its own session
+- (void)setIncognito:(BOOL)incognito {
+    if (incognito == [YZSettings incognito] || _popupMode)
+        return;
+    // a picture of the screen covers the swap and leaves through a circle from the tray switch, or the menu
+    // button
+    UIView *cover = YZMotionBeginReveal(self.view);
+    CGPoint origin = !_tabsView.hidden ? [_tabsView modeSwitchCenterInView:self.view]
+                                       : [self.view convertPoint:_menuButton.center fromView:_menuButton.superview];
+    [self parkCoreKeepingTab:nil];
+    NSMutableArray *shown = _tabs;
+    NSUInteger shownCurrent = _current;
+    if (!_otherTabs) {
+        YZTab *blank = [[[YZTab alloc] init] autorelease];
+        blank.isPrivate = incognito;
+        _otherTabs = [[NSMutableArray alloc] initWithObjects:blank, nil];
+        _otherCurrent = 0;
+    }
+    _tabs = _otherTabs;
+    _current = _otherCurrent;
+    _otherTabs = shown;
+    _otherCurrent = shownCurrent;
+    [YZSettings setIncognito:incognito];
+    [self createCore];
+    [self applyTheme];
+    _tabsView.incognito = incognito;
+    [_tabsView showTabs:_tabs selected:_current];
+    // the new look is all there under the picture, which now opens away from the origin
+    YZMotionFinishReveal(cover, origin);
+    [self wobbleChrome];
+    if (!_tabsView.hidden)
+        [_tabsView present];
+    [self saveTabs];
+}
+
+// the bars and the glyphs of the new look wobble into their places, one after the other from the top bar to the bottom bar
+- (void)wobbleChrome {
+    YZMotionAnimateEnter(_field, CGAffineTransformMakeScale(0.9f, 0.9f), 0, YOZORA_MOTION_WOBBLE, 0.12);
+    YZMotionAnimateEnter(_securityView, CGAffineTransformMakeScale(0.3f, 0.3f), 0, YOZORA_MOTION_WOBBLE, 0.2);
+    NSArray *buttons = [NSArray arrayWithObjects:_backButton, _forwardButton, _starButton, _tabsButton, _menuButton, nil];
+    for (NSUInteger i = 0; i < [buttons count]; ++i)
+        YZMotionAnimateEnter([(UIButton *)[buttons objectAtIndex:i] imageView], CGAffineTransformMakeScale(0.4f, 0.4f), 0, YOZORA_MOTION_WOBBLE,
+                             0.16 + i * 0.04);
+    if (!_home.hidden)
+        [_home animateContents];
+}
+
+// the session ends with its last page: cookies, local storage and databases it made are dropped. a blank tab is all that may be left
+- (void)endPrivateSessionIfEmpty {
+    NSArray *private = [YZSettings incognito] ? _tabs : _otherTabs;
+    if (!private || ([private count] == 1 && [(YZTab *)[private objectAtIndex:0] isBlank]))
+        yozora_clear_private_session();
+}
+
+#pragma mark loading
+
+- (NSString *)currentURL {
+    if (_core) {
+        const char *url = yozora_core_url(_core);
+        if (url && *url)
+            return [NSString stringWithUTF8String:url];
+    }
+    return [[self currentTab] url];
+}
+
+- (void)loadURL:(NSString *)url {
+    if (!_core)
+        return;
+    // the matches belong to the page that goes away
+    [self closeFindBar];
+    char error[256] = {0};
+    if (!yozora_core_load(_core, [url UTF8String], error, sizeof(error))) {
+        [self showError:[NSString stringWithUTF8String:error]];
+        return;
+    }
+    [self currentTab].url = url;
+    [self showBanner:nil];
+    [self updateChromeForced:YES];
+}
+
+- (void)openAddressText:(NSString *)text {
+    char address[YOZORA_URL_CAP];
+    yozora_address_kind kind = yozora_address_resolve([text UTF8String], [YZSettings searchEngine], address, sizeof address);
+    if (kind == YOZORA_ADDRESS_INVALID) {
+        [self showError:YZT(@"Этот адрес не поддерживается")];
+        return;
+    }
+    [self loadURL:[NSString stringWithUTF8String:address]];
+}
+
+// ios 10 replaced openURL: with openURL:options:completionHandler: and added the universal links only mode, which opens
+// the address in an app that claims it and reports failure otherwise. ios 5 to 9 have neither: openURL: on an https
+// address would hand the page to Safari, so the universal links only request fails there at once
+static void YZOpenInOtherApp(NSURL *url, BOOL universalOnly, void (^done)(BOOL opened)) {
+    UIApplication *application = [UIApplication sharedApplication];
+    SEL modern = NSSelectorFromString(@"openURL:options:completionHandler:");
+    if ([application respondsToSelector:modern]) {
+        // the value of UIApplicationOpenURLOptionUniversalLinksOnly is its own name, the constant is missing from the old sdk
+        NSDictionary *options = universalOnly ? [NSDictionary dictionaryWithObject:[NSNumber numberWithBool:YES] forKey:@"UIApplicationOpenURLOptionUniversalLinksOnly"] : [NSDictionary dictionary];
+        void (^handler)(BOOL) = [[done copy] autorelease];
+        void (*open)(id, SEL, NSURL *, NSDictionary *, void (^)(BOOL)) = (void (*)(id, SEL, NSURL *, NSDictionary *, void (^)(BOOL)))objc_msgSend;
+        open(application, modern, url, options, handler);
+        return;
+    }
+    done(universalOnly ? NO : [application openURL:url]);
+}
+
+- (BOOL)openExternalURL:(NSURL *)url {
+    NSString *scheme = [[url scheme] lowercaseString];
+    if (![scheme isEqualToString:@"http"] && ![scheme isEqualToString:@"https"])
+        return NO;
+    NSString *text = [url absoluteString];
+    if (![text length])
+        return NO;
+    // the menu, the tray, a list, the settings or the player would cover the page the link opens
+    [_input resignFirstResponder];
+    if (_menu)
+        [self dismissMenu];
+    if (!_tabsView.hidden)
+        [self tabsViewDidFinish:_tabsView];
+    [self dismissVideoAnimated:NO];
+    // a popup releases its core and its owner link in closePopup, a plain dismiss would leave them behind
+    if (_popupController)
+        [_popupController closePopup];
+    else if (self.presentedViewController)
+        [self dismissViewControllerAnimated:NO completion:nil];
+    if (![[self currentTab] isBlank])
+        [self addBlankTab];
+    [self openAddressText:text];
+    return YES;
+}
+
+- (void)watchExternalLinks {
+    char text[YOZORA_URL_CAP];
+    int universal = 0;
+    if (!_core || !yozora_core_take_external(_core, text, sizeof text, &universal))
+        return;
+    yozora_core *core = _core;
+    NSURL *url = [NSURL URLWithString:[NSString stringWithUTF8String:text]];
+    if (!url) {
+        // the page waits for an answer to a universal link, an address that is no url loads in the page like before
+        if (universal)
+            yozora_core_answer_external(core, 0);
+        else
+            [self showBanner:YZT(@"Неподдерживаемый адрес страницы")];
+        return;
+    }
+    [self retain];
+    YZOpenInOtherApp(url, universal != 0, ^(BOOL opened) {
+        // a core that left the screen meanwhile (another tab, a closed popup) has resolved its held link by itself
+        // and may be destroyed, so only the core still on screen is answered
+        if (_core == core) {
+            if (universal)
+                yozora_core_answer_external(core, opened ? 1 : 0);
+            else if (!opened)
+                [self showBanner:YZT(@"Нет приложения для этой ссылки")];
+        }
+        [self release];
+    });
+}
+
+- (void)showBanner:(NSString *)text {
+    if (text == _shownBanner || [text isEqualToString:_shownBanner])
+        return;
+    [_shownBanner release];
+    _shownBanner = [text retain];
+    CGAffineTransform away = CGAffineTransformConcat(CGAffineTransformMakeScale(0.96f, 0.96f), CGAffineTransformMakeTranslation(0, -16));
+    if ([text length]) {
+        _banner.text = text;
+        _banner.hidden = NO;
+        _banner.alpha = 1;
+        _banner.transform = CGAffineTransformIdentity;
+        YZMotionAnimateEnter(_banner, away, 0, YOZORA_MOTION_WOBBLE, 0);
+    } else {
+        YZMotionAnimateView(_banner, away, 0, YOZORA_MOTION_DISMISS, 0, ^(BOOL finished) {
+            (void)finished;
+            // a new message that came while this one left keeps the banner
+            if (![_shownBanner length]) {
+                _banner.hidden = YES;
+                _banner.alpha = 1;
+                _banner.transform = CGAffineTransformIdentity;
+            }
+        });
+    }
+}
+
+// an error stays until closed, the same text is not shown twice and a different one replaces it
+- (void)showError:(NSString *)text {
+    if (![text length])
+        return;
+    if (_errorPopup && _errorPopup.isShown) {
+        _errorPopup.messageText = text;
+        return;
+    }
+    [_errorPopup release];
+    [_translateBar release];
+    [_translateButton release];
+    _errorPopup = [[YZErrorPopup alloc] initWithFrame:self.view.bounds];
+    _errorPopup.titleText = YZT(@"Ошибка");
+    _errorPopup.messageText = text;
+    [_errorPopup showInView:self.view];
+}
+
+#pragma mark translation
+
+- (YZTranslation *)currentTranslation {
+    return _core ? [self currentTab].translation : nil;
+}
+
+- (void)translationDidChange:(YZTranslation *)translation {
+    if (translation == [self currentTranslation])
+        [self updateTranslationAnimated:YES];
+}
+
+- (BOOL)translationMayStartAlone:(YZTranslation *)translation {
+    (void)translation;
+    // the text of a private tab goes to the service only when the person asks for it
+    return ![[self currentTab] isPrivate];
+}
+
+// the button in the field and the card follow the phase of the translation of the page that is shown
+- (void)updateTranslationAnimated:(BOOL)animated {
+    YZTranslation *translation = [self currentTranslation];
+    YZTranslationPhase phase = translation ? translation.phase : YZTranslationIdle;
+    BOOL visible = phase != YZTranslationIdle && ![[self currentTab] isBlank];
+    BOOL showButton = visible && !_editing;
+    if (showButton != !_translateButton.hidden) {
+        _translateButton.hidden = !showButton;
+        [self layoutChrome];
+        if (showButton && animated)
+            YZMotionAnimateEnter(_translateButton, CGAffineTransformMakeScale(0.4f, 0.4f), 0, YOZORA_MOTION_WOBBLE, 0);
+    }
+    BOOL active = phase == YZTranslationWorking || phase == YZTranslationDone;
+    [_translateButton setImage:[YZTheme icon:YZIconTranslate size:22 color:active ? [YZTheme accentColor] : [YZTheme subtleTextColor]] forState:UIControlStateNormal];
+    // the glyph breathes while the texts are sent
+    if (phase == YZTranslationWorking && ![_translateButton.layer animationForKey:@"breath"]) {
+        CABasicAnimation *breath = [CABasicAnimation animationWithKeyPath:@"transform.scale"];
+        breath.fromValue = [NSNumber numberWithFloat:1.0f];
+        breath.toValue = [NSNumber numberWithFloat:1.18f];
+        breath.duration = 0.55;
+        breath.autoreverses = YES;
+        breath.repeatCount = HUGE_VALF;
+        breath.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseInEaseOut];
+        [_translateButton.layer addAnimation:breath forKey:@"breath"];
+    } else if (phase != YZTranslationWorking)
+        [_translateButton.layer removeAnimationForKey:@"breath"];
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(hideFinishedTranslateBar) object:nil];
+    // a card that was closed stays closed until the phase changes
+    if ((int)phase != _translateBarDismissedPhase)
+        _translateBarDismissedPhase = -1;
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(translateOfferTimedOut) object:nil];
+    // an offer the person keeps closing is not made again by itself, the button in the field and the menu still translate
+    BOOL muted = phase == YZTranslationOffered && [self translateOffersMuted];
+    BOOL showBar = visible && !_editing && !muted && (int)phase != _translateBarDismissedPhase;
+    if (showBar) {
+        [_translateBar applyTheme];
+        [_translateBar showTranslation:translation animated:animated && _translateBarShown];
+        [self setTranslateBarShown:YES animated:animated];
+        if (phase == YZTranslationDone)
+            [self performSelector:@selector(hideFinishedTranslateBar) withObject:nil afterDelay:4];
+        // an offer that nobody answered leaves by itself after a while
+        else if (phase == YZTranslationOffered)
+            [self performSelector:@selector(translateOfferTimedOut) withObject:nil afterDelay:10];
+    } else
+        [self setTranslateBarShown:NO animated:animated];
+}
+
+// the card of a finished translation and the card of an offer nobody answered slide down and stay away until the phase changes
+- (void)hideFinishedTranslateBar {
+    _translateBarDismissedPhase = YZTranslationDone;
+    [self setTranslateBarShown:NO animated:YES];
+}
+
+- (void)translateOfferTimedOut {
+    if ([self currentTranslation].phase != YZTranslationOffered)
+        return;
+    _translateBarDismissedPhase = YZTranslationOffered;
+    [self setTranslateBarShown:NO animated:YES];
+}
+
+// three closes of the offer within ten minutes: the person does not want it
+- (BOOL)translateOffersMuted {
+    CFTimeInterval now = CACurrentMediaTime();
+    NSUInteger recent = 0;
+    for (NSNumber *time in _translateCloses) {
+        if (now - [time doubleValue] < 600)
+            ++recent;
+    }
+    return recent >= 3;
+}
+
+- (void)setTranslateBarShown:(BOOL)shown animated:(BOOL)animated {
+    if (shown == _translateBarShown)
+        return;
+    _translateBarShown = shown;
+    if (shown) {
+        _translateBar.hidden = NO;
+        _translateBar.alpha = 1;
+        _translateBar.transform = CGAffineTransformIdentity;
+        [self.view bringSubviewToFront:_translateBar];
+        // in as the card of the menu: from a small scale with a fade and the wobble
+        if (animated)
+            YZMotionAnimateEnter(_translateBar, CGAffineTransformMakeScale(0.4f, 0.4f), 0, YOZORA_MOTION_WOBBLE, 0);
+        return;
+    }
+    if (!animated) {
+        _translateBar.hidden = YES;
+        return;
+    }
+    // out: down and away on a plain curve, with no spring, so it never hops on the way out
+    YZMotionAnimateView(_translateBar, CGAffineTransformMakeTranslation(0, [YZTranslateBar height] + 28), 0, YOZORA_MOTION_EXIT, 0, ^(BOOL finished) {
+        (void)finished;
+        // a card that came back while this one left stays
+        if (!_translateBarShown) {
+            _translateBar.hidden = YES;
+            _translateBar.alpha = 1;
+            _translateBar.transform = CGAffineTransformIdentity;
+        }
+    });
+}
+
+- (void)translateButtonPressed {
+    [self presentTranslateSheet];
+}
+
+- (void)presentTranslateSheet {
+    YZTranslation *translation = [self currentTranslation];
+    if (!translation)
+        return;
+    [_input resignFirstResponder];
+    [YZTranslateSheet presentInView:self.view bottomInset:[self chromeInsets].bottom translation:translation
+                         completion:^(NSString *source, NSString *target, BOOL showOriginal) {
+        if (showOriginal)
+            [translation showOriginal];
+        else
+            [translation translateFrom:source to:target];
+    }];
+}
+
+- (void)translateBarDidPressTranslate:(YZTranslateBar *)bar {
+    (void)bar;
+    YZTranslation *translation = [self currentTranslation];
+    [translation translateFrom:nil to:translation.target ? translation.target : [YZSettings translateTarget]];
+}
+
+- (void)translateBarDidPressOptions:(YZTranslateBar *)bar {
+    (void)bar;
+    [self presentTranslateSheet];
+}
+
+- (void)translateBarDidPressOriginal:(YZTranslateBar *)bar {
+    (void)bar;
+    [[self currentTranslation] showOriginal];
+}
+
+- (void)translateBarDidPressRetry:(YZTranslateBar *)bar {
+    (void)bar;
+    YZTranslation *translation = [self currentTranslation];
+    [translation translateFrom:translation.source to:translation.target ? translation.target : [YZSettings translateTarget]];
+}
+
+- (void)translateBarDidPressClose:(YZTranslateBar *)bar {
+    (void)bar;
+    YZTranslation *translation = [self currentTranslation];
+    // closing a running translation gives the page back as it was
+    if (translation.phase == YZTranslationWorking) {
+        [translation showOriginal];
+        return;
+    }
+    _translateBarDismissedPhase = (int)translation.phase;
+    if (translation.phase == YZTranslationOffered) {
+        if (!_translateCloses)
+            _translateCloses = [[NSMutableArray alloc] init];
+        [_translateCloses addObject:[NSNumber numberWithDouble:CACurrentMediaTime()]];
+        // only the last few closes matter
+        while ([_translateCloses count] > 6)
+            [_translateCloses removeObjectAtIndex:0];
+    }
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(translateOfferTimedOut) object:nil];
+    [self setTranslateBarShown:NO animated:YES];
+}
+
+#pragma mark bottom bar
+
+// the bar leaves after a few finger lengths down and returns only at the top, while typing and while anything
+// opens, so a scroll up mid page does not bring it back. the page grows first, so the bar slides over page
+// and never over a hole
+- (void)trackScrollForBars {
+    if (!_core || [self isWide] || _popupMode) {
+        _scrollCore = NULL;
+        return;
+    }
+    int scroll = yozora_core_scroll_y(_core);
+    if (_scrollCore != _core) {
+        // another page, or the same one after a return: no travel is carried over
+        _scrollCore = _core;
+        _lastScrollY = scroll;
+        _scrollTravel = 0;
+        return;
+    }
+    int delta = scroll - _lastScrollY;
+    _lastScrollY = scroll;
+    BOOL busy = _editing || _pageEditing || [self findBarOpen] || !_tabsView.hidden || _menu || _controlSheet || _filePicker || self.presentedViewController
+        || yozora_core_state(_core) == YOZORA_LOAD_FAILED || [[self currentTab] isBlank];
+    if (busy || scroll <= 8 || delta > 1200 || delta < -1200) {
+        [self setBottomBarShown:YES animated:YES];
+        _scrollTravel = 0;
+        return;
+    }
+    if (!delta)
+        return;
+    // the travel is counted in one direction: a change of direction starts again
+    if ((delta > 0) != (_scrollTravel > 0))
+        _scrollTravel = 0;
+    _scrollTravel += delta;
+    if (_scrollTravel > 56 && scroll > 120)
+        [self setBottomBarShown:NO animated:YES];
+}
+
+- (void)setBottomBarShown:(BOOL)shown animated:(BOOL)animated {
+    if (shown == _bottomBarShown || [self isWide])
+        return;
+    _bottomBarShown = shown;
+    _barLeaving = NO;
+    CGFloat away = [self barHeight] + [self chromeInsets].bottom + 6;
+    CGAffineTransform gone = CGAffineTransformMakeTranslation(0, away);
+    if (!shown) {
+        // the bar covers the strip until the core paints a frame of the grown size, unpainted it showed as a
+        // white band
+        _pageReservesBar = NO;
+        [self layoutChrome];
+        if (!animated) {
+            _bottomBar.transform = gone;
+            return;
+        }
+        _barLeaving = YES;
+        // a heavy page needs over a second for that, a covered strip beats an empty one
+        _barLeaveDeadline = CACurrentMediaTime() + 2.5;
+        return;
+    }
+    // the bar comes back over the page with a wobble, and the page gives the room up when it is there
+    YZMotionAnimateView(_bottomBar, CGAffineTransformIdentity, 1, YOZORA_MOTION_WOBBLE, 0, ^(BOOL finished) {
+        (void)finished;
+        if (_bottomBarShown && !_pageReservesBar) {
+            _pageReservesBar = YES;
+            [self layoutChrome];
+        }
+    });
+    if (!animated) {
+        _bottomBar.transform = CGAffineTransformIdentity;
+        _pageReservesBar = YES;
+        [self layoutChrome];
+    }
+}
+
+- (void)slideBottomBarAway {
+    _barLeaving = NO;
+    CGFloat away = [self barHeight] + [self chromeInsets].bottom + 6;
+    YZMotionAnimateView(_bottomBar, CGAffineTransformMakeTranslation(0, away), 1, YOZORA_MOTION_DISMISS, 0, nil);
+}
+
+// the first layer is as tall as the layout, page height over zoom (a page at 50 percent has a layer twice the
+// view)
+- (BOOL)sceneFillsPage:(yozora_scene *)scene {
+    if (!scene || *yozora_scene_error(scene) || !_core)
+        return NO;
+    int zoom = yozora_core_page_zoom(_core);
+    if (zoom <= 0)
+        zoom = 100;
+    CGFloat expected = _pageView.bounds.size.height * 100 / zoom;
+    const yozora_scene_layer *layers = yozora_scene_layers(scene);
+    unsigned count = yozora_scene_layer_count(scene);
+    for (unsigned i = 0; i < count; ++i) {
+        if (!layers[i].parent && layers[i].height >= expected - 1)
+            return YES;
+    }
+    return NO;
+}
+
+- (void)showHome {
+    YZTab *tab = [self currentTab];
+    BOOL failed = _core && yozora_core_state(_core) == YOZORA_LOAD_FAILED;
+    BOOL blank = [tab isBlank] && !failed;
+    BOOL appearing = _home.hidden && blank;
+    [YZTheme setView:_home shown:blank scale:1];
+    _errorPage.hidden = !failed;
+    if (failed) {
+        const char *status = yozora_core_status(_core);
+        [_errorPage showError:yozora_core_page_error(_core) address:[self currentURL] reason:status ? [NSString stringWithUTF8String:status] : nil];
+    }
+    if (blank) {
+        NSMutableArray *sites = [NSMutableArray arrayWithArray:[_store recentHistory]];
+        [sites sortUsingComparator:^NSComparisonResult(YZRecord *a, YZRecord *b) {
+            if (a.visits == b.visits)
+                return NSOrderedSame;
+            return a.visits > b.visits ? NSOrderedAscending : NSOrderedDescending;
+        }];
+        [_home showSites:sites bookmarks:[_store bookmarks]];
+        if (appearing)
+            [_home animateContents];
+    }
+}
+
+#pragma mark layout
+
+// an ipad window of 700 points or more shows a tab strip over one toolbar, not slide over or half a split
+// view
+- (BOOL)isWide {
+    return !_popupMode && [YZTheme isPad] && self.view.bounds.size.width >= 700;
+}
+
+static const CGFloat YZTabStripHeight = 44;
+
+- (CGFloat)barHeight {
+    BOOL landscape = self.view.bounds.size.width > self.view.bounds.size.height;
+    if ([self isWide])
+        return 52;
+    return (landscape && ![YZTheme isPad]) ? 40 : 56;
+}
+
+// the download line sits on the bottom bar on a phone and on the toolbar on a wide screen
+- (void)layoutDownloadLine {
+    if (!_downloadLine)
+        return;
+    BOOL wide = [self isWide];
+    UIView *host = wide ? _topBar : _bottomBar;
+    if (_downloadLine.superview != host)
+        [host addSubview:_downloadLine];
+    CGFloat y = wide ? [self chromeInsets].top + YZTabStripHeight : 0;
+    _downloadLine.frame = CGRectMake(0, y, host.bounds.size.width * MAX((CGFloat)0.04, MIN((CGFloat)1, _downloadShare)), 3);
+}
+
+- (void)refreshTabStrip {
+    if (![self isWide]) {
+        [_tabStripSignature release];
+        _tabStripSignature = nil;
+        return;
+    }
+    NSMutableString *signature = [NSMutableString stringWithFormat:@"%lu:%d:", (unsigned long)_current, [YZSettings incognito] ? 1 : 0];
+    for (YZTab *tab in _tabs)
+        [signature appendFormat:@"%@\n%@\n", tab.title ? tab.title : @"", tab.url ? tab.url : @""];
+    if ([signature isEqualToString:_tabStripSignature ? _tabStripSignature : @""])
+        return;
+    [_tabStripSignature release];
+    _tabStripSignature = [signature copy];
+    [_tabStrip showTabs:_tabs selected:_current];
+}
+
+// insets: none on ios 5 and 6 (the view starts below the status bar), the status bar on 7 to 10, notch,
+// corners and home indicator from 11
+- (UIEdgeInsets)chromeInsets {
+    UIEdgeInsets insets = UIEdgeInsetsZero;
+    SEL safeArea = NSSelectorFromString(@"safeAreaInsets");
+    if ([self.view respondsToSelector:safeArea]) {
+        return [[self.view valueForKey:@"safeAreaInsets"] UIEdgeInsetsValue];
+    }
+    SEL topGuide = NSSelectorFromString(@"topLayoutGuide");
+    if ([self respondsToSelector:topGuide]) {
+        // the guide is nil in loadView on ios 9 and nsinvocation raises on a nil target,
+        // viewDidLayoutSubviews lays out again with the real length
+        id guide = [self performSelector:topGuide];
+        SEL length = NSSelectorFromString(@"length");
+        if (guide && [guide respondsToSelector:length])
+            insets.top = ((CGFloat (*)(id, SEL))(void *)objc_msgSend)(guide, length);
+    }
+    return insets;
+}
+
+- (void)layoutChrome {
+    CGRect bounds = self.view.bounds;
+    CGFloat width = bounds.size.width, height = bounds.size.height, bar = [self barHeight];
+    UIEdgeInsets insets = [self chromeInsets];
+    CGFloat top = insets.top, bottom = insets.bottom, inner = width - insets.left - insets.right;
+    BOOL wide = [self isWide];
+    CGFloat strip = wide ? YZTabStripHeight : 0;
+    CGFloat toolTop = top + strip;
+    _topBar.frame = CGRectMake(0, 0, width, toolTop + bar);
+    [_topBar viewWithTag:2].frame = CGRectMake(0, 0, width, top);
+    _tabStrip.hidden = !wide;
+    _tabStrip.frame = CGRectMake(insets.left, top, inner, strip);
+    // the buttons live in the bottom bar of a phone and in the toolbar of a wide screen
+    UIView *host = wide ? _topBar : _bottomBar;
+    NSArray *buttons = [NSArray arrayWithObjects:_backButton, _forwardButton, _starButton, _tabsButton, _menuButton, nil];
+    for (UIButton *button in buttons) {
+        if (button.superview != host)
+            [host addSubview:button];
+    }
+    _bottomBar.hidden = wide;
+    // the address field is the search bar of Material 3: a pill that leaves room for the cancel button while it is edited
+    CGFloat cancelWidth = _editing ? 80 : 0;
+    CGFloat fieldHeight = bar - 16;
+    CGFloat fieldLeft = insets.left + 12, fieldRight = insets.right + 12;
+    if (wide) {
+        // back and forward left, bookmark, tabs and menu right, cancel takes the right while the address is
+        // edited
+        CGFloat slot = 48;
+        for (NSUInteger i = 0; i < [buttons count]; ++i) {
+            UIButton *button = [buttons objectAtIndex:i];
+            CGFloat x = i < 2 ? insets.left + 8 + slot * i : width - insets.right - 8 - slot * ([buttons count] - i);
+            button.frame = CGRectMake(x, toolTop, slot, bar);
+            if (i >= 2)
+                button.hidden = _editing;
+        }
+        fieldLeft = insets.left + 8 + 2 * slot + 4;
+        fieldRight = _editing ? insets.right + 12 : insets.right + 8 + 3 * slot + 4;
+        _bottomBar.transform = CGAffineTransformIdentity;
+        _bottomBar.frame = CGRectMake(0, height, width, 0);
+    } else {
+        CGFloat slot = inner / [buttons count];
+        for (NSUInteger i = 0; i < [buttons count]; ++i) {
+            [[buttons objectAtIndex:i] setFrame:CGRectMake(insets.left + slot * i, 0, slot, bar)];
+            [[buttons objectAtIndex:i] setHidden:NO];
+        }
+        // bounds and center, a frame set under the leaving transform lands in the wrong place
+        CGRect barFrame = CGRectMake(0, height - bar - bottom, width, bar + bottom);
+        _bottomBar.bounds = CGRectMake(0, 0, barFrame.size.width, barFrame.size.height);
+        _bottomBar.center = CGPointMake(CGRectGetMidX(barFrame), CGRectGetMidY(barFrame));
+        [_bottomBar viewWithTag:YZBottomSkirtTag].frame = CGRectMake(0, barFrame.size.height, barFrame.size.width, 120);
+    }
+    _field.frame = CGRectMake(fieldLeft, toolTop + 8, MAX((CGFloat)0, width - fieldLeft - fieldRight - cancelWidth), fieldHeight);
+    _field.layer.cornerRadius = fieldHeight / 2;
+    _securityView.frame = CGRectMake(10, 0, 28, fieldHeight);
+    _reloadButton.frame = CGRectMake(_field.bounds.size.width - fieldHeight - 4, 0, fieldHeight, fieldHeight);
+    _translateButton.frame = CGRectMake(_field.bounds.size.width - 2 * fieldHeight - 4, 0, fieldHeight, fieldHeight);
+    CGFloat inputLeft = 40, inputRight = _editing ? 14 : fieldHeight + 4 + (_translateButton.hidden ? 0 : fieldHeight);
+    _input.frame = CGRectMake(inputLeft, 0, _field.bounds.size.width - inputLeft - inputRight, fieldHeight);
+    _cancelButton.frame = CGRectMake(width - insets.right - 84, toolTop, 84, bar);
+    _progress.frame = CGRectMake(0, toolTop + bar - 3, width * (_shownProgress / 100.0f), 3);
+    [self layoutDownloadLine];
+    // the keyboard of a page field covers the bottom bar and the page ends above it
+    CGFloat reserved = wide ? bottom : (_pageReservesBar ? bar + bottom : 0);
+    CGFloat covered = (_pageEditing || [self findBarOpen]) ? MAX(reserved, _keyboardHeight) : reserved;
+    CGFloat pageTop = toolTop + bar;
+    CGRect page = CGRectMake(0, pageTop, width, MAX((CGFloat)0, height - pageTop - covered));
+    _home.frame = page;
+    _errorPage.frame = page;
+    _banner.frame = CGRectMake(12, pageTop + 8, MAX((CGFloat)0, width - 24), 44);
+    if (_debugOverlay) {
+        // the corner of the page, under the bar, off the notch of a phone on its side
+        CGSize overlay = [YZDebugOverlay preferredSize];
+        _debugOverlay.frame = CGRectMake(MAX((CGFloat)0, width - overlay.width - 8 - insets.right), pageTop + 8, overlay.width, overlay.height);
+    }
+    // the card of the translation stands at the bottom of the page, a column on a wide screen
+    CGFloat barWidth = MIN(MAX((CGFloat)0, width - 24), (CGFloat)560);
+    // the card follows the bottom edge of the page with a slide so it does not jump by the bar height. placed
+    // by bounds and center, its anchor is the bottom edge
+    CGPoint translateBottom = CGPointMake(floor((width - barWidth) / 2) + barWidth / 2, CGRectGetMaxY(page) - 10);
+    CGRect translateBounds = CGRectMake(0, 0, barWidth, [YZTranslateBar height]);
+    if (!CGPointEqualToPoint(_translateBar.center, translateBottom) || !CGRectEqualToRect(_translateBar.bounds, translateBounds)) {
+        BOOL slides = _translateBarShown && !_translateBar.hidden && _translateBar.bounds.size.width == barWidth && [YZTheme animationsEnabled];
+        void (^place)(void) = ^{
+            _translateBar.bounds = translateBounds;
+            _translateBar.center = translateBottom;
+        };
+        if (slides)
+            [UIView animateWithDuration:0.28 delay:0 options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseInOut animations:place completion:nil];
+        else
+            place();
+    }
+    CGFloat suggestionsBottom = MAX((CGFloat)0, _keyboardHeight);
+    _suggestionsTable.frame = CGRectMake(0, pageTop, width, MAX((CGFloat)0, height - pageTop - suggestionsBottom));
+    if (_findBar) {
+        // on a phone the bar covers the strip under the status bar too, on a wide screen the tabs stay visible above it
+        if (wide)
+            [_findBar layoutInRect:CGRectMake(0, toolTop, width, bar) topInset:0 barHeight:bar leftInset:insets.left rightInset:insets.right];
+        else
+            [_findBar layoutInRect:CGRectMake(0, 0, width, top + bar) topInset:top barHeight:bar leftInset:insets.left rightInset:insets.right];
+    }
+    _tabsView.edgeInsets = insets;
+    _tabsView.frame = bounds;
+    [_tabsView setNeedsLayout];
+    if (_menu)
+        _menu.frame = bounds;
+    if (!CGRectEqualToRect(_pageView.frame, page)) {
+        // another width replaces the surfaces, so old pixels must go. a keyboard only takes height and the
+        // tiles stay, clearing them flashed white on a heavy page
+        if (fabs(_pageView.frame.size.width - page.size.width) >= 1)
+            [_pageView clearFrame];
+        _pageView.frame = page;
+    }
+    if (_core && page.size.width >= 1 && page.size.height >= 1) {
+        if (!yozora_core_resize(_core, (unsigned)page.size.width, (unsigned)page.size.height, (float)[[UIScreen mainScreen] scale] * _pageView.rasterFactor))
+            [self showError:YZT(@"Не удалось выделить память для страницы")];
+        if (_pageEditing)
+            yozora_core_reveal_input(_core);
+    }
+}
+
+// iOS 11 calls this when the notch or the home indicator move, for example on rotation
+- (void)viewSafeAreaInsetsDidChange {
+    if ([UIViewController instancesRespondToSelector:@selector(viewSafeAreaInsetsDidChange)])
+        [super viewSafeAreaInsetsDidChange];
+    [self layoutChrome];
+}
+
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    [self layoutChrome];
+}
+
+- (void)keyboardChanged:(NSNotification *)note {
+    NSValue *value = [[note userInfo] objectForKey:UIKeyboardFrameEndUserInfoKey];
+    CGRect frame = [self.view convertRect:[value CGRectValue] fromView:nil];
+    BOOL showing = [[note name] isEqualToString:UIKeyboardWillShowNotification];
+    _keyboardHeight = showing ? MAX((CGFloat)0, self.view.bounds.size.height - frame.origin.y) : 0;
+    [self layoutChrome];
+}
+
+#pragma mark chrome state
+
+- (void)setBarButton:(UIButton *)button enabled:(BOOL)enabled {
+    if (button.enabled != enabled)
+        button.enabled = enabled;
+}
+
+- (void)updateAddressDisplay {
+    if (_editing)
+        return;
+    NSString *url = [self currentURL];
+    char host[256];
+    NSString *shown = @"";
+    if ([url length]) {
+        if (yozora_address_host([url UTF8String], host, sizeof host))
+            shown = [NSString stringWithUTF8String:host];
+        else
+            shown = url;
+    }
+    if (![_input.text isEqualToString:shown])
+        _input.text = shown;
+}
+
+- (void)updateChromeForced:(BOOL)forced {
+    YZTab *tab = [self currentTab];
+    BOOL blank = [tab isBlank];
+    yozora_load_state state = _core ? yozora_core_state(_core) : YOZORA_LOAD_IDLE;
+    const char *coreURL = _core ? yozora_core_url(_core) : NULL;
+    NSString *url = (coreURL && *coreURL) ? YZStringReusing(coreURL, _shownURL) : tab.url;
+    NSString *title = _core ? YZStringReusing(yozora_core_title(_core), _shownTitle) : tab.title;
+    if (!title)
+        title = @"";
+    BOOL blankChanged = blank != _shownBlank;
+    BOOL back = _core && yozora_core_can_go_back(_core);
+    BOOL forward = _core && yozora_core_can_go_forward(_core);
+    BOOL secure = _core && yozora_core_is_secure(_core);
+    BOOL bookmarked = !blank && [_store isBookmarked:url];
+    int progress = (_core && state == YOZORA_LOAD_LOADING) ? (int)(yozora_core_progress(_core) * 100) : 0;
+
+    if (forced || !YZSameString(url, _shownURL)) {
+        // the string may be the one already held, so it is retained before the old reference goes
+        NSString *previousURL = _shownURL;
+        _shownURL = [url retain];
+        if ([url length]) {
+            NSString *host = [[NSURL URLWithString:url] host];
+            [YZCrash note:[NSString stringWithFormat:@"page %@", host ? host : @"-"]];
+        }
+        [previousURL release];
+        if (url && ![url isEqualToString:tab.url] && state != YOZORA_LOAD_IDLE)
+            tab.url = url;
+        [self updateAddressDisplay];
+    }
+    if (forced || ![title isEqualToString:_shownTitle]) {
+        NSString *previousTitle = _shownTitle;
+        _shownTitle = [title retain];
+        [previousTitle release];
+        if ([title length])
+            tab.title = title;
+    }
+    if (forced || (int)state != _shownState || blank != _shownBlank || secure != _shownSecure) {
+        _shownState = state;
+        _shownBlank = blank;
+        _shownSecure = secure;
+        BOOL loading = state == YOZORA_LOAD_LOADING;
+        [_reloadButton setImage:[YZTheme icon:(loading ? YZIconStop : YZIconReload) size:20 color:[YZTheme subtleTextColor]]
+                       forState:UIControlStateNormal];
+        _reloadButton.hidden = blank || _editing;
+        _reloadButton.accessibilityLabel = loading ? YZT(@"Остановить") : YZT(@"Обновить");
+        // a blank private tab shows the mask of the private session where a blank tab shows the search glass
+        _securityView.image = [YZTheme icon:(blank ? ([YZSettings incognito] ? YZIconIncognito : YZIconSearch) : YZIconLock) size:20
+                                      color:(secure || (blank && [YZSettings incognito])) ? [YZTheme accentColor] : [YZTheme subtleTextColor]];
+        _securityView.hidden = !blank && !secure;
+        if (state != YOZORA_LOAD_FAILED)
+            [self showBanner:nil];
+        [self showHome];
+    }
+    if (forced || back != _shownBack || forward != _shownForward || blankChanged) {
+        _shownBack = back;
+        _shownForward = forward;
+        [self setBarButton:_backButton enabled:back];
+        [self setBarButton:_forwardButton enabled:forward];
+    }
+    if (forced || bookmarked != _shownBookmarked || blankChanged) {
+        _shownBookmarked = bookmarked;
+        UIImage *star = [YZTheme icon:(bookmarked ? YZIconStarFilled : YZIconStar) size:24
+                                color:bookmarked ? [YZTheme accentColor] : [YZTheme textColor]];
+        [_starButton setImage:star forState:UIControlStateNormal];
+        [self setBarButton:_starButton enabled:!blank];
+    }
+    [self refreshTabStrip];
+    if (forced || (int)[_tabs count] != _shownTabCount) {
+        BOOL changed = _shownTabCount > 0 && (int)[_tabs count] != _shownTabCount;
+        _shownTabCount = (int)[_tabs count];
+        [_tabsButton setImage:_popupMode ? [YZTheme icon:YZIconClose size:24 color:[YZTheme textColor]]
+                                       : [YZTheme tabsIconWithCount:[_tabs count] size:24 color:[YZTheme textColor]]
+                       forState:UIControlStateNormal];
+        if (changed && !_popupMode)
+            [YZTheme animateFeedbackOfView:_tabsButton.imageView];
+    }
+    if (forced || progress != _shownProgress) {
+        int previous = _shownProgress;
+        _shownProgress = progress;
+        CGFloat full = self.view.bounds.size.width, y = [self chromeInsets].top + ([self isWide] ? YZTabStripHeight : 0) + [self barHeight] - 3;
+        if (progress == 0 && previous > 0 && !_progress.hidden) {
+            // a finished load runs the bar to the end and lets it fade
+            [UIView animateWithDuration:[YZTheme animationsEnabled] ? 0.25 : 0 delay:0
+                                options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionBeginFromCurrentState
+                             animations:^{
+                _progress.frame = CGRectMake(0, y, full, 3);
+                _progress.alpha = 0;
+            } completion:^(BOOL finished) {
+                (void)finished;
+                if (_shownProgress == 0) {
+                    _progress.hidden = YES;
+                    _progress.alpha = 1;
+                }
+            }];
+        } else if (progress > 0) {
+            if (_progress.hidden || _progress.alpha < 1) {
+                _progress.hidden = NO;
+                _progress.alpha = 1;
+                _progress.frame = CGRectMake(0, y, 0, 3);
+            }
+            [UIView animateWithDuration:[YZTheme animationsEnabled] ? 0.2 : 0 delay:0
+                                options:UIViewAnimationOptionCurveLinear | UIViewAnimationOptionBeginFromCurrentState
+                             animations:^{ _progress.frame = CGRectMake(0, y, full * (progress / 100.0f), 3); } completion:nil];
+        } else {
+            _progress.hidden = YES;
+        }
+    }
+}
+
+#pragma mark display link
+
+// a site asks for a name and a password: the question is shown once, the page waits for the answer
+- (void)watchAuthQuestions {
+    if (_authAlert || !_core)
+        return;
+    yozora_auth_request question;
+    if (!yozora_core_take_auth(_core, &question))
+        return;
+    _authID = question.id;
+    NSString *site = [NSString stringWithUTF8String:question.host];
+    NSMutableString *message = [NSMutableString stringWithString:site];
+    if (question.realm[0])
+        [message appendFormat:@"\n%s", question.realm];
+    if (question.failures)
+        [message appendFormat:@"\n%@", YZT(@"Имя или пароль не подошли.")];
+    // basic authentication sends the password as it is, which a plain connection shows to everyone on the way
+    if (!question.secure)
+        [message appendFormat:@"\n%@", YZT(@"Соединение не защищено, пароль передаётся открытым текстом.")];
+    __block YZBrowserController *me = self;
+    unsigned authID = _authID;
+    _authAlert = [[YZDialog dialogWithTitle:YZT(@"Требуется вход") message:message cancelTitle:YZT(@"Отмена") confirmTitle:YZT(@"Войти") destructive:NO
+                                    handler:^(NSInteger index, NSArray *texts) {
+        [me->_authAlert release];
+        me->_authAlert = nil;
+        if (!me->_core)
+            return;
+        if (index == 0)
+            yozora_core_auth_respond(me->_core, authID, NULL, NULL);
+        else
+            yozora_core_auth_respond(me->_core, authID, [[texts objectAtIndex:0] UTF8String], [[texts objectAtIndex:1] UTF8String]);
+    }] retain];
+    [_authAlert setFieldPlaceholders:[NSArray arrayWithObjects:YZT(@"Имя"), YZT(@"Пароль"), nil] secureIndex:1];
+    [_authAlert showInView:self.view];
+}
+
+// ask only sites without a decision, the location manager runs while a page watches
+- (void)watchGeolocation {
+    if (!_core)
+        return;
+    if (!_geoAlert) {
+        yozora_geolocation_request question;
+        if (yozora_core_take_geolocation_request(_core, &question)) {
+            unsigned geoID = question.id;
+            NSString *site = [NSString stringWithUTF8String:question.origin];
+            __block YZBrowserController *me = self;
+            _geoAlert = [[YZDialog dialogWithTitle:YZT(@"Определить местоположение?") message:site cancelTitle:YZT(@"Запретить") confirmTitle:YZT(@"Разрешить")
+                                       destructive:NO handler:^(NSInteger index, NSArray *texts) {
+                (void)texts;
+                [me->_geoAlert release];
+                me->_geoAlert = nil;
+                if (me->_core)
+                    yozora_core_geolocation_answer(me->_core, geoID, index != 0);
+            }] retain];
+            [_geoAlert showInView:self.view];
+        }
+    }
+    if (!_location)
+        _location = [[YZLocation alloc] init];
+    int accuracy = 0;
+    int wanted = yozora_core_geolocation_wanted(_core, &accuracy);
+    [_location updateForCore:_core wanted:wanted != 0 highAccuracy:accuracy != 0];
+}
+
+// ask once per site, the core keeps the answer. nothing shows while the app is hidden, the core thread is
+// paused then
+- (void)watchNotifications {
+    if (!_core)
+        return;
+    if (!_notificationAlert) {
+        yozora_notification_request question;
+        if (yozora_core_take_notification_request(_core, &question)) {
+            unsigned requestID = question.id;
+            NSString *site = [NSString stringWithUTF8String:question.origin];
+            __block YZBrowserController *me = self;
+            _notificationAlert = [[YZDialog dialogWithTitle:YZT(@"Показывать уведомления?") message:site ? site : @"" cancelTitle:YZT(@"Запретить") confirmTitle:YZT(@"Разрешить")
+                                                destructive:NO handler:^(NSInteger index, NSArray *texts) {
+                (void)texts;
+                [me->_notificationAlert release];
+                me->_notificationAlert = nil;
+                if (me->_core)
+                    yozora_core_notification_answer(me->_core, requestID, index != 0);
+            }] retain];
+            [_notificationAlert showInView:self.view];
+        }
+    }
+    yozora_notification shown;
+    while (yozora_core_take_notification(_core, &shown)) {
+        NSString *title = [NSString stringWithUTF8String:shown.title];
+        NSString *body = [NSString stringWithUTF8String:shown.body];
+        NSString *text = [body length] ? [NSString stringWithFormat:@"%@\n%@", title ? title : @"", body] : title;
+        if (![text length])
+            continue;
+        [_notificationText release];
+        _notificationText = [text copy];
+        [self showBanner:text];
+        [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(hideNotificationBanner) object:nil];
+        [self performSelector:@selector(hideNotificationBanner) withObject:nil afterDelay:5];
+    }
+}
+
+// the banner goes unless something else has taken it over in the meantime
+- (void)hideNotificationBanner {
+    if ([_shownBanner isEqualToString:_notificationText])
+        [self showBanner:nil];
+    [_notificationText release];
+    _notificationText = nil;
+}
+
+#pragma mark developer settings
+
+// follow their switches at start and after every settings change
+- (void)applyDeveloperSettings {
+    [YZLog setCapturing:[YZSettings logging]];
+    if ([YZSettings debugOverlay]) {
+        if (!_debugOverlay) {
+            CGSize size = [YZDebugOverlay preferredSize];
+            _debugOverlay = [[YZDebugOverlay alloc] initWithFrame:CGRectMake(0, 0, size.width, size.height)];
+            [self.view addSubview:_debugOverlay];
+            [self layoutChrome];
+        }
+        _debugOverlay.hidden = NO;
+        [self.view bringSubviewToFront:_debugOverlay];
+    } else if (_debugOverlay) {
+        [_debugOverlay removeFromSuperview];
+        [_debugOverlay release];
+        _debugOverlay = nil;
+    }
+}
+
+// once for every frame of the display link: the frames are counted, and the overlay reads the system twice a second
+- (void)noteDisplayFrame {
+    if (!_debugOverlay)
+        return;
+    [_debugOverlay noteFrame];
+    NSString *url = [self currentURL];
+    _debugOverlay.site = [url length] ? [[NSURL URLWithString:url] host] : nil;
+    [_debugOverlay refreshWithCore:_core];
+}
+
+- (void)pumpCore:(CADisplayLink *)link {
+    if (!_core)
+        return;
+    [self watchAuthQuestions];
+    [self watchGeolocation];
+    [self watchNotifications];
+    [self watchPageControls];
+    [self watchExternalLinks];
+    [self watchLongPresses];
+    [self updateFindState];
+    [self watchDownloadsAt:link.timestamp];
+    if (_popupMode && yozora_core_close_requested(_core)) {
+        [self closePopup];
+        return;
+    }
+    yozora_core *popup = yozora_core_take_popup(_core);
+    if (popup) {
+        if (_popupController || self.presentedViewController) {
+            yozora_core_destroy(popup);
+            [self showBanner:YZT(@"Всплывающее окно заблокировано")];
+        } else {
+            _popupController = [[YZBrowserController alloc] init];
+            _popupController->_initialPopupCore = popup;
+            _popupController->_popupMode = YES;
+            _popupController->_popupOwner = self;
+            [self presentViewController:_popupController animated:YES completion:nil];
+        }
+    }
+    yozora_media_request media;
+    while (_core && yozora_core_take_media(_core, &media))
+        [self handleMedia:&media];
+    [_pageView advanceFlingAtTime:link.timestamp];
+    [self trackScrollForBars];
+    [_pageView updateInput];
+    if ([_pageView isFirstResponder] != _pageEditing) {
+        _pageEditing = [_pageView isFirstResponder];
+        [self layoutChrome];
+    }
+    yozora_scene *scene = yozora_core_take_scene(_core);
+    if (scene) {
+        _lastSceneTime = link.timestamp;
+        _hasFrame = YES;
+        [_debugOverlay noteScene];
+        [_pageView showScene:scene];
+        if (_barLeaving && [self sceneFillsPage:scene])
+            [self slideBottomBarAway];
+        yozora_scene_release(scene);
+    } else
+        [_pageView syncScrollOffset];
+    if (_barLeaving && CACurrentMediaTime() >= _barLeaveDeadline)
+        [self slideBottomBarAway];
+    [_pageView showMediaPlayers:[_mediaPlayers allValues] excluding:_videoController.mediaID];
+    [_pageView updateSelection];
+    yozora_record visit;
+    BOOL visited = NO;
+    while (yozora_core_take_visit(_core, &visit)) {
+        // with the history switched off, or in the private session, the visit is dropped, tabs are still saved
+        if ([YZSettings saveHistory] && ![YZSettings incognito]) {
+            [_store recordVisit:&visit failure:^(NSString *reason) {
+                [self showError:[NSString stringWithFormat:YZT(@"История не сохранена: %@"), reason]];
+            }];
+        }
+        visited = YES;
+    }
+    yozora_load_state state = yozora_core_state(_core);
+    // a page that has just finished is photographed after a moment, once its first frames are on screen
+    if ((int)state != _lastLoadState) {
+        if (state == YOZORA_LOAD_COMPLETE) {
+            _thumbnailDue = link.timestamp + 1.2;
+            // the language of the page is found once it has loaded
+            if (![[self currentTab] isBlank])
+                [[self currentTab].translation pageDidLoad];
+        } else if (state == YOZORA_LOAD_LOADING) {
+            [[self currentTab].translation cancel];
+            // a new page starts at its own size, like in Safari
+            [_pageView resetZoom];
+            // a page that starts to load shows the bar it came with
+            [self setBottomBarShown:YES animated:YES];
+        }
+        _lastLoadState = (int)state;
+    }
+    if (_thumbnailDue && link.timestamp >= _thumbnailDue && !_pageView.active) {
+        _thumbnailDue = 0;
+        [self captureCurrentTab];
+    }
+    if (_restoreScroll && state == YOZORA_LOAD_COMPLETE) {
+        yozora_core_scroll(_core, _restoreScroll);
+        _restoreScroll = 0;
+    } else if (state == YOZORA_LOAD_FAILED)
+        _restoreScroll = 0;
+    [self updateChromeForced:NO];
+    // keep moving pages at display rate, quiet pages still notice a new scene within two display frames
+    if (link.timestamp - _lastSceneTime < 0.2 || _pageView.active || state == YOZORA_LOAD_LOADING || yozora_core_painting(_core))
+        link.frameInterval = 1;
+    else
+        link.frameInterval = [[self currentTab] isBlank] && state == YOZORA_LOAD_IDLE ? 6 : 2;
+    if (_popupMode) {
+        _menuButton.enabled = NO;
+        _starButton.enabled = NO;
+    }
+    if (visited)
+        [self saveTabs];
+}
+
+#pragma mark video and audio of pages
+
+// the page asked the player of the interface to play, pause, seek, close or show the full screen player
+- (void)handleMedia:(const yozora_media_request *)request {
+    if (!_mediaPlayers)
+        _mediaPlayers = [[NSMutableDictionary alloc] init];
+    NSNumber *key = [NSNumber numberWithUnsignedInt:request->id];
+    YZMediaPlayer *player = [_mediaPlayers objectForKey:key];
+    if (request->command == YOZORA_MEDIA_OPEN) {
+        [YZCrash note:[NSString stringWithFormat:@"media %u open", request->id]];
+        [player shutDown];
+        player = [[[YZMediaPlayer alloc] initWithRequest:request core:_core] autorelease];
+        [_mediaPlayers setObject:player forKey:key];
+        return;
+    }
+    [player handleRequest:request];
+    // a video plays on the page, the full screen player comes only when the page asks for it
+    if (request->command == YOZORA_MEDIA_FULLSCREEN) {
+        if (request->value > 0)
+            [self presentVideoOfPlayer:player];
+        else if (_videoController.mediaID == request->id)
+            [self dismissVideoAnimated:YES];
+    }
+    if (request->command == YOZORA_MEDIA_CLOSE) {
+        [YZCrash note:[NSString stringWithFormat:@"media %u close", request->id]];
+        if (_videoController.mediaID == request->id)
+            [self dismissVideoAnimated:YES];
+        [_mediaPlayers removeObjectForKey:key];
+    }
+}
+
+// the player, or the answer that the page stays as it was: sound has no picture and a sheet may be up
+- (void)presentVideoOfPlayer:(YZMediaPlayer *)player {
+    if (!player || !player.videoLayer || _videoController || self.presentedViewController) {
+        if (player && _core)
+            yozora_core_media_event(_core, player.mediaID, YOZORA_MEDIA_FULLSCREEN_LEFT, 0, 0);
+        return;
+    }
+    _videoController = [[YZVideoController alloc] initWithPlayer:player title:player.title];
+    _videoController.delegate = self;
+    [self presentViewController:_videoController animated:YES completion:nil];
+}
+
+// no event goes back to the page: it asked for this itself or its core is going away
+- (void)dismissVideoAnimated:(BOOL)animated {
+    if (!_videoController)
+        return;
+    YZVideoController *controller = _videoController;
+    _videoController = nil;
+    controller.delegate = nil;
+    [controller shutDown];
+    [self dismissViewControllerAnimated:animated completion:^{ [controller release]; }];
+}
+
+- (void)videoControllerFinished:(YZVideoController *)controller failed:(BOOL)failed {
+    if (controller != _videoController)
+        return;
+    unsigned mediaID = controller.mediaID;
+    [self dismissVideoAnimated:YES];
+    // the element leaves its full screen state, whether the person closed the player or the stream failed
+    if (_core)
+        yozora_core_media_event(_core, mediaID, YOZORA_MEDIA_FULLSCREEN_LEFT, 0, 0);
+    if (failed)
+        [self showError:YZT(@"Видео не удалось воспроизвести")];
+}
+
+- (void)closePopup {
+    YZBrowserController *owner = _popupOwner;
+    if (!owner)
+        return;
+    [self destroyCore];
+    _popupOwner = nil;
+    [owner dismissViewControllerAnimated:YES completion:^{
+        [owner->_popupController release];
+        owner->_popupController = nil;
+        [owner updateChromeForced:YES];
+    }];
+}
+
+#pragma mark page and home delegates
+
+- (void)pageView:(YZPageView *)view tappedAtPoint:(CGPoint)point {
+    (void)view;
+    [_input resignFirstResponder];
+    if (_core)
+        yozora_core_tap(_core, (int)point.x, (int)point.y);
+}
+
+- (void)pageViewDidScroll:(YZPageView *)view {
+    (void)view;
+}
+
+// an enlarged page is painted at more pixels so its text stays sharp, the layout keeps its size
+- (void)pageViewDidChangeRasterFactor:(YZPageView *)view {
+    CGSize size = view.bounds.size;
+    if (!_core || size.width < 1 || size.height < 1)
+        return;
+    if (!yozora_core_resize(_core, (unsigned)size.width, (unsigned)size.height, (float)[[UIScreen mainScreen] scale] * view.rasterFactor))
+        [self showError:YZT(@"Не удалось выделить память для страницы")];
+}
+
+- (void)homeView:(YZHomeView *)view didSelectURL:(NSString *)url {
+    (void)view;
+    [self loadURL:url];
+}
+
+#pragma mark bottom bar actions
+
+- (void)backPressed {
+    if (_core && !yozora_core_back(_core))
+        [self showBanner:YZT(@"Назад перейти нельзя")];
+}
+
+- (void)forwardPressed {
+    if (_core && !yozora_core_forward(_core))
+        [self showBanner:YZT(@"Вперёд перейти нельзя")];
+}
+
+- (void)reloadPressed {
+    if (!_core)
+        return;
+    if (yozora_core_state(_core) == YOZORA_LOAD_LOADING)
+        yozora_core_stop(_core);
+    else if (!yozora_core_reload(_core))
+        [self loadURL:[self currentURL]];
+}
+
+- (void)retryPagePressed {
+    NSString *url = [[self currentURL] copy];
+    [self loadURL:url];
+    [url release];
+}
+
+- (void)starPressed {
+    NSString *url = [self currentURL];
+    if (![url length] || !_store)
+        return;
+    BOOL ok = [_store isBookmarked:url] ? [_store removeBookmarkWithURL:url]
+                                        : [_store addBookmarkWithURL:url title:[[self currentTab] title]];
+    if (!ok)
+        [self showError:YZT(@"Закладку не удалось сохранить")];
+    else {
+        // the star wobbles when a bookmark is made or removed
+        [self updateChromeForced:YES];
+        [YZTheme animateFeedbackOfView:_starButton.imageView];
+        return;
+    }
+    [self updateChromeForced:YES];
+}
+
+- (void)tabsPressed {
+    [_input resignFirstResponder];
+    [self captureCurrentTab];
+    _tabsView.incognito = [YZSettings incognito];
+    [_tabsView showTabs:_tabs selected:_current];
+    // the tray only fades, its cards wobble in themselves. growing as a whole showed page strips at the sides
+    [YZTheme setView:_tabsView shown:YES scale:1];
+    [_tabsView present];
+}
+
+// the host without www so both spellings are one decision. a one label host (localhost) has no parent to
+// match, so no entry
+- (NSString *)adblockSite {
+    NSString *url = [self currentURL];
+    NSString *host = [url length] ? [[[NSURL URLWithString:url] host] lowercaseString] : nil;
+    if ([host hasPrefix:@"www."])
+        host = [host substringFromIndex:4];
+    return [host rangeOfString:@"."].location == NSNotFound ? nil : host;
+}
+
+- (void)toggleAdblockForSite {
+    NSString *site = [self adblockSite];
+    if (!site || !_core)
+        return;
+    yozora_adblock_set_site_paused([site UTF8String], yozora_adblock_site_paused([site UTF8String]) ? 0 : 1);
+    // the page loads again: what was blocked or hidden on it comes back, or goes
+    if (!yozora_core_reload(_core))
+        NSLog(@"yozora: the page could not be loaded again after the blocker changed for %@", site);
+    [self showBanner:yozora_adblock_site_paused([site UTF8String]) ? YZT(@"Блокировщик выключен на этом сайте") : YZT(@"Блокировщик включён на этом сайте")];
+}
+
+- (void)menuPressed {
+    [_input resignFirstResponder];
+    if (_menu)
+        return;
+    BOOL blank = [[self currentTab] isBlank];
+    BOOL incognito = [YZSettings incognito];
+    NSMutableArray *items = [NSMutableArray array], *titles = [NSMutableArray array], *icons = [NSMutableArray array];
+    void (^add)(YZMenuItem, NSString *, YZIcon) = ^(YZMenuItem item, NSString *title, YZIcon icon) {
+        [items addObject:[NSNumber numberWithInt:item]];
+        [titles addObject:title];
+        [icons addObject:[NSNumber numberWithInt:icon]];
+    };
+    if (incognito) {
+        add(YZMenuNewTab, YZT(@"Новая приватная вкладка"), YZIconPlus);
+        add(YZMenuLeavePrivate, YZT(@"Выйти из инкогнито"), YZIconClose);
+    } else {
+        add(YZMenuNewTab, YZT(@"Новая вкладка"), YZIconPlus);
+    }
+    add(YZMenuBookmarks, YZT(@"Закладки"), YZIconBookmarks);
+    // the history of the profile is not shown in the private session
+    if (!incognito)
+        add(YZMenuHistory, YZT(@"История"), YZIconHistory);
+    add(YZMenuDownloads, YZT(@"Загрузки"), YZIconDownload);
+    if (!blank) {
+        add(YZMenuCopyAddress, YZT(@"Скопировать адрес"), YZIconCopy);
+        if ([self canShare])
+            add(YZMenuShare, YZT(@"Поделиться"), YZIconShare);
+        add(YZMenuFindInPage, YZT(@"Найти на странице"), YZIconSearch);
+        add(YZMenuTranslate, YZT(@"Перевести страницу"), YZIconTranslate);
+        // the pause of a site is kept for the profile, the private session keeps nothing
+        NSString *site = incognito || ![YZSettings blockTrackers] ? nil : [self adblockSite];
+        if (site) {
+            if (yozora_adblock_site_paused([site UTF8String]))
+                add(YZMenuAdblock, YZT(@"Включить блокировщик на сайте"), YZIconShield);
+            else
+                add(YZMenuAdblock, [NSString stringWithFormat:@"%@: %u", YZT(@"Блокировщик на сайте"), _core ? yozora_core_blocked_on_page(_core) : 0u], YZIconShield);
+        }
+    }
+    add(YZMenuSettings, YZT(@"Настройки"), YZIconSettings);
+    _menu = [[YZMenuView alloc] initWithFrame:self.view.bounds];
+    _menu.delegate = self;
+    // the card stands on the bottom bar, above the menu button at its right end
+    BOOL wide = [self isWide];
+    _menu.anchorsTop = wide;
+    _menu.topInset = [self chromeInsets].top + YZTabStripHeight + [self barHeight] + 4;
+    _menu.bottomInset = wide ? [self chromeInsets].bottom + 4 : [self chromeInsets].bottom + [self barHeight] + 4;
+    _menu.rightInset = MAX((CGFloat)12, [self chromeInsets].right + 12);
+    [_menu showItems:items titles:titles icons:icons];
+    [self.view addSubview:_menu];
+    [_menu present];
+}
+
+#pragma mark menu, tabs and lists
+
+- (void)dismissMenu {
+    // the field is released at once so a new menu can open, the old one slides away on its own
+    YZMenuView *menu = _menu;
+    _menu = nil;
+    [menu dismissWithCompletion:^{
+        [menu removeFromSuperview];
+        [menu release];
+    }];
+}
+
+- (void)menuViewDidDismiss:(YZMenuView *)view {
+    (void)view;
+    [self dismissMenu];
+}
+
+- (void)presentList:(YZListKind)kind {
+    YZListController *list = [[YZListController alloc] initWithStore:_store kind:kind];
+    list.listDelegate = self;
+    UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:list];
+    [self presentViewController:navigation animated:YES completion:nil];
+    [navigation release];
+    [list release];
+}
+
+- (void)menuView:(YZMenuView *)view didSelectItem:(YZMenuItem)item {
+    (void)view;
+    [self dismissMenu];
+    switch (item) {
+    case YZMenuNewTab:
+        [self addBlankTab];
+        break;
+    case YZMenuLeavePrivate:
+        [self setIncognito:NO];
+        [self endPrivateSessionIfEmpty];
+        break;
+    case YZMenuBookmarks:
+        [self presentList:YZListBookmarks];
+        break;
+    case YZMenuHistory:
+        [self presentList:YZListHistory];
+        break;
+    case YZMenuDownloads: {
+        YZDownloadsController *downloads = [[YZDownloadsController alloc] init];
+        downloads.downloadsDelegate = self;
+        UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:downloads];
+        [self presentViewController:navigation animated:YES completion:nil];
+        [navigation release];
+        [downloads release];
+        break;
+    }
+    case YZMenuCopyAddress:
+        [self copyText:[self currentURL] banner:YZT(@"Адрес скопирован")];
+        break;
+    case YZMenuShare:
+        [self shareText:[self currentURL] fromRect:_menuButton.bounds inView:_menuButton];
+        break;
+    case YZMenuFindInPage:
+        [self showFindBar];
+        break;
+    case YZMenuTranslate:
+        [self presentTranslateSheet];
+        break;
+    case YZMenuAdblock:
+        [self toggleAdblockForSite];
+        break;
+    case YZMenuSettings:
+        [self presentSettings];
+        break;
+    }
+}
+
+// ios 13 and later ignore UIApplication setStatusBarStyle when the controller owns the status bar
+- (UIStatusBarStyle)preferredStatusBarStyle {
+    return [YZTheme statusBarStyle];
+}
+
+// every view that took a theme color or a text when it was built takes it again
+- (void)applyTheme {
+    [[UIApplication sharedApplication] setStatusBarStyle:[YZTheme statusBarStyle]];
+    if ([self respondsToSelector:NSSelectorFromString(@"setNeedsStatusBarAppearanceUpdate")])
+        [self performSelector:NSSelectorFromString(@"setNeedsStatusBarAppearanceUpdate")];
+    self.view.window.backgroundColor = [YZTheme toolbarColor];
+    self.view.backgroundColor = [YZTheme surfaceColor];
+    _topBar.backgroundColor = [YZTheme toolbarColor];
+    [_findBar applyTheme];
+    [_tabStrip applyTheme];
+    [_tabStripSignature release];
+    _tabStripSignature = nil;
+    [self refreshTabStrip];
+    [_topBar viewWithTag:2].backgroundColor = [YZTheme statusStripColor];
+    _bottomBar.backgroundColor = [YZTheme toolbarColor];
+    [_bottomBar viewWithTag:YZBottomSkirtTag].backgroundColor = [YZTheme toolbarColor];
+    _field.backgroundColor = [YZTheme fieldColor];
+    _progress.backgroundColor = [YZTheme accentColor];
+    _banner.backgroundColor = [YZTheme cardColor];
+    _banner.textColor = [YZTheme textColor];
+    _input.textColor = [YZTheme textColor];
+    YZSetPlaceholder(_input, YZT(@"Поиск или адрес"), [[YZTheme textColor] colorWithAlphaComponent:0.7f]);
+    _input.accessibilityLabel = YZT(@"Адрес страницы");
+    _input.keyboardAppearance = [YZTheme isDark] ? UIKeyboardAppearanceAlert : UIKeyboardAppearanceDefault;
+    [_cancelButton setTitle:YZT(@"Отмена") forState:UIControlStateNormal];
+    [_cancelButton setTitleColor:[YZTheme accentColor] forState:UIControlStateNormal];
+    NSArray *buttons = [NSArray arrayWithObjects:_backButton, _forwardButton, _starButton, _tabsButton, _menuButton, nil];
+    NSArray *labels = [NSArray arrayWithObjects:@"Назад", @"Вперёд", @"Закладка", @"Вкладки", @"Меню", nil];
+    for (NSUInteger i = 0; i < [buttons count]; ++i) {
+        UIButton *button = [buttons objectAtIndex:i];
+        [self styleBarButton:button icon:(YZIcon)button.tag];
+        button.accessibilityLabel = YZT([labels objectAtIndex:i]);
+    }
+    _suggestionsTable.backgroundColor = [YZTheme surfaceColor];
+    _suggestionsTable.separatorStyle = UITableViewCellSeparatorStyleNone;
+    _suggestionsTable.rowHeight = 62;
+    [_suggestionsTable reloadData];
+    [_home applyTheme];
+    [_errorPage applyTheme];
+    [_tabsView applyTheme];
+    [self updateChromeForced:YES];
+}
+
+- (YZSettingsController *)presentSettings {
+    YZSettingsController *settings = [[[YZSettingsController alloc] initWithStore:_store] autorelease];
+    settings.settingsDelegate = self;
+    UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:settings];
+    navigation.view.backgroundColor = [YZTheme surfaceColor];
+    [self presentViewController:navigation animated:YES completion:nil];
+    [navigation release];
+    return settings;
+}
+
+- (void)settingsControllerDidFinish:(YZSettingsController *)controller {
+    (void)controller;
+    [YZCrash note:@"settings: dismissed"];
+    [self dismissViewControllerAnimated:YES completion:nil];
+    [self updateChromeForced:YES];
+}
+
+// the theme, the language and the text size show on the screens that are open
+- (void)settingsControllerDidChange:(YZSettingsController *)controller {
+    (void)controller;
+    [YZCrash note:@"settings: applying"];
+    [self applyTheme];
+    [YZCrash note:@"settings: theme applied"];
+    [self applyDeveloperSettings];
+    [YZCrash note:@"settings: developer applied"];
+}
+
+- (void)listController:(YZListController *)controller didSelectURL:(NSString *)url {
+    (void)controller;
+    [self dismissViewControllerAnimated:YES completion:nil];
+    [self loadURL:url];
+}
+
+- (void)downloadsControllerDidFinish:(YZDownloadsController *)controller {
+    (void)controller;
+    [self dismissViewControllerAnimated:YES completion:nil];
+}
+
+- (void)listControllerDidFinish:(YZListController *)controller {
+    (void)controller;
+    [self dismissViewControllerAnimated:YES completion:nil];
+    [self updateChromeForced:YES];
+}
+
+- (void)tabsView:(YZTabsView *)view didSelectIndex:(NSUInteger)index {
+    (void)view;
+    [YZTheme setView:_tabsView shown:NO scale:1];
+    if (index != _current)
+        [self switchToTab:index];
+}
+
+- (void)tabsView:(YZTabsView *)view didCloseIndex:(NSUInteger)index {
+    (void)view;
+    [self closeTabAtIndex:index];
+}
+
+- (void)tabsViewDidRequestNewTab:(YZTabsView *)view {
+    (void)view;
+    [YZTheme setView:_tabsView shown:NO scale:1];
+    [self addBlankTab];
+}
+
+- (void)tabsView:(YZTabsView *)view didChooseIncognito:(BOOL)incognito {
+    (void)view;
+    [self setIncognito:incognito];
+}
+
+- (void)tabsViewDidFinish:(YZTabsView *)view {
+    (void)view;
+    [YZTheme setView:_tabsView shown:NO scale:1];
+}
+
+#pragma mark tab strip
+
+- (void)tabStrip:(YZTabStrip *)strip didSelectIndex:(NSUInteger)index {
+    (void)strip;
+    if (index != _current)
+        [self switchToTab:index];
+}
+
+- (void)tabStrip:(YZTabStrip *)strip didCloseIndex:(NSUInteger)index {
+    (void)strip;
+    [self closeTabAtIndex:index];
+}
+
+- (void)tabStripDidRequestNewTab:(YZTabStrip *)strip {
+    (void)strip;
+    [self addBlankTab];
+}
+
+#pragma mark find in page and the desktop site
+
+- (BOOL)findBarOpen { return _findBar && !_findBar.hidden; }
+
+- (void)showFindBar {
+    if (!_core || [[self currentTab] isBlank])
+        return;
+    if (!_findBar) {
+        _findBar = [[YZFindBar alloc] initWithFrame:CGRectZero];
+        _findBar.delegate = self;
+        _findBar.hidden = YES;
+        [self.view insertSubview:_findBar aboveSubview:_topBar];
+    }
+    [_findBar showIndex:0 count:0 searching:NO];
+    // the match is painted by the page as a selection, which would also grow handles and a menu
+    _pageView.selectionHidden = YES;
+    [self layoutChrome];
+    [YZTheme setView:_findBar shown:YES scale:1];
+    [_findBar focus];
+}
+
+- (void)closeFindBar {
+    if (![self findBarOpen])
+        return;
+    [_findBar blur];
+    if (_core)
+        yozora_core_find_clear(_core);
+    _pageView.selectionHidden = NO;
+    [YZTheme setView:_findBar shown:NO scale:1];
+    [self layoutChrome];
+}
+
+// called once for each display frame: the place of the current match comes from the core thread
+- (void)updateFindState {
+    if (![self findBarOpen] || !_core)
+        return;
+    yozora_find_state state;
+    yozora_core_find_state(_core, &state);
+    [_findBar showIndex:state.index count:state.count searching:state.active];
+}
+
+- (void)findBar:(YZFindBar *)bar didChangeText:(NSString *)text {
+    if (!_core)
+        return;
+    if ([text length])
+        yozora_core_find(_core, [text UTF8String], 0);
+    else
+        yozora_core_find_clear(_core);
+    (void)bar;
+}
+
+- (void)findBar:(YZFindBar *)bar didStep:(int)direction {
+    if (_core && [[bar text] length])
+        yozora_core_find(_core, [[bar text] UTF8String], direction);
+}
+
+- (void)findBarDidClose:(YZFindBar *)bar {
+    (void)bar;
+    [self closeFindBar];
+}
+
+#pragma mark downloads in the chrome
+
+// twice a second: draw the share of known size downloads over the bottom bar and announce one that ended. the
+// list is readable from any thread
+- (void)watchDownloadsAt:(CFTimeInterval)time {
+    if (time - _downloadsPolled < 0.5)
+        return;
+    _downloadsPolled = time;
+    if (!_watchedDownloads)
+        _watchedDownloads = [[NSMutableSet alloc] init];
+    yozora_download list[50];
+    int count = yozora_downloads_list(list, 50);
+    long long received = 0, total = 0;
+    BOOL active = NO;
+    NSMutableSet *now = [NSMutableSet set];
+    NSUInteger activeCount = 0;
+    for (int i = 0; i < count; ++i) {
+        NSNumber *key = [NSNumber numberWithUnsignedInt:list[i].id];
+        int state = list[i].state;
+        if (state == YOZORA_DOWNLOAD_QUEUED || state == YOZORA_DOWNLOAD_RUNNING || state == YOZORA_DOWNLOAD_PAUSED) {
+            active = YES;
+            ++activeCount;
+            [now addObject:key];
+            if (list[i].total > 0) {
+                received += MIN(list[i].received, list[i].total);
+                total += list[i].total;
+            }
+        } else if ([_watchedDownloads containsObject:key]) {
+            if (state == YOZORA_DOWNLOAD_DONE) {
+                NSString *message = [NSString stringWithFormat:@"%@: %s", YZT(@"Загружено"), list[i].name];
+                [self showBanner:message];
+                // the page load that would clear a banner may be far away
+                [self performSelector:@selector(clearBannerIfShowing:) withObject:message afterDelay:4];
+            } else if (state == YOZORA_DOWNLOAD_FAILED) {
+                [self showError:[NSString stringWithFormat:@"%@: %s", YZT(@"Не загружено"), list[i].name]];
+            }
+        }
+    }
+    // an entry that left the list while it was unfinished was forgotten or cancelled, nothing to announce
+    [_watchedDownloads setSet:now];
+    // spinner and icon number, the first download asks for the permission ios 8 needs for notifications while
+    // hidden
+    [YZSystemNotifier setActivity:active];
+    [YZSystemNotifier setBadge:(NSInteger)activeCount];
+    if (active)
+        [YZSystemNotifier askPermission];
+    if (!_downloadLine) {
+        _downloadLine = [[UIView alloc] initWithFrame:CGRectZero];
+        _downloadLine.hidden = YES;
+    }
+    _downloadLine.backgroundColor = [YZTheme accentColor];
+    // a download of an unknown size has no share to show: a short stub says that something runs
+    _downloadShare = total > 0 ? (CGFloat)received / (CGFloat)total : 0.04f;
+    [self layoutDownloadLine];
+    if (_downloadLine.hidden == active)
+        [YZTheme setView:_downloadLine shown:active scale:1];
+}
+
+- (void)clearBannerIfShowing:(NSString *)text {
+    if ([_shownBanner isEqualToString:text])
+        [self showBanner:nil];
+}
+
+#pragma mark share and the sheet of a link
+
+typedef enum {
+    YZTargetOpenTab,
+    YZTargetOpenPrivateTab,
+    YZTargetCopyLink,
+    YZTargetShareLink,
+    YZTargetOpenImage,
+    YZTargetCopyImage,
+    YZTargetShareImage
+} YZTargetAction;
+
+// the share sheet exists from ios 6, an older system gets no share entries at all
+- (BOOL)canShare {
+    return NSClassFromString(@"UIActivityViewController") != nil;
+}
+
+- (void)closeSharePopover {
+    _sharePopover.delegate = nil;
+    [_sharePopover dismissPopoverAnimated:NO];
+    [_sharePopover release];
+    _sharePopover = nil;
+}
+
+- (void)popoverControllerDidDismissPopover:(UIPopoverController *)popover {
+    if (popover == _sharePopover)
+        [self closeSharePopover];
+}
+
+// an address goes as NSURL so mail and messages make a link, text as a string. an ipad shows a popover at the
+// source rect
+- (void)shareText:(NSString *)text fromRect:(CGRect)rect inView:(UIView *)source {
+    Class activityClass = NSClassFromString(@"UIActivityViewController");
+    if (!activityClass || ![text length])
+        return;
+    BOOL address = [text hasPrefix:@"http://"] || [text hasPrefix:@"https://"];
+    NSURL *url = address ? [NSURL URLWithString:text] : nil;
+    NSArray *items = [NSArray arrayWithObject:url ? (id)url : (id)text];
+    id activity = ((id (*)(id, SEL, id, id))objc_msgSend)([activityClass alloc], @selector(initWithActivityItems:applicationActivities:), items, nil);
+    if (!activity)
+        return;
+    [activity autorelease];
+    [_input resignFirstResponder];
+    if ([YZTheme isPad] && NSClassFromString(@"UIPopoverController")) {
+        [self closeSharePopover];
+        _sharePopover = [[UIPopoverController alloc] initWithContentViewController:activity];
+        _sharePopover.delegate = self;
+        [_sharePopover presentPopoverFromRect:rect inView:source permittedArrowDirections:UIPopoverArrowDirectionAny animated:YES];
+    } else {
+        [self presentViewController:activity animated:YES completion:nil];
+    }
+}
+
+- (void)pageView:(YZPageView *)view shareText:(NSString *)text fromRect:(CGRect)rect {
+    [self shareText:text fromRect:rect inView:view];
+}
+
+// a short message that goes away by itself
+- (void)showTransientBanner:(NSString *)text {
+    [self showBanner:text];
+    [self performSelector:@selector(clearBannerIfShowing:) withObject:text afterDelay:2];
+}
+
+- (void)copyText:(NSString *)text banner:(NSString *)banner {
+    [UIPasteboard generalPasteboard].string = text;
+    [self showTransientBanner:banner];
+}
+
+// a blank tab is reused, a full tray refuses with its own message, a private one switches the session first
+- (void)openURLInNewTab:(NSString *)url private:(BOOL)private {
+    if (private && ![YZSettings incognito]) {
+        [self setIncognito:YES];
+        if (![YZSettings incognito])
+            return;
+    }
+    if (![[self currentTab] isBlank]) {
+        NSUInteger before = [_tabs count];
+        [self addBlankTab];
+        if ([_tabs count] == before)
+            return;
+    }
+    [self openAddressText:url];
+}
+
+// the sheet of a long press on a link or image, as in Firefox. it is the page controls sheet, so it closes
+// with the page
+- (void)presentTargetSheetForHit:(const yozora_hit *)hit {
+    NSString *link = hit->link[0] ? [NSString stringWithUTF8String:hit->link] : nil;
+    NSString *image = hit->image[0] ? [NSString stringWithUTF8String:hit->image] : nil;
+    if (!link && !image)
+        return;
+    BOOL share = [self canShare];
+    NSMutableArray *actions = [NSMutableArray array], *texts = [NSMutableArray array], *icons = [NSMutableArray array];
+    void (^add)(YZTargetAction, NSString *, YZIcon) = ^(YZTargetAction action, NSString *text, YZIcon icon) {
+        [actions addObject:[NSNumber numberWithInt:action]];
+        [texts addObject:text];
+        [icons addObject:[NSNumber numberWithInt:icon]];
+    };
+    if (link) {
+        add(YZTargetOpenTab, YZT(@"Открыть в новой вкладке"), YZIconTabNew);
+        // inside the private session every tab is private already
+        if (![YZSettings incognito])
+            add(YZTargetOpenPrivateTab, YZT(@"Открыть в приватной вкладке"), YZIconIncognito);
+        add(YZTargetCopyLink, YZT(@"Скопировать ссылку"), YZIconLink);
+        if (share)
+            add(YZTargetShareLink, YZT(@"Поделиться ссылкой"), YZIconShare);
+    }
+    if (image) {
+        add(YZTargetOpenImage, YZT(@"Открыть картинку в новой вкладке"), YZIconImage);
+        add(YZTargetCopyImage, YZT(@"Скопировать адрес картинки"), YZIconCopy);
+        if (share)
+            add(YZTargetShareImage, YZT(@"Поделиться адресом картинки"), YZIconShare);
+    }
+    [_input resignFirstResponder];
+    CGPoint touch = [_pageView convertPoint:[_pageView screenPointForViewportPoint:CGPointMake(hit->x, hit->y)] toView:self.view];
+    CGRect place = CGRectMake(touch.x, touch.y, 1, 1);
+    _controlSheet = [[YZPickers presentActionsInView:self.view title:link ? link : image texts:texts icons:icons bottomInset:[self chromeInsets].bottom
+                                          completion:^(NSInteger index) {
+        [_controlSheet release];
+        _controlSheet = nil;
+        if (index < 0 || index >= (NSInteger)[actions count])
+            return;
+        switch ((YZTargetAction)[[actions objectAtIndex:index] intValue]) {
+        case YZTargetOpenTab:
+            [self openURLInNewTab:link private:NO];
+            break;
+        case YZTargetOpenPrivateTab:
+            [self openURLInNewTab:link private:YES];
+            break;
+        case YZTargetCopyLink:
+            [self copyText:link banner:YZT(@"Ссылка скопирована")];
+            break;
+        case YZTargetShareLink:
+            [self shareText:link fromRect:place inView:self.view];
+            break;
+        case YZTargetOpenImage:
+            [self openURLInNewTab:image private:NO];
+            break;
+        case YZTargetCopyImage:
+            [self copyText:image banner:YZT(@"Адрес скопирован")];
+            break;
+        case YZTargetShareImage:
+            [self shareText:image fromRect:place inView:self.view];
+            break;
+        }
+    }] retain];
+}
+
+// an answer that arrives while another screen is up is dropped, a sheet for a press from seconds ago would
+// surprise
+- (void)watchLongPresses {
+    yozora_hit hit;
+    if (!_core || !yozora_core_take_hit(_core, &hit))
+        return;
+    if (_controlSheet || _filePicker || _menu || self.presentedViewController || !_tabsView.hidden)
+        return;
+    [self presentTargetSheetForHit:&hit];
+}
+
+#pragma mark controls of the page
+
+// questions of the core are answered by id. the sheet closes unanswered when the page goes, an id of a gone
+// page does nothing
+- (void)closePageControls {
+    if (_controlSheet) {
+        _controlSheet.onCancel = nil;
+        _controlSheet.onDone = nil;
+        [_controlSheet dismissAnimated:NO];
+        [_controlSheet release];
+        _controlSheet = nil;
+    }
+    if (_filePicker) {
+        YZFilePicker *picker = _filePicker;
+        _filePicker = nil;
+        [picker cancel];
+        [picker release];
+    }
+}
+
+- (void)watchPageControls {
+    // one question at a time, and none under another screen: the rest waits in the core
+    if (!_core || _controlSheet || _filePicker || _menu || self.presentedViewController || !_tabsView.hidden)
+        return;
+    yozora_core *core = _core;
+    CGFloat inset = [self chromeInsets].bottom;
+    // this runs every display frame and a list is 33 KB, so the buffer is made once, on the main thread only
+    static yozora_choice *choice;
+    if (!choice)
+        choice = (yozora_choice *)malloc(sizeof(yozora_choice));
+    if (choice && yozora_core_take_choice(core, choice)) {
+        NSMutableArray *texts = [NSMutableArray array], *flags = [NSMutableArray array];
+        for (int i = 0; i < choice->count; ++i) {
+            [texts addObject:[NSString stringWithUTF8String:choice->items[i].text]];
+            [flags addObject:[NSNumber numberWithInt:choice->items[i].flags]];
+        }
+        unsigned identifier = choice->id;
+        int selected = choice->selected;
+        if (choice->multiple) {
+            // a list with several choices: the answer is every item that stays chosen
+            _controlSheet = [[YZPickers presentMultipleChoicesInView:self.view title:nil texts:texts flags:flags bottomInset:inset
+                                                          completion:^(NSIndexSet *chosen) {
+                [_controlSheet release];
+                _controlSheet = nil;
+                int indexes[YOZORA_CHOICE_MAX];
+                int count = chosen ? 0 : -1;
+                for (NSUInteger index = [chosen firstIndex]; index != NSNotFound && count < YOZORA_CHOICE_MAX; index = [chosen indexGreaterThanIndex:index])
+                    indexes[count++] = (int)index;
+                yozora_core_choices_respond(core, identifier, indexes, count);
+            }] retain];
+            return;
+        }
+        _controlSheet = [[YZPickers presentChoicesInView:self.view title:nil texts:texts flags:flags selected:selected bottomInset:inset
+                                              completion:^(NSInteger index) {
+            [_controlSheet release];
+            _controlSheet = nil;
+            yozora_core_choice_respond(core, identifier, (int)index);
+        }] retain];
+        return;
+    }
+    yozora_file_request file;
+    if (yozora_core_take_files(core, &file)) {
+        unsigned identifier = file.id;
+        // the completion tells an answer from a page that went away by comparing with the picker the controller holds
+        __block YZFilePicker *picker = nil;
+        picker = [[YZFilePicker alloc] initWithHost:self accept:[NSString stringWithUTF8String:file.accept] multiple:file.multiple != 0 bottomInset:inset
+                                         completion:^(NSArray *paths) {
+            if (_filePicker != picker)
+                return;
+            YZFilePicker *done = _filePicker;
+            _filePicker = nil;
+            const char *list[64];
+            int count = 0;
+            for (NSString *path in paths) {
+                if (count < 64)
+                    list[count++] = [path fileSystemRepresentation];
+            }
+            yozora_core_files_respond(core, identifier, list, count);
+            [done release];
+        }];
+        _filePicker = picker;
+        [picker present];
+        return;
+    }
+    yozora_color_request color;
+    if (yozora_core_take_color(core, &color)) {
+        unsigned identifier = color.id;
+        _controlSheet = [[YZPickers presentColorInView:self.view value:[NSString stringWithUTF8String:color.value] bottomInset:inset
+                                            completion:^(NSString *hex) {
+            [_controlSheet release];
+            _controlSheet = nil;
+            yozora_core_color_respond(core, identifier, [hex UTF8String]);
+        }] retain];
+        return;
+    }
+    yozora_date_request date;
+    if (yozora_core_take_date(core, &date)) {
+        unsigned identifier = date.id;
+        _controlSheet = [[YZPickers presentDateInView:self.view type:[NSString stringWithUTF8String:date.type] value:[NSString stringWithUTF8String:date.value]
+                                              minimum:date.minimum maximum:date.maximum step:date.step bottomInset:inset
+                                           completion:^(NSString *value) {
+            [_controlSheet release];
+            _controlSheet = nil;
+            yozora_core_date_respond(core, identifier, [value UTF8String]);
+        }] retain];
+    }
+}
+
+#pragma mark address field
+
+- (void)setEditing:(BOOL)editing {
+    _editing = editing;
+    _input.textAlignment = editing ? YZTextAlignmentLeft : YZTextAlignmentCenter;
+    _reloadButton.hidden = editing || [[self currentTab] isBlank];
+    if (editing)
+        [self setBottomBarShown:YES animated:YES];
+    [self updateTranslationAnimated:YES];
+    [YZTheme setView:_cancelButton shown:editing scale:1];
+    [YZTheme setView:_suggestionsTable shown:editing scale:1];
+    // the address field narrows to make room for the cancel button
+    [YZTheme animate:^{ [self layoutChrome]; } completion:nil];
+}
+
+- (void)textFieldDidBeginEditing:(UITextField *)field {
+    [self setEditing:YES];
+    field.text = [self currentURL] ? [self currentURL] : @"";
+    // the whole address is selected so a typed address replaces it, after the keyboard has appeared
+    [field performSelector:@selector(selectAll:) withObject:nil afterDelay:0.1];
+    [self refreshSuggestions];
+}
+
+- (void)textFieldDidEndEditing:(UITextField *)field {
+    (void)field;
+    [self setEditing:NO];
+    [self updateAddressDisplay];
+}
+
+- (BOOL)textFieldShouldReturn:(UITextField *)field {
+    NSString *text = field.text;
+    [field resignFirstResponder];
+    if ([text length])
+        [self openAddressText:text];
+    return YES;
+}
+
+- (void)cancelPressed {
+    [_input resignFirstResponder];
+}
+
+// suggestions wait for a pause in typing, rebuilding per key held the next key back on an old phone
+- (void)inputChanged {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(refreshSuggestions) object:nil];
+    [self performSelector:@selector(refreshSuggestions) withObject:nil afterDelay:0.06];
+}
+
+#pragma mark suggestions
+
+- (BOOL)text:(NSString *)text matches:(NSString *)query {
+    return [text rangeOfString:query options:NSCaseInsensitiveSearch].location != NSNotFound;
+}
+
+- (void)refreshSuggestions {
+    NSString *query = [_input.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    [_suggestions removeAllObjects];
+    NSMutableSet *seen = [NSMutableSet set];
+    char address[YOZORA_URL_CAP];
+    if ([query length] && yozora_address_resolve([query UTF8String], [YZSettings searchEngine], address, sizeof address) != YOZORA_ADDRESS_INVALID) {
+        YZRecord *typed = [[[YZRecord alloc] init] autorelease];
+        typed.url = [NSString stringWithUTF8String:address];
+        typed.title = [NSString stringWithFormat:YZT(@"Перейти или искать: %@"), query];
+        [_suggestions addObject:typed];
+        [seen addObject:typed.url];
+    }
+    NSMutableArray *sources = [NSMutableArray arrayWithArray:[_store bookmarks]];
+    [sources addObjectsFromArray:[_store recentHistory]];
+    for (YZRecord *record in sources) {
+        if ([_suggestions count] > YZSuggestionLimit)
+            break;
+        if ([seen containsObject:record.url])
+            continue;
+        if ([query length] && ![self text:record.url matches:query] && ![self text:record.title matches:query])
+            continue;
+        [seen addObject:record.url];
+        [_suggestions addObject:record];
+    }
+    [_suggestionsTable reloadData];
+}
+
+- (NSInteger)tableView:(UITableView *)table numberOfRowsInSection:(NSInteger)section {
+    (void)table;
+    (void)section;
+    return [_suggestions count];
+}
+
+- (UITableViewCell *)tableView:(UITableView *)table cellForRowAtIndexPath:(NSIndexPath *)path {
+    static NSString *identifier = @"suggestion";
+    UITableViewCell *cell = [table dequeueReusableCellWithIdentifier:identifier];
+    if (!cell) {
+        cell = [[[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:identifier] autorelease];
+        cell.textLabel.font = [YZTheme systemFontOfSize:15];
+        cell.detailTextLabel.font = [YZTheme systemFontOfSize:12];
+    }
+    cell.backgroundColor = [YZTheme surfaceColor];
+    [YZTheme styleSelectionOfCell:cell];
+    cell.textLabel.textColor = [YZTheme textColor];
+    cell.textLabel.backgroundColor = [UIColor clearColor];
+    cell.detailTextLabel.textColor = [YZTheme subtleTextColor];
+    cell.detailTextLabel.backgroundColor = [UIColor clearColor];
+    YZRecord *record = [_suggestions objectAtIndex:path.row];
+    cell.textLabel.text = [record displayTitle];
+    cell.detailTextLabel.text = record.url;
+    return cell;
+}
+
+- (void)tableView:(UITableView *)table didSelectRowAtIndexPath:(NSIndexPath *)path {
+    [table deselectRowAtIndexPath:path animated:NO];
+    NSString *url = [[(YZRecord *)[_suggestions objectAtIndex:path.row] url] retain];
+    [_input resignFirstResponder];
+    [self loadURL:url];
+    [url release];
+}
+
+#pragma mark system
+
+- (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)orientation {
+    (void)orientation;
+    return YES;
+}
+
+- (void)didRotateFromInterfaceOrientation:(UIInterfaceOrientation)orientation {
+    (void)orientation;
+    [_tabsView setNeedsLayout];
+    [self updateChromeForced:YES];
+}
+
+- (void)didReceiveMemoryWarning {
+    [super didReceiveMemoryWarning];
+    [YZCrash note:@"memory warning"];
+    NSLog(@"yozora: memory warning");
+    _memoryWarningTime = CACurrentMediaTime();
+    for (NSUInteger i = 0; i < [_tabs count]; ++i) {
+        YZTab *tab = [_tabs objectAtIndex:i];
+        [tab discardSuspendedCore];
+        // the stored preview of a tab is read again when the tray shows it, a private one has none and goes for good
+        if (i != _current)
+            [tab dropThumbnailFromMemory];
+    }
+    for (YZTab *tab in _otherTabs) {
+        [tab discardSuspendedCore];
+        [tab dropThumbnailFromMemory];
+    }
+    [_tabsView refreshThumbnails];
+    if (_core) {
+        yozora_release_memory_async();
+    }
+}
+
+- (void)dealloc {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self];
+    [self closePageControls];
+    [self closeSharePopover];
+    _findBar.delegate = nil;
+    [_findBar release];
+    [_downloadLine release];
+    [_watchedDownloads release];
+    _tabStrip.delegate = nil;
+    [_tabStrip release];
+    [_tabStripSignature release];
+    [_authAlert dismissSilently];
+    [_authAlert release];
+    [_geoAlert dismissSilently];
+    [_geoAlert release];
+    [_notificationAlert dismissSilently];
+    [_notificationAlert release];
+    [_videoController shutDown];
+    _videoController.delegate = nil;
+    [_videoController release];
+    if (_popupController)
+        _popupController->_popupOwner = nil;
+    [_popupController release];
+    if (_initialPopupCore)
+        yozora_core_destroy(_initialPopupCore);
+    if (_saveQueue) {
+        dispatch_sync(_saveQueue, ^{ });
+        dispatch_release(_saveQueue);
+    }
+    [_store flush];
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [_link invalidate];
+    if (_linkTarget)
+        ((YZCoreLinkTarget *)_linkTarget)->controller = nil;
+    [_link release];
+    [_linkTarget release];
+    _input.delegate = nil;
+    _suggestionsTable.dataSource = nil;
+    _suggestionsTable.delegate = nil;
+    [self destroyCore];
+    [_topBar release];
+    [_progress release];
+    [_field release];
+    [_securityView release];
+    [_input release];
+    [_reloadButton release];
+    [_cancelButton release];
+    [_bottomBar release];
+    [_backButton release];
+    [_forwardButton release];
+    [_starButton release];
+    [_tabsButton release];
+    [_menuButton release];
+    [_pageView release];
+    [_home release];
+    [_errorPage release];
+    [_banner release];
+    [_errorPopup release];
+    [_translateCloses release];
+    [_debugOverlay release];
+    [_suggestionsTable release];
+    [_tabsView release];
+    [_menu release];
+    [_suggestions release];
+    [_shownURL release];
+    [_shownTitle release];
+    [_shownBanner release];
+    [_geoAlert release];
+    [_notificationAlert release];
+    [_notificationText release];
+    [_location release];
+    [_tabs release];
+    [_otherTabs release];
+    [_store release];
+    [super dealloc];
+}
+@end

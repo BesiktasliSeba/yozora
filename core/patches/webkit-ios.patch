@@ -1,0 +1,661 @@
+--- a/Source/JavaScriptCore/runtime/JSCBytecodeCacheVersion.cpp
++++ b/Source/JavaScriptCore/runtime/JSCBytecodeCacheVersion.cpp
+@@ -36,7 +36,11 @@
+ #if OS(DARWIN)
+ #include <mach-o/dyld.h>
+ #include <uuid/uuid.h>
++#if defined(YOZORA_DARWIN)
++#include "yozora_darwin.h"
++#else
+ #include <wtf/spi/darwin/dyldSPI.h>
++#endif
+ #elif OS(QNX)
+ #include <sys/link.h>
+ #else
+@@ -59,7 +63,13 @@
+         void* jsFunctionAddr = std::bit_cast<void*>(&computeJSCBytecodeCacheVersion);
+ #if OS(DARWIN)
+         uuid_t uuid;
++#if defined(YOZORA_DARWIN)
++        int error = yozora_darwin_image_uuid(jsFunctionAddr, uuid, sizeof(uuid));
++        RELEASE_ASSERT_WITH_MESSAGE(!error, "yozora: bytecode cache image UUID failed: %d", error);
++        {
++#else
+         if (const mach_header* header = dyld_image_header_containing_address(jsFunctionAddr); header && _dyld_get_image_uuid(header, uuid)) {
++#endif
+             uuid_string_t uuidString = { };
+             uuid_unparse(uuid, uuidString);
+             cacheVersion.construct(SuperFastHash::computeHash(uuidString));
+--- a/Source/JavaScriptCore/runtime/MachineContext.h
++++ b/Source/JavaScriptCore/runtime/MachineContext.h
+@@ -39,6 +39,11 @@
+ namespace JSC {
+ namespace MachineContext {
+ 
++#if defined(YOZORA_DARWIN) && CPU(ARM)
++// the ios 5 SDK exposes uc_mcontext but omits its mcontext_t typedef
++using mcontext_t = decltype(ucontext_t::uc_mcontext);
++#endif
++
+ template<typename T = void*> T stackPointer(const PlatformRegisters&);
+ 
+ #if OS(WINDOWS) || HAVE(MACHINE_CONTEXT)
+@@ -50,7 +55,9 @@
+ 
+ template<size_t N> void*& argumentPointer(PlatformRegisters&);
+ template<size_t N> void* argumentPointer(const PlatformRegisters&);
++#if ENABLE(WEBASSEMBLY)
+ void* wasmInstancePointer(const PlatformRegisters&);
++#endif
+ #if !ENABLE(C_LOOP)
+ void*& llintInstructionPointer(PlatformRegisters&);
+ void* llintInstructionPointer(const PlatformRegisters&);
+@@ -74,7 +81,9 @@
+ 
+ template<size_t N> void*& argumentPointer(mcontext_t&);
+ template<size_t N> void* argumentPointer(const mcontext_t&);
++#if ENABLE(WEBASSEMBLY)
+ void* wasmInstancePointer(const mcontext_t&);
++#endif
+ #if !ENABLE(C_LOOP)
+ void*& llintInstructionPointer(mcontext_t&);
+ void* llintInstructionPointer(const mcontext_t&);
+@@ -231,6 +240,9 @@
+ 
+ #if CPU(X86_64)
+     return reinterpret_cast<void*&>(regs.__rbp);
++#elif CPU(ARM)
++    // the ios armv7 ABI uses r7 for both arm and thumb frame pointers
++    return reinterpret_cast<void*&>(regs.__r[7]);
+ #elif CPU(ARM64)
+     return reinterpret_cast<void*&>(regs.__x[29]);
+ #else
+@@ -569,6 +581,7 @@
+ #endif
+ }
+ 
++#if ENABLE(WEBASSEMBLY)
+ inline void* wasmInstancePointer(const PlatformRegisters& regs)
+ {
+ #if OS(DARWIN)
+@@ -599,6 +612,7 @@
+     return wasmInstancePointer(regs.machineContext);
+ #endif
+ }
++#endif
+ 
+ 
+ template<size_t N>
+@@ -673,6 +687,7 @@
+ #endif
+ }
+ 
++#if ENABLE(WEBASSEMBLY)
+ inline void* wasmInstancePointer(const mcontext_t& machineContext)
+ {
+ #if OS(DARWIN)
+@@ -729,6 +744,7 @@
+ #error Need a way to get the frame pointer for another thread on this platform
+ #endif
+ }
++#endif
+ 
+ 
+ template<unsigned N>
+--- a/Source/JavaScriptCore/runtime/Options.cpp
++++ b/Source/JavaScriptCore/runtime/Options.cpp
+@@ -49,7 +49,7 @@
+ #include <wtf/text/StringBuilder.h>
+ #include <wtf/threads/Signals.h>
+ 
+-#if OS(DARWIN)
++#if USE(OS_LOG)
+ #include <wtf/darwin/OSLogPrintStream.h>
+ #endif
+ 
+@@ -312,12 +312,18 @@
+     else if (equalLettersIgnoringASCIICase(span, "fault"_s))
+         result = OSLogType::Fault;
+ 
++#if !USE(OS_LOG)
++    if (result && result.value() != OSLogType::None) {
++        dataLogLn("OSLog is unavailable in this build, dataLog uses stderr");
++        return std::nullopt;
++    }
++#endif
+     if (result && result.value() != Options::useOSLog())
+         useOSLogOptionHasChanged = true;
+     return result;
+ }
+ 
+-#if OS(DARWIN)
++#if USE(OS_LOG)
+ static os_log_type_t NODELETE asDarwinOSLogType(OSLogType type)
+ {
+     switch (type) {
+@@ -347,7 +353,7 @@
+     // Make sure no one jumped here for nefarious reasons...
+     RELEASE_ASSERT(Options::useOSLog() != OSLogType::None);
+ }
+-#endif // OS(DARWIN)
++#endif // USE(OS_LOG)
+ 
+ static ASCIILiteral asString(OSLogType type)
+ {
+@@ -1012,7 +1018,7 @@
+         FOR_EACH_JSC_EXPERIMENTAL_OPTION(DISABLE_TIERS);
+     }
+ 
+-#if OS(DARWIN)
++#if USE(OS_LOG)
+     if (useOSLogOptionHasChanged) {
+         initializeDatafileToUseOSLog();
+         useOSLogOptionHasChanged = false;
+--- a/Source/JavaScriptCore/tools/Integrity.cpp
++++ b/Source/JavaScriptCore/tools/Integrity.cpp
+@@ -36,7 +36,7 @@
+ #include "VMManager.h"
+ #include <wtf/DataLog.h>
+ 
+-#if OS(DARWIN)
++#if USE(OS_LOG)
+ #include <wtf/darwin/OSLogPrintStream.h>
+ #endif
+ 
+@@ -49,7 +49,7 @@
+ 
+ PrintStream& logFile()
+ {
+-#if OS(DARWIN)
++#if USE(OS_LOG)
+     static PrintStream* s_file;
+     static std::once_flag once;
+     std::call_once(once, [] {
+--- a/Source/WTF/CMakeLists.txt
++++ b/Source/WTF/CMakeLists.txt
+@@ -2,6 +2,6 @@
+ 
+ add_subdirectory(wtf)
+ 
+-if (APPLE AND NOT USE_APPLE_INTERNAL_SDK)
++if (APPLE AND NOT USE_APPLE_INTERNAL_SDK AND NOT YOZORA_ICU_ROOT)
+     file(COPY ${WTF_DIR}/icu/unicode DESTINATION ${ICU_INCLUDE_DIRS})
+ endif ()
+--- a/Source/WTF/wtf/CMakeLists.txt
++++ b/Source/WTF/wtf/CMakeLists.txt
+@@ -718,9 +718,9 @@
+         win/Win32Handle.h
+     )
+ elseif (APPLE)
+-    list(APPEND WTF_SOURCES
+-        darwin/OSLogPrintStream.mm
+-    )
++    if (NOT YOZORA_DARWIN_ROOT)
++        list(APPEND WTF_SOURCES darwin/OSLogPrintStream.mm)
++    endif ()
+ 
+     list(APPEND WTF_PUBLIC_HEADERS
+         cf/CFURLExtras.h
+--- a/Source/WTF/wtf/CurrentTime.cpp
++++ b/Source/WTF/wtf/CurrentTime.cpp
+@@ -42,6 +42,9 @@
+ 
+ #if OS(DARWIN)
+ #include <mach/mach_time.h>
++#if defined(YOZORA_DARWIN)
++#include "yozora_darwin.h"
++#endif
+ #elif OS(WINDOWS)
+ #include <windows.h>
+ #include <math.h>
+@@ -197,6 +200,22 @@
+     return static_cast<Int128>(currentTime() * 1'000'000'000);
+ }
+ 
++#elif defined(YOZORA_DARWIN)
++
++Int128 currentTimeInNanoseconds()
++{
++    uint64_t value = 0;
++    RELEASE_ASSERT(yozora_darwin_wall_us(&value) == YOZORA_CLOCK_OK);
++    return static_cast<Int128>(value) * 1000;
++}
++
++static inline double currentTime()
++{
++    uint64_t value = 0;
++    RELEASE_ASSERT(yozora_darwin_wall_us(&value) == YOZORA_CLOCK_OK);
++    return static_cast<double>(value) / 1e6;
++}
++
+ #elif OS(HAIKU)
+ 
+ Int128 currentTimeInNanoseconds()
+@@ -324,7 +343,11 @@
+ #if USE(HARDWARE_UNBARRIERED_MONOTONIC_TIME)
+     return ApproximateTime(UnbarrieredMonotonicTime::now().secondsSinceEpoch().value());
+ #elif OS(DARWIN)
++#if defined(YOZORA_DARWIN)
++    return fromMachApproximateTime(mach_absolute_time());
++#else
+     return fromMachApproximateTime(mach_approximate_time());
++#endif
+ #elif OS(LINUX)
+     struct timespec ts { };
+     clock_gettime(CLOCK_MONOTONIC_COARSE, &ts);
+@@ -343,7 +366,13 @@
+ ContinuousTime ContinuousTime::now()
+ {
+ #if OS(DARWIN)
++#if defined(YOZORA_DARWIN)
++    uint64_t value = 0;
++    RELEASE_ASSERT(yozora_darwin_continuous_ns(&value) == YOZORA_CLOCK_OK);
++    return fromRawSeconds(static_cast<double>(value) / 1e9);
++#else
+     return fromMachContinuousTime(mach_continuous_time());
++#endif
+ #elif OS(LINUX) || OS(OPENBSD)
+     struct timespec ts { };
+     clock_gettime(CLOCK_BOOTTIME, &ts);
+@@ -361,7 +390,11 @@
+ ContinuousApproximateTime ContinuousApproximateTime::now()
+ {
+ #if OS(DARWIN)
++#if defined(YOZORA_DARWIN)
++    return fromRawSeconds(ContinuousTime::now().secondsSinceEpoch().value());
++#else
+     return fromMachContinuousApproximateTime(mach_continuous_approximate_time());
++#endif
+ #elif OS(LINUX) || OS(OPENBSD)
+     struct timespec ts { };
+     clock_gettime(CLOCK_BOOTTIME, &ts);
+--- a/Source/WTF/wtf/PlatformJSCOnly.cmake
++++ b/Source/WTF/wtf/PlatformJSCOnly.cmake
+@@ -47,6 +47,8 @@
+         list(APPEND WTF_SOURCES
+             fuchsia/CPUTimeFuchsia.cpp
+         )
++    elseif (YOZORA_DARWIN_ROOT)
++        list(APPEND WTF_SOURCES "${YOZORA_DARWIN_ROOT}/CPUTimeDarwin.cpp")
+     else ()
+         list(APPEND WTF_SOURCES
+             posix/CPUTimePOSIX.cpp
+@@ -76,6 +78,17 @@
+         win/MemoryFootprintWin.cpp
+         win/MemoryPressureHandlerWin.cpp
+     )
++elseif (YOZORA_DARWIN_ROOT)
++    if (EXISTS "${CMAKE_OSX_SYSROOT}/usr/include/mach/mach_exc.defs")
++        message(FATAL_ERROR "yozora: this SDK enables Mach exceptions, supply a maintained MIG port before building")
++    endif ()
++    list(APPEND WTF_SOURCES
++        "${YOZORA_DARWIN_ROOT}/MemoryFootprintDarwin.cpp"
++        "${YOZORA_DARWIN_ROOT}/TimeZoneDarwin.cpp"
++        generic/MemoryPressureHandlerGeneric.cpp
++    )
++    list(APPEND WTF_PRIVATE_INCLUDE_DIRECTORIES "${YOZORA_DARWIN_ROOT}")
++    list(APPEND WTF_LIBRARIES "-framework CoreFoundation")
+ elseif (APPLE)
+     file(COPY mac/MachExceptions.defs DESTINATION ${WTF_DERIVED_SOURCES_DIR})
+     add_custom_command(
+--- a/Source/WTF/wtf/RandomDevice.cpp
++++ b/Source/WTF/wtf/RandomDevice.cpp
+@@ -40,7 +40,9 @@
+ #include <wincrypt.h> // windows.h must be included before wincrypt.h.
+ #endif
+ 
+-#if OS(DARWIN)
++#if defined(YOZORA_DARWIN)
++#include "yozora_darwin.h"
++#elif OS(DARWIN)
+ #include <CommonCrypto/CommonCryptor.h>
+ #include <CommonCrypto/CommonRandom.h>
+ #endif
+@@ -87,7 +89,9 @@
+ // https://bugs.webkit.org/show_bug.cgi?id=170190
+ void RandomDevice::cryptographicallyRandomValues(std::span<uint8_t> buffer)
+ {
+-#if OS(DARWIN)
++#if defined(YOZORA_DARWIN)
++    RELEASE_ASSERT(!yozora_darwin_random_bytes(buffer.data(), buffer.size()));
++#elif OS(DARWIN)
+     RELEASE_ASSERT(!CCRandomGenerateBytes(buffer.data(), buffer.size()));
+ #elif OS(FUCHSIA)
+     zx_cprng_draw(buffer.data(), buffer.size());
+--- a/Source/WTF/wtf/posix/FileSystemPOSIX.cpp
++++ b/Source/WTF/wtf/posix/FileSystemPOSIX.cpp
+@@ -29,6 +29,10 @@
+ #include "config.h"
+ #include <wtf/FileSystem.h>
+ 
++#if defined(YOZORA_DARWIN)
++#include "yozora_darwin.h"
++#endif
++
+ #include <errno.h>
+ #include <fcntl.h>
+ #include <stdio.h>
+@@ -188,7 +192,11 @@
+     snprintf(buffer.mutableSpan().data(), length, "%s/%s-XXXXXX", directory, prefixUTF8.data());
+     IGNORE_CLANG_WARNINGS_END
+ 
++#if defined(YOZORA_DARWIN)
++    auto handle = FileHandle::adopt(yozora_darwin_open_temporary(buffer.mutableSpan().data(), length));
++#else
+     auto handle = FileHandle::adopt(mkostemp(buffer.mutableSpan().data(), O_CLOEXEC));
++#endif
+     if (!handle)
+         return { String(), FileHandle() };
+ 
+--- a/Source/bmalloc/bmalloc/BPlatform.h
++++ b/Source/bmalloc/bmalloc/BPlatform.h
+@@ -349,7 +349,7 @@
+ #define BUSE_VISIBILITY_ATTRIBUTE 1
+ #endif
+ 
+-#if BPLATFORM(MAC) || BPLATFORM(IOS_FAMILY)
++#if (BPLATFORM(MAC) || BPLATFORM(IOS_FAMILY)) && !defined(YOZORA_DARWIN)
+ #define BUSE_OS_LOG 1
+ #endif
+ 
+--- a/Source/bmalloc/bmalloc/CryptoRandom.cpp
++++ b/Source/bmalloc/bmalloc/CryptoRandom.cpp
+@@ -43,7 +43,9 @@
+ #include <unistd.h>
+ #endif
+ 
+-#if BOS(DARWIN)
++#if defined(YOZORA_DARWIN)
++#include "yozora_darwin.h"
++#elif BOS(DARWIN)
+ #include <CommonCrypto/CommonCryptoError.h>
+ #include <CommonCrypto/CommonRandom.h>
+ #endif
+@@ -111,7 +113,9 @@
+     unsigned char randomness[128];
+     size_t length = sizeof(randomness);
+ 
+-#if BOS(DARWIN)
++#if defined(YOZORA_DARWIN)
++    RELEASE_BASSERT(!yozora_darwin_random_bytes(randomness, length));
++#elif BOS(DARWIN)
+     RELEASE_BASSERT(!CCRandomGenerateBytes(randomness, length));
+ #elif BOS(WINDOWS)
+     // TODO Generate random bytes - this appears to be unused when running libpas
+--- a/Source/bmalloc/bmalloc/ProcessCheck.mm
++++ b/Source/bmalloc/bmalloc/ProcessCheck.mm
+@@ -66,8 +66,7 @@
+ 
+     static ProcessNames& singleton()
+     {
+-        if (!theProcessNames)
+-            ensureSingleton();
++        ensureSingleton();
+         BASSERT(theProcessNames);
+         return *theProcessNames;
+     }
+@@ -78,7 +77,10 @@
+         std::call_once(
+             onceFlag,
+             [&] {
+-                m_appName = [[NSBundle mainBundle] bundleIdentifier];
++                @autoreleasepool {
++                    // the process owns copied names after the ios 5 autorelease pool drains
++                    m_appName = [[[NSBundle mainBundle] bundleIdentifier] copy];
++                }
+             });
+ 
+         return m_appName;
+@@ -90,7 +92,9 @@
+         std::call_once(
+             onceFlag,
+             [&] {
+-                m_processName = [[NSProcessInfo processInfo] processName];
++                @autoreleasepool {
++                    m_processName = [[[NSProcessInfo processInfo] processName] copy];
++                }
+             });
+ 
+         return m_processName;
+--- a/Source/bmalloc/bmalloc/VMAllocate.h
++++ b/Source/bmalloc/bmalloc/VMAllocate.h
+@@ -46,7 +46,11 @@
+ 
+ #if BOS(DARWIN)
+ #include <mach/mach.h>
++#if defined(YOZORA_DARWIN)
++#include "yozora_darwin.h"
++#else
+ #include <mach/vm_page_size.h>
++#endif
+ #endif
+ 
+ #if defined(MADV_ZERO) && BOS(DARWIN)
+@@ -247,7 +251,11 @@
+ 
+ inline size_t vmPageSizePhysical()
+ {
+-#if BOS(DARWIN) && (BCPU(ARM64) || BCPU(ARM))
++#if defined(YOZORA_DARWIN)
++    size_t value = 0;
++    RELEASE_BASSERT(yozora_darwin_kernel_page_size(&value) == YOZORA_CLOCK_OK);
++    return value;
++#elif BOS(DARWIN) && (BCPU(ARM64) || BCPU(ARM))
+     return vm_kernel_page_size;
+ #else
+     static size_t cached;
+--- a/Source/bmalloc/bmalloc/bmalloc.cpp
++++ b/Source/bmalloc/bmalloc/bmalloc.cpp
+@@ -152,7 +152,7 @@
+ #endif
+ }
+ 
+-#if BOS(DARWIN)
++#if BOS(DARWIN) && (!defined(YOZORA_DARWIN) || BENABLE(LIBPAS))
+ void setScavengerThreadQOSClass(qos_class_t overrideClass)
+ {
+ #if BENABLE(LIBPAS)
+--- a/Source/bmalloc/bmalloc/bmalloc.h
++++ b/Source/bmalloc/bmalloc/bmalloc.h
+@@ -29,6 +29,10 @@
+ 
+ #include "BPlatform.h"
+ 
++#if defined(YOZORA_DARWIN)
++#include "yozora_darwin.h"
++#endif
++
+ BALLOW_UNSAFE_BUFFER_USAGE_BEGIN
+ 
+ #include "AllocationCounts.h"
+@@ -49,6 +53,15 @@
+ namespace bmalloc {
+ namespace api {
+ 
++BINLINE void* trySystemMemalign(size_t alignment, size_t size)
++{
++#if defined(YOZORA_DARWIN)
++    return yozora_darwin_aligned_alloc(alignment, size);
++#else
++    return ::aligned_alloc(alignment, size);
++#endif
++}
++
+ #if BUSE(LIBPAS)
+ extern pas_primitive_heap_ref gigacageHeaps[static_cast<size_t>(Gigacage::NumberOfKinds)];
+ 
+@@ -155,7 +168,7 @@
+ #else
+     BUNUSED(mode);
+     BUNUSED(kind);
+-    return ::aligned_alloc(alignment, size);
++    return trySystemMemalign(alignment, size);
+ #endif
+ }
+ 
+@@ -176,7 +189,7 @@
+ #else
+     BUNUSED(mode);
+     BUNUSED(kind);
+-    void* memory = ::aligned_alloc(alignment, size);
++    void* memory = trySystemMemalign(alignment, size);
+     RELEASE_BASSERT(memory);
+     return memory;
+ #endif
+@@ -197,7 +210,7 @@
+ #else
+     BUNUSED(mode);
+     BUNUSED(kind);
+-    void* memory = ::aligned_alloc(alignment, size);
++    void* memory = trySystemMemalign(alignment, size);
+     if (memory) [[likely]]
+         memset(memory, 0, size);
+     return memory;
+@@ -221,7 +234,7 @@
+ #else
+     BUNUSED(mode);
+     BUNUSED(kind);
+-    void* memory = ::aligned_alloc(alignment, size);
++    void* memory = trySystemMemalign(alignment, size);
+     RELEASE_BASSERT(memory);
+     memset(memory, 0, size);
+     return memory;
+@@ -308,7 +321,7 @@
+ BEXPORT void decommitAlignedPhysical(void* object, size_t, HeapKind = HeapKind::Primary);
+ BEXPORT void commitAlignedPhysical(void* object, size_t, HeapKind = HeapKind::Primary);
+ 
+-#if BOS(DARWIN)
++#if BOS(DARWIN) && (!defined(YOZORA_DARWIN) || BENABLE(LIBPAS))
+ BEXPORT void setScavengerThreadQOSClass(qos_class_t overrideClass);
+ #endif
+ 
+--- a/Source/cmake/FindICU.cmake
++++ b/Source/cmake/FindICU.cmake
+@@ -1,5 +1,5 @@
+ 
+-if (APPLE)
++if (APPLE AND NOT YOZORA_ICU_ROOT)
+     if (USE_APPLE_INTERNAL_SDK)
+         set(ICU_INCLUDE_DIRS ${CMAKE_OSX_SYSROOT}/usr/local/include)
+     else ()
+@@ -35,6 +35,22 @@
+     set(ICU_FOUND ON)
+     message(STATUS "Found ICU: ${ICU_LIBRARIES}")
+ else ()
++    if (YOZORA_ICU_ROOT)
++        set(ICU_ROOT "${YOZORA_ICU_ROOT}")
++        if (NOT EXISTS "${ICU_ROOT}/include/unicode/uvernum.h")
++            message(FATAL_ERROR "yozora: missing ICU headers at ${ICU_ROOT}")
++        endif ()
++        set(ICU_INCLUDE_DIR "${ICU_ROOT}/include" CACHE PATH "yozora ICU headers" FORCE)
++        foreach (component IN ITEMS data i18n uc)
++            string(TOUPPER "${component}" component_upper)
++            set(library "${ICU_ROOT}/lib/libicu${component}.a")
++            if (NOT EXISTS "${library}")
++                message(FATAL_ERROR "yozora: missing static ICU library ${library}")
++            endif ()
++            set(ICU_${component_upper}_LIBRARY_RELEASE "${library}" CACHE FILEPATH "yozora ICU library" FORCE)
++            set(ICU_${component_upper}_LIBRARY_DEBUG "ICU_${component_upper}_LIBRARY_DEBUG-NOTFOUND" CACHE FILEPATH "yozora ICU debug library" FORCE)
++        endforeach ()
++    endif ()
+     # Defer to CMake's built-in FindICU by removing ourselves
+     # from the module path for the duration of this call.
+     set(_saved_module_path "${CMAKE_MODULE_PATH}")
+--- a/Source/cmake/OptionsCommon.cmake
++++ b/Source/cmake/OptionsCommon.cmake
+@@ -23,6 +23,16 @@
+ endif ()
+ 
+ set(LLD_UNUSABLE_BECAUSE_OF_ADDRESS_SPACE_EXHAUSTION ${BUILDING_ON_32_BITS})
++
++# cross linker probes must use the same target and tool search path as the build
++set(LD_COMPILER_COMMAND "\"${CMAKE_C_COMPILER}\" ${CMAKE_C_FLAGS}")
++if (CMAKE_C_COMPILER_TARGET)
++    string(APPEND LD_COMPILER_COMMAND " --target=${CMAKE_C_COMPILER_TARGET}")
++endif ()
++if (CMAKE_OSX_SYSROOT)
++    string(APPEND LD_COMPILER_COMMAND " -isysroot \"${CMAKE_OSX_SYSROOT}\"")
++endif ()
++separate_arguments(LD_COMPILER_COMMAND UNIX_COMMAND "${LD_COMPILER_COMMAND}")
+ 
+ # Use ld.lld when building with LTO, or for debug builds, if available.
+ # FIXME: With CMake 3.22+ full conditional syntax can be used in
+@@ -33,7 +43,7 @@
+ CMAKE_DEPENDENT_OPTION(USE_LD_LLD "Use LLD linker" ON
+                        "TRY_USE_LD_LLD;NOT WIN32" OFF)
+ if (USE_LD_LLD)
+-    execute_process(COMMAND ${CMAKE_C_COMPILER} -fuse-ld=lld -Wl,--version ERROR_QUIET OUTPUT_VARIABLE LD_VERSION)
++    execute_process(COMMAND ${LD_COMPILER_COMMAND} -fuse-ld=lld -Wl,--version ERROR_QUIET OUTPUT_VARIABLE LD_VERSION)
+     if (LD_VERSION MATCHES "(^|[ \t])LLD ")
+         string(APPEND CMAKE_EXE_LINKER_FLAGS " -fuse-ld=lld")
+         string(APPEND CMAKE_SHARED_LINKER_FLAGS " -fuse-ld=lld")
+@@ -44,25 +54,19 @@
+ endif ()
+ 
+ # Determine which linker is being used with the chosen linker flags.
+-separate_arguments(LD_VERSION_COMMAND UNIX_COMMAND
+-    "${CMAKE_C_COMPILER} ${CMAKE_EXE_LINKER_FLAGS} -Wl,--version"
+-)
++separate_arguments(LD_PROBE_FLAGS UNIX_COMMAND "${CMAKE_EXE_LINKER_FLAGS}")
+ execute_process(
+-    COMMAND ${LD_VERSION_COMMAND}
++    COMMAND ${LD_COMPILER_COMMAND} ${LD_PROBE_FLAGS} -Wl,--version
+     OUTPUT_VARIABLE LD_VERSION
+     ERROR_QUIET
+ )
+-unset(LD_VERSION_COMMAND)
+-
+-separate_arguments(LD_USAGE_COMMAND UNIX_COMMAND
+-    "${CMAKE_C_COMPILER} ${CMAKE_EXE_LINKER_FLAGS} -Wl,--help"
+-)
+ execute_process(
+-  COMMAND ${LD_USAGE_COMMAND}
+-  OUTPUT_VARIABLE LD_USAGE
++    COMMAND ${LD_COMPILER_COMMAND} ${LD_PROBE_FLAGS} -Wl,--help
++    OUTPUT_VARIABLE LD_USAGE
+     ERROR_QUIET
+ )
+-unset(LD_USAGE_COMMAND)
++unset(LD_COMPILER_COMMAND)
++unset(LD_PROBE_FLAGS)
+ 
+ set(LD_SUPPORTS_SPLIT_DEBUG TRUE)
+ set(LD_SUPPORTS_THIN_ARCHIVES TRUE)
+--- a/Source/cmake/OptionsJSCOnly.cmake
++++ b/Source/cmake/OptionsJSCOnly.cmake
+@@ -49,7 +49,7 @@
+     set(ENABLE_API_TESTS ON)
+ endif ()
+ 
+-if (WTF_CPU_ARM OR WTF_CPU_MIPS)
++if ((WTF_CPU_ARM OR WTF_CPU_MIPS) AND ENABLE_JIT)
+     SET_AND_EXPOSE_TO_BUILD(USE_CAPSTONE TRUE)
+ endif ()
+ 
+@@ -115,8 +115,14 @@
+ endif ()
+ 
+ find_package(ICU 70.1 REQUIRED COMPONENTS data i18n uc)
+-if (APPLE)
++if (APPLE AND NOT YOZORA_ICU_ROOT)
+     add_definitions(-DU_DISABLE_RENAMING=1)
++elseif (YOZORA_ICU_ROOT)
++    add_definitions(-DU_STATIC_IMPLEMENTATION)
++endif ()
++
++if (YOZORA_DARWIN_ROOT)
++    SET_AND_EXPOSE_TO_BUILD(USE_TIME_ZONE_CHANGE_NOTIFICATIONS 1)
+ endif ()
+ 
+ if (USE_LIBBACKTRACE)
+--- a/Source/cmake/WebKitFS.cmake
++++ b/Source/cmake/WebKitFS.cmake
+@@ -84,7 +84,7 @@
+ # On Apple platforms, some targets build as framework bundles. Point their
+ # HEADERS variables to the inside of the framework bundle.
+ set(USE_FRAMEWORK_BUNDLES OFF)
+-if (APPLE)
++if (APPLE AND NOT PORT STREQUAL "JSCOnly" AND NOT PORT STREQUAL "Yozora")
+     set(USE_FRAMEWORK_BUNDLES ON)
+     if (PORT STREQUAL Mac)
+         set(_version "Versions/A/")

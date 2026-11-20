@@ -1,0 +1,5 @@
+/build/
+/.build-slices/
+__pycache__/
+# apple artwork, not for redistribution (tools/make_emoji_font.py writes it)
+/app/fonts/AppleColorEmoji.ttf

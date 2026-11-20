@@ -1,0 +1,18 @@
+{
+  "freetype": {
+    "version": "2.15.0",
+    "archive": "freetype-2.15.0.tar.xz",
+    "url": "https://download.savannah.gnu.org/releases/freetype/freetype-2.15.0.tar.xz",
+    "size": 2716928,
+    "sha256": "93cd47eb719c325107f2d3cf087d06299e944c3b48a40b55537302304dea1dd5",
+    "directory": "freetype-2.15.0"
+  },
+  "harfbuzz": {
+    "version": "14.6.0",
+    "archive": "harfbuzz-14.6.0.tar.xz",
+    "url": "https://github.com/harfbuzz/harfbuzz/releases/download/14.6.0/harfbuzz-14.6.0.tar.xz",
+    "size": 20295260,
+    "sha256": "d07a007327277708a2a73ae437887cdbaf282937f6d03ca5467723e9099af586",
+    "directory": "harfbuzz-14.6.0"
+  }
+}

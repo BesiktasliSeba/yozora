@@ -1,0 +1,329 @@
+#import "YZSettings.h"
+#import "YZStrings.h"
+#include "yozora_core.h"
+#include "yozora_translate.h"
+#include <math.h>
+
+NSString *const YZSettingsDidChangeNotification = @"YZSettingsDidChange";
+
+static NSString *const YZLanguageKey = @"YZLanguage";
+static NSString *const YZThemeKey = @"YZTheme";
+static NSString *const AKSearchEngineKey = @"AKSearchEngine";
+static NSString *const YZBlockTrackersKey = @"YZBlockTrackers";
+static NSString *const YZEconomyRasterKey = @"YZEconomyRaster";
+static NSString *const YZSaveHistoryKey = @"YZSaveHistory";
+static NSString *const YZJavascriptKey = @"YZJavascript";
+static NSString *const YZBlockThirdPartyCookiesKey = @"YZBlockThirdPartyCookies";
+static NSString *const YZTextZoomKey = @"YZTextZoom";
+static NSString *const YZReduceMotionKey = @"YZReduceMotion";
+static NSString *const YZWebFontsKey = @"YZWebFonts";
+static NSString *const YZTranslateTargetKey = @"YZTranslateTarget";
+static NSString *const YZTranslateNeverKey = @"YZTranslateNever";
+static NSString *const YZTranslateAlwaysKey = @"YZTranslateAlways";
+static NSString *const YZAccentHueKey = @"YZAccentHue";
+static NSString *const YZAccentSaturationKey = @"YZAccentSaturation";
+static NSString *const YZAccentBrightnessKey = @"YZAccentBrightness";
+static NSString *const YZPrivateAccentHueKey = @"YZPrivateAccentHue";
+static NSString *const YZPrivateAccentSaturationKey = @"YZPrivateAccentSaturation";
+static NSString *const YZPrivateAccentBrightnessKey = @"YZPrivateAccentBrightness";
+static NSString *const YZDebugOverlayKey = @"YZDebugOverlay";
+static NSString *const YZLoggingKey = @"YZLogging";
+static NSString *const YZZombiesKey = @"YZZombies";
+static NSString *const YZJitKey = @"YZJit";
+
+// colors ask for the accent on every call, so it is read once and kept until it changes. there are two
+// accents, the normal profile's and the private session's, each under three keys
+typedef struct {
+    NSString *hueKey;
+    NSString *saturationKey;
+    NSString *brightnessKey;
+    BOOL loaded;
+    BOOL on;
+    yozora_accent value;
+} YZAccentSlot;
+
+static YZAccentSlot YZNormalAccent;
+static YZAccentSlot YZPrivateAccent;
+
+// not a stored setting: a private session ends with the app
+static BOOL YZIncognito = NO;
+
+@implementation YZSettings
+
+// a key that was never written has the default of its setting, which is not always off
++ (BOOL)boolForKey:(NSString *)key defaultValue:(BOOL)value {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    return [defaults objectForKey:key] ? [defaults boolForKey:key] : value;
+}
+
++ (NSInteger)integerForKey:(NSString *)key defaultValue:(NSInteger)value {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    return [defaults objectForKey:key] ? [defaults integerForKey:key] : value;
+}
+
++ (void)storeInteger:(NSInteger)value forKey:(NSString *)key {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    [defaults setInteger:value forKey:key];
+    [defaults synchronize];
+    [self applyToCore];
+    [[NSNotificationCenter defaultCenter] postNotificationName:YZSettingsDidChangeNotification object:self];
+}
+
++ (void)storeBool:(BOOL)value forKey:(NSString *)key {
+    [self storeInteger:value ? 1 : 0 forKey:key];
+}
+
+// until a language is picked the interface follows the first language of the device: russian for a russian
+// device, english for the rest, those are the two it has. the guess is not written, so it keeps following the
+// device
+static YZLanguage YZDeviceLanguage(void) {
+    NSArray *preferred = [NSLocale preferredLanguages];
+    NSString *first = [preferred count] ? [preferred objectAtIndex:0] : nil;
+    return [first hasPrefix:@"ru"] ? YZLanguageRussian : YZLanguageEnglish;
+}
+
++ (YZLanguage)language {
+    NSInteger value = [self integerForKey:YZLanguageKey defaultValue:YZDeviceLanguage()];
+    return value == YZLanguageEnglish ? YZLanguageEnglish : YZLanguageRussian;
+}
++ (void)setLanguage:(YZLanguage)language { [self storeInteger:language forKey:YZLanguageKey]; }
+
++ (YZThemeKind)theme {
+    NSInteger value = [self integerForKey:YZThemeKey defaultValue:YZThemeLight];
+    return value == YZThemeDark ? YZThemeDark : (value == YZThemeBlack ? YZThemeBlack : YZThemeLight);
+}
++ (void)setTheme:(YZThemeKind)theme { [self storeInteger:theme forKey:YZThemeKey]; }
+
++ (yozora_search_engine)searchEngine {
+    NSInteger value = [self integerForKey:AKSearchEngineKey defaultValue:YOZORA_SEARCH_GOOGLE];
+    return value == YOZORA_SEARCH_DUCKDUCKGO || value == YOZORA_SEARCH_YANDEX ? (yozora_search_engine)value : YOZORA_SEARCH_GOOGLE;
+}
++ (void)setSearchEngine:(yozora_search_engine)core { [self storeInteger:core forKey:AKSearchEngineKey]; }
+
+// blocking is on until the user turns it off, a missing key is not an off switch
++ (BOOL)blockTrackers { return [self boolForKey:YZBlockTrackersKey defaultValue:YES]; }
++ (void)setBlockTrackers:(BOOL)enabled { [self storeBool:enabled forKey:YZBlockTrackersKey]; }
+
++ (BOOL)economyRaster { return [self boolForKey:YZEconomyRasterKey defaultValue:NO]; }
++ (void)setEconomyRaster:(BOOL)enabled { [self storeBool:enabled forKey:YZEconomyRasterKey]; }
+
++ (BOOL)saveHistory { return [self boolForKey:YZSaveHistoryKey defaultValue:YES]; }
++ (void)setSaveHistory:(BOOL)enabled { [self storeBool:enabled forKey:YZSaveHistoryKey]; }
+
++ (BOOL)javascript { return [self boolForKey:YZJavascriptKey defaultValue:YES]; }
++ (void)setJavascript:(BOOL)enabled { [self storeBool:enabled forKey:YZJavascriptKey]; }
+
++ (BOOL)blockThirdPartyCookies { return [self boolForKey:YZBlockThirdPartyCookiesKey defaultValue:NO]; }
++ (void)setBlockThirdPartyCookies:(BOOL)enabled { [self storeBool:enabled forKey:YZBlockThirdPartyCookiesKey]; }
+
+// full animations until the person asks for fewer. the setting makes WebCore think the phone is in low power
+// mode (animation frames at 30 a second) and sends the reduced motion preference to every site
++ (BOOL)reduceMotion {
+    return [self boolForKey:YZReduceMotionKey defaultValue:NO];
+}
++ (void)setReduceMotion:(BOOL)enabled { [self storeBool:enabled forKey:YZReduceMotionKey]; }
+
++ (BOOL)webFonts { return [self boolForKey:YZWebFontsKey defaultValue:YES]; }
++ (void)setWebFonts:(BOOL)enabled { [self storeBool:enabled forKey:YZWebFontsKey]; }
+
++ (NSInteger)textZoom {
+    NSInteger value = [self integerForKey:YZTextZoomKey defaultValue:100];
+    // a value stored by an older build is one of its steps, all inside the range of the slider
+    return value >= YZTextZoomMin && value <= YZTextZoomMax ? value : 100;
+}
++ (void)setTextZoom:(NSInteger)percent { [self storeInteger:MIN((NSInteger)YZTextZoomMax, MAX((NSInteger)YZTextZoomMin, percent)) forKey:YZTextZoomKey]; }
+
++ (NSString *)translateTarget {
+    NSString *stored = [[NSUserDefaults standardUserDefaults] stringForKey:YZTranslateTargetKey];
+    int index = yozora_tr_language_find([stored UTF8String]);
+    if (index < 0) {
+        // the first language the device lists, or the language of the interface when the table has none of them
+        NSArray *preferred = [NSLocale preferredLanguages];
+        index = [preferred count] ? yozora_tr_language_find([[preferred objectAtIndex:0] UTF8String]) : -1;
+        if (index < 0)
+            index = yozora_tr_language_find([self language] == YZLanguageEnglish ? "en" : "ru");
+    }
+    return [NSString stringWithUTF8String:yozora_tr_language_code((size_t)index)];
+}
++ (void)setTranslateTarget:(NSString *)code {
+    [[NSUserDefaults standardUserDefaults] setObject:code forKey:YZTranslateTargetKey];
+    [[NSUserDefaults standardUserDefaults] synchronize];
+    [[NSNotificationCenter defaultCenter] postNotificationName:YZSettingsDidChangeNotification object:self];
+}
+
+// a list of codes under one key: the base of a code is the language ("fr-CA" is "fr")
++ (NSString *)translateBase:(NSString *)code {
+    int index = yozora_tr_language_find([code UTF8String]);
+    return index < 0 ? nil : [NSString stringWithUTF8String:yozora_tr_language_code((size_t)index)];
+}
++ (BOOL)translateList:(NSString *)key contains:(NSString *)code {
+    NSString *base = [self translateBase:code];
+    return base && [[[NSUserDefaults standardUserDefaults] arrayForKey:key] containsObject:base];
+}
++ (void)translateList:(NSString *)key set:(BOOL)on code:(NSString *)code {
+    NSString *base = [self translateBase:code];
+    if (!base)
+        return;
+    NSMutableArray *list = [NSMutableArray arrayWithArray:[[NSUserDefaults standardUserDefaults] arrayForKey:key]];
+    if (on && ![list containsObject:base])
+        [list addObject:base];
+    else if (!on)
+        [list removeObject:base];
+    [[NSUserDefaults standardUserDefaults] setObject:list forKey:key];
+    [[NSUserDefaults standardUserDefaults] synchronize];
+    [[NSNotificationCenter defaultCenter] postNotificationName:YZSettingsDidChangeNotification object:self];
+}
++ (BOOL)translateNeverOffers:(NSString *)code { return [self translateList:YZTranslateNeverKey contains:code]; }
++ (void)setTranslateNeverOffers:(BOOL)never language:(NSString *)code {
+    [self translateList:YZTranslateNeverKey set:never code:code];
+    // the two choices exclude each other
+    if (never)
+        [self translateList:YZTranslateAlwaysKey set:NO code:code];
+}
++ (BOOL)translatesAtOnce:(NSString *)code { return [self translateList:YZTranslateAlwaysKey contains:code]; }
++ (void)setTranslatesAtOnce:(BOOL)always language:(NSString *)code {
+    [self translateList:YZTranslateAlwaysKey set:always code:code];
+    if (always)
+        [self translateList:YZTranslateNeverKey set:NO code:code];
+}
+
+static YZAccentSlot *YZSlot(BOOL isPrivate) {
+    YZAccentSlot *slot = isPrivate ? &YZPrivateAccent : &YZNormalAccent;
+    if (!slot->hueKey) {
+        slot->hueKey = isPrivate ? YZPrivateAccentHueKey : YZAccentHueKey;
+        slot->saturationKey = isPrivate ? YZPrivateAccentSaturationKey : YZAccentSaturationKey;
+        slot->brightnessKey = isPrivate ? YZPrivateAccentBrightnessKey : YZAccentBrightnessKey;
+    }
+    return slot;
+}
+
+static BOOL YZReadAccent(BOOL isPrivate, yozora_accent *accent) {
+    YZAccentSlot *slot = YZSlot(isPrivate);
+    if (!slot->loaded) {
+        NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+        // all three keys are written together, a partial set is not an accent
+        slot->on = [defaults objectForKey:slot->hueKey] && [defaults objectForKey:slot->saturationKey] && [defaults objectForKey:slot->brightnessKey];
+        if (slot->on) {
+            slot->value.hue = fminf(360, fmaxf(0, [defaults floatForKey:slot->hueKey]));
+            slot->value.saturation = fminf(1, fmaxf(0, [defaults floatForKey:slot->saturationKey]));
+            slot->value.brightness = fminf(1, fmaxf(0, [defaults floatForKey:slot->brightnessKey]));
+        }
+        slot->loaded = YES;
+    }
+    if (slot->on && accent)
+        *accent = slot->value;
+    return slot->on;
+}
+
+static void YZWriteAccent(BOOL isPrivate, yozora_accent accent) {
+    // a nan from a control would reach every color of the interface
+    if (!isfinite(accent.hue) || !isfinite(accent.saturation) || !isfinite(accent.brightness))
+        return;
+    YZAccentSlot *slot = YZSlot(isPrivate);
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    [defaults setFloat:fminf(360, fmaxf(0, accent.hue)) forKey:slot->hueKey];
+    [defaults setFloat:fminf(1, fmaxf(0, accent.saturation)) forKey:slot->saturationKey];
+    [defaults setFloat:fminf(1, fmaxf(0, accent.brightness)) forKey:slot->brightnessKey];
+    slot->loaded = NO;
+    [defaults synchronize];
+    [[NSNotificationCenter defaultCenter] postNotificationName:YZSettingsDidChangeNotification object:[YZSettings class]];
+}
+
+static void YZClearAccent(BOOL isPrivate) {
+    YZAccentSlot *slot = YZSlot(isPrivate);
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    [defaults removeObjectForKey:slot->hueKey];
+    [defaults removeObjectForKey:slot->saturationKey];
+    [defaults removeObjectForKey:slot->brightnessKey];
+    slot->loaded = NO;
+    [defaults synchronize];
+    [[NSNotificationCenter defaultCenter] postNotificationName:YZSettingsDidChangeNotification object:[YZSettings class]];
+}
+
++ (BOOL)customAccent:(yozora_accent *)accent { return YZReadAccent(NO, accent); }
++ (void)setCustomAccent:(yozora_accent)accent { YZWriteAccent(NO, accent); }
++ (void)resetAccent { YZClearAccent(NO); }
++ (BOOL)customPrivateAccent:(yozora_accent *)accent { return YZReadAccent(YES, accent); }
++ (void)setCustomPrivateAccent:(yozora_accent)accent { YZWriteAccent(YES, accent); }
++ (void)resetPrivateAccent { YZClearAccent(YES); }
+
+// the overlay, the log capture and the jit. the jit is read once at start (core/core/yozora_core.h), so a
+// change counts at the next launch
++ (BOOL)debugOverlay { return [self boolForKey:YZDebugOverlayKey defaultValue:NO]; }
++ (void)setDebugOverlay:(BOOL)enabled { [self storeBool:enabled forKey:YZDebugOverlayKey]; }
++ (BOOL)logging { return [self boolForKey:YZLoggingKey defaultValue:NO]; }
++ (void)setLogging:(BOOL)enabled { [self storeBool:enabled forKey:YZLoggingKey]; }
++ (BOOL)zombies { return [self boolForKey:YZZombiesKey defaultValue:NO]; }
++ (void)setZombies:(BOOL)enabled { [self storeBool:enabled forKey:YZZombiesKey]; }
++ (BOOL)jit { return [self boolForKey:YZJitKey defaultValue:YES]; }
++ (void)setJit:(BOOL)enabled { [self storeBool:enabled forKey:YZJitKey]; }
+
++ (BOOL)incognito { return YZIncognito; }
++ (void)setIncognito:(BOOL)enabled {
+    if (YZIncognito == enabled)
+        return;
+    YZIncognito = enabled;
+    yozora_set_private_session(enabled ? 1 : 0);
+    [self applyToCore];
+    [[NSNotificationCenter defaultCenter] postNotificationName:YZSettingsDidChangeNotification object:self];
+}
+
+static const NSUInteger YZAdblockRulesLimit = 256 * 1024;
+
+static NSString *YZAdblockRulesPath(void) {
+    return [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Yozora/adblock-rules.txt"];
+}
+
++ (NSString *)adblockRules {
+    NSData *data = [NSData dataWithContentsOfFile:YZAdblockRulesPath()];
+    if (![data length] || [data length] > YZAdblockRulesLimit)
+        return @"";
+    NSString *text = [[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] autorelease];
+    return text ? text : @"";
+}
+
++ (BOOL)setAdblockRules:(NSString *)text report:(yozora_adblock_report *)report error:(NSString **)error {
+    NSData *data = [text dataUsingEncoding:NSUTF8StringEncoding];
+    if (!data || [data length] > YZAdblockRulesLimit) {
+        if (error)
+            *error = YZT(@"Правил слишком много: предел 256 КБ");
+        return NO;
+    }
+    NSString *path = YZAdblockRulesPath();
+    NSError *failure = nil;
+    [[NSFileManager defaultManager] createDirectoryAtPath:[path stringByDeletingLastPathComponent] withIntermediateDirectories:YES attributes:nil error:NULL];
+    // the file is replaced whole, a half written list never loads
+    if (![data writeToFile:path options:NSDataWritingAtomic error:&failure]) {
+        if (error)
+            *error = [failure localizedDescription];
+        return NO;
+    }
+    yozora_adblock_set_rules([data bytes], [data length], report);
+    return YES;
+}
+
++ (void)applyToCore {
+    static BOOL rulesGiven;
+    if (!rulesGiven) {
+        rulesGiven = YES;
+        NSData *rules = [[self adblockRules] dataUsingEncoding:NSUTF8StringEncoding];
+        yozora_adblock_set_rules([rules bytes], [rules length], NULL);
+    }
+    yozora_options options;
+    options.javascript = [self javascript] ? 1 : 0;
+    options.text_zoom_percent = (int)[self textZoom];
+    options.block_third_party_cookies = [self blockThirdPartyCookies] ? 1 : 0;
+    options.reduce_motion = [self reduceMotion] ? 1 : 0;
+    options.web_fonts = [self webFonts] ? 1 : 0;
+    // pages always get WebGL contexts, there is no setting for it
+    options.webgl = 1;
+    // links to other apps are always offered, there is no setting for it
+    options.external_links = 1;
+    // sites follow the dark themes of the browser when they have a dark design
+    options.dark_appearance = ([self theme] != YZThemeLight || YZIncognito) ? 1 : 0;
+    yozora_set_options(&options);
+    yozora_set_tracker_blocking([self blockTrackers] ? 1 : 0);
+    yozora_set_economy_raster([self economyRaster] ? 1 : 0);
+}
+
+@end

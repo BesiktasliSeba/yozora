@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+    <key>CFBundleDisplayName</key><string>Yozora</string>
+    <key>CFBundleExecutable</key><string>Yozora</string>
+    <key>CFBundleIdentifier</key><string>com.sqmrak.yozora</string>
+    <key>CFBundleName</key><string>Yozora</string>
+    <key>NSLocationWhenInUseUsageDescription</key><string>Сайты, которым вы разрешите, смогут узнать, где вы находитесь</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleIconFiles</key><array>
+        <string>Icon.png</string>
+        <string>Icon@2x.png</string>
+        <string>Icon-60.png</string>
+        <string>Icon-60@2x.png</string>
+        <string>Icon-60@3x.png</string>
+        <string>Icon-72.png</string>
+        <string>Icon-72@2x.png</string>
+        <string>Icon-76.png</string>
+        <string>Icon-76@2x.png</string>
+    </array>
+    <key>CFBundleIcons</key><dict>
+        <key>CFBundlePrimaryIcon</key><dict>
+            <key>CFBundleIconFiles</key><array>
+                <string>Icon-60</string>
+                <string>Icon-76</string>
+            </array>
+            <key>UIPrerenderedIcon</key><true/>
+        </dict>
+    </dict>
+    <key>UIPrerenderedIcon</key><true/>
+    <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleShortVersionString</key><string>1.0.0-stable</string>
+    <key>MinimumOSVersion</key><string>5.0</string>
+    <key>LSRequiresIPhoneOS</key><true/>
+    <!-- the log screen only: pages never see this font, the core catalog reads app/fonts -->
+    <key>UIAppFonts</key><array><string>JetBrainsMono-Regular.ttf</string></array>
+    <key>UIDeviceFamily</key><array><integer>1</integer><integer>2</integer></array>
+    <key>UISupportedInterfaceOrientations</key><array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>UISupportedInterfaceOrientations~ipad</key><array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationPortraitUpsideDown</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>CFBundleURLTypes</key><array>
+        <dict>
+            <key>CFBundleURLName</key><string>com.sqmrak.yozora.web</string>
+            <key>CFBundleURLSchemes</key><array>
+                <string>http</string>
+                <string>https</string>
+            </array>
+        </dict>
+    </array>
+    <key>UILaunchStoryboardName</key><string>LaunchScreen</string>
+    <key>UILaunchImages</key><array>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>7.0</string><key>UILaunchImageName</key><string>LaunchImage-Portrait-320x480</string><key>UILaunchImageOrientation</key><string>Portrait</string><key>UILaunchImageSize</key><string>{320, 480}</string></dict>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>7.0</string><key>UILaunchImageName</key><string>LaunchImage-Portrait-320x568</string><key>UILaunchImageOrientation</key><string>Portrait</string><key>UILaunchImageSize</key><string>{320, 568}</string></dict>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>8.0</string><key>UILaunchImageName</key><string>LaunchImage-Portrait-375x667</string><key>UILaunchImageOrientation</key><string>Portrait</string><key>UILaunchImageSize</key><string>{375, 667}</string></dict>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>8.0</string><key>UILaunchImageName</key><string>LaunchImage-Portrait-414x736</string><key>UILaunchImageOrientation</key><string>Portrait</string><key>UILaunchImageSize</key><string>{414, 736}</string></dict>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>11.0</string><key>UILaunchImageName</key><string>LaunchImage-Portrait-375x812</string><key>UILaunchImageOrientation</key><string>Portrait</string><key>UILaunchImageSize</key><string>{375, 812}</string></dict>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>12.0</string><key>UILaunchImageName</key><string>LaunchImage-Portrait-414x896</string><key>UILaunchImageOrientation</key><string>Portrait</string><key>UILaunchImageSize</key><string>{414, 896}</string></dict>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>14.0</string><key>UILaunchImageName</key><string>LaunchImage-Portrait-390x844</string><key>UILaunchImageOrientation</key><string>Portrait</string><key>UILaunchImageSize</key><string>{390, 844}</string></dict>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>14.0</string><key>UILaunchImageName</key><string>LaunchImage-Portrait-428x926</string><key>UILaunchImageOrientation</key><string>Portrait</string><key>UILaunchImageSize</key><string>{428, 926}</string></dict>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>16.0</string><key>UILaunchImageName</key><string>LaunchImage-Portrait-393x852</string><key>UILaunchImageOrientation</key><string>Portrait</string><key>UILaunchImageSize</key><string>{393, 852}</string></dict>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>16.0</string><key>UILaunchImageName</key><string>LaunchImage-Portrait-430x932</string><key>UILaunchImageOrientation</key><string>Portrait</string><key>UILaunchImageSize</key><string>{430, 932}</string></dict>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>7.0</string><key>UILaunchImageName</key><string>LaunchImage-Portrait-768x1024</string><key>UILaunchImageOrientation</key><string>Portrait</string><key>UILaunchImageSize</key><string>{768, 1024}</string></dict>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>7.0</string><key>UILaunchImageName</key><string>LaunchImage-Landscape-1024x768</string><key>UILaunchImageOrientation</key><string>Landscape</string><key>UILaunchImageSize</key><string>{768, 1024}</string></dict>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>10.0</string><key>UILaunchImageName</key><string>LaunchImage-Portrait-834x1112</string><key>UILaunchImageOrientation</key><string>Portrait</string><key>UILaunchImageSize</key><string>{834, 1112}</string></dict>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>10.0</string><key>UILaunchImageName</key><string>LaunchImage-Landscape-1112x834</string><key>UILaunchImageOrientation</key><string>Landscape</string><key>UILaunchImageSize</key><string>{834, 1112}</string></dict>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>9.0</string><key>UILaunchImageName</key><string>LaunchImage-Portrait-1024x1366</string><key>UILaunchImageOrientation</key><string>Portrait</string><key>UILaunchImageSize</key><string>{1024, 1366}</string></dict>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>9.0</string><key>UILaunchImageName</key><string>LaunchImage-Landscape-1366x1024</string><key>UILaunchImageOrientation</key><string>Landscape</string><key>UILaunchImageSize</key><string>{1024, 1366}</string></dict>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>12.0</string><key>UILaunchImageName</key><string>LaunchImage-Portrait-834x1194</string><key>UILaunchImageOrientation</key><string>Portrait</string><key>UILaunchImageSize</key><string>{834, 1194}</string></dict>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>12.0</string><key>UILaunchImageName</key><string>LaunchImage-Landscape-1194x834</string><key>UILaunchImageOrientation</key><string>Landscape</string><key>UILaunchImageSize</key><string>{834, 1194}</string></dict>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>13.0</string><key>UILaunchImageName</key><string>LaunchImage-Portrait-810x1080</string><key>UILaunchImageOrientation</key><string>Portrait</string><key>UILaunchImageSize</key><string>{810, 1080}</string></dict>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>13.0</string><key>UILaunchImageName</key><string>LaunchImage-Landscape-1080x810</string><key>UILaunchImageOrientation</key><string>Landscape</string><key>UILaunchImageSize</key><string>{810, 1080}</string></dict>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>14.0</string><key>UILaunchImageName</key><string>LaunchImage-Portrait-820x1180</string><key>UILaunchImageOrientation</key><string>Portrait</string><key>UILaunchImageSize</key><string>{820, 1180}</string></dict>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>14.0</string><key>UILaunchImageName</key><string>LaunchImage-Landscape-1180x820</string><key>UILaunchImageOrientation</key><string>Landscape</string><key>UILaunchImageSize</key><string>{820, 1180}</string></dict>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>15.0</string><key>UILaunchImageName</key><string>LaunchImage-Portrait-744x1133</string><key>UILaunchImageOrientation</key><string>Portrait</string><key>UILaunchImageSize</key><string>{744, 1133}</string></dict>
+        <dict><key>UILaunchImageMinimumOSVersion</key><string>15.0</string><key>UILaunchImageName</key><string>LaunchImage-Landscape-1133x744</string><key>UILaunchImageOrientation</key><string>Landscape</string><key>UILaunchImageSize</key><string>{744, 1133}</string></dict>
+    </array>
+</dict></plist>
