@@ -18,6 +18,8 @@
         <string>Icon-76.png</string>
         <string>Icon-76@2x.png</string>
     </array>
+    <!-- the alternate icons the settings screen offers. the files are rounded and prerendered, because springboard of ios 5 and 6
+         does not mask the icon of an app in /Applications. YZAppIcon.m swaps the primary entries for these files, or ios 10.3 does -->
     <key>CFBundleIcons</key><dict>
         <key>CFBundlePrimaryIcon</key><dict>
             <key>CFBundleIconFiles</key><array>
@@ -25,6 +27,42 @@
                 <string>Icon-76</string>
             </array>
             <key>UIPrerenderedIcon</key><true/>
+        </dict>
+        <key>CFBundleAlternateIcons</key><dict>
+            <key>Fox</key><dict>
+                <key>CFBundleIconFiles</key><array>
+                    <string>Fox.png</string>
+                    <string>Fox@2x.png</string>
+                    <string>Fox-60.png</string>
+                    <string>Fox-60@2x.png</string>
+                    <string>Fox-60@3x.png</string>
+                    <string>Fox-72.png</string>
+                    <string>Fox-72@2x.png</string>
+                    <string>Fox-76.png</string>
+                    <string>Fox-76@2x.png</string>
+                </array>
+                <key>UIPrerenderedIcon</key><true/>
+            </dict>
+        </dict>
+    </dict>
+    <key>CFBundleIcons~ipad</key><dict>
+        <key>CFBundlePrimaryIcon</key><dict>
+            <key>CFBundleIconFiles</key><array>
+                <string>Icon-72</string>
+                <string>Icon-76</string>
+            </array>
+            <key>UIPrerenderedIcon</key><true/>
+        </dict>
+        <key>CFBundleAlternateIcons</key><dict>
+            <key>Fox</key><dict>
+                <key>CFBundleIconFiles</key><array>
+                    <string>Fox-72.png</string>
+                    <string>Fox-72@2x.png</string>
+                    <string>Fox-76.png</string>
+                    <string>Fox-76@2x.png</string>
+                </array>
+                <key>UIPrerenderedIcon</key><true/>
+            </dict>
         </dict>
     </dict>
     <key>UIPrerenderedIcon</key><true/>

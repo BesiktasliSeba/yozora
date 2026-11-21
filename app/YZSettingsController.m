@@ -3,6 +3,7 @@
 #import <objc/message.h>
 #import "YZCompat.h"
 #import "YZAccentEditor.h"
+#import "YZAppIcon.h"
 #import "YZControls.h"
 #import "YZDialog.h"
 #import "YZLog.h"
@@ -25,6 +26,7 @@ typedef enum {
     YZRowPrivateAccent,
     YZRowSearchEngine,
     YZRowTextSize,
+    YZRowAppIcons,
     YZRowBlockTrackers,
     YZRowAdblockRules,
     YZRowSitePermissions,
@@ -409,6 +411,184 @@ static void YZConfigureCell(YZSettingsCell *cell, NSString *title, NSString *det
     [mark release];
     [chevron release];
     [pill release];
+    [super dealloc];
+}
+@end
+
+// one icon of the picker: its picture and name, a ring in the accent around the one the home screen shows. the
+// pictures carry their own corners, so nothing masks them
+static const CGFloat YZIconTileSide = 64;
+static const CGFloat YZIconTileWidth = 88;
+static const CGFloat YZIconTilesHead = 44;
+
+@interface YZIconTile : UIControl {
+@public
+    NSString *iconName;
+    UIImageView *picture;
+    UIView *ring;
+    UILabel *label;
+}
+- (id)initWithName:(NSString *)name;
+- (void)showSelected:(BOOL)selected;
+@end
+
+@implementation YZIconTile
+- (id)initWithName:(NSString *)name {
+    self = [super initWithFrame:CGRectMake(0, 0, YZIconTileWidth, YZIconTileSide + 28)];
+    if (!self)
+        return nil;
+    iconName = [name copy];
+    ring = [[UIView alloc] initWithFrame:CGRectMake((YZIconTileWidth - YZIconTileSide) / 2 - 4, -4, YZIconTileSide + 8, YZIconTileSide + 8)];
+    ring.layer.cornerRadius = YZIconTileSide * 0.175f + 4;
+    ring.layer.borderWidth = 3;
+    ring.userInteractionEnabled = NO;
+    [self addSubview:ring];
+    picture = [[UIImageView alloc] initWithFrame:CGRectMake((YZIconTileWidth - YZIconTileSide) / 2, 0, YZIconTileSide, YZIconTileSide)];
+    picture.contentMode = UIViewContentModeScaleAspectFit;
+    picture.userInteractionEnabled = NO;
+    // an install that has to overwrite the Icon files keeps the real ones in its own folder, and the tile of the
+    // icon of the app shows those, the files of the bundle may hold the icon chosen
+    NSString *bundle = [[NSBundle mainBundle] bundlePath];
+    NSString *path = name ? [[NSBundle mainBundle] pathForResource:[name stringByAppendingString:@"-60@3x"] ofType:@"png"]
+                          : [bundle stringByAppendingPathComponent:@"yozora-original-icons/Icon-60@3x.png"];
+    if (!name && ![[NSFileManager defaultManager] fileExistsAtPath:path])
+        path = [[NSBundle mainBundle] pathForResource:@"Icon-60@3x" ofType:@"png"];
+    picture.image = path ? [UIImage imageWithContentsOfFile:path] : nil;
+    [self addSubview:picture];
+    label = [[UILabel alloc] initWithFrame:CGRectMake(0, YZIconTileSide + 8, YZIconTileWidth, 18)];
+    label.backgroundColor = [UIColor clearColor];
+    label.textAlignment = YZTextAlignmentCenter;
+    label.font = [YZTheme systemFontOfSize:12];
+    label.text = name ? name : @"Yozora";
+    [self addSubview:label];
+    self.accessibilityLabel = label.text;
+    return self;
+}
+
+- (void)showSelected:(BOOL)selected {
+    ring.layer.borderColor = [[YZTheme accentColor] CGColor];
+    ring.hidden = !selected;
+    label.textColor = selected ? [YZTheme accentColor] : [YZTheme subtleTextColor];
+}
+
+- (void)setHighlighted:(BOOL)highlighted {
+    [super setHighlighted:highlighted];
+    self.alpha = highlighted ? 0.7f : 1;
+}
+
+- (void)dealloc {
+    [iconName release];
+    [picture release];
+    [ring release];
+    [label release];
+    [super dealloc];
+}
+@end
+
+static CGFloat YZIconTilesHeight(CGFloat tableWidth, NSString *note) {
+    CGFloat noteHeight = YZMeasureHeight(note, [YZTheme systemFontOfSize:13], MAX((CGFloat)0, tableWidth - 64));
+    return YZIconTilesHead + YZIconTileSide + 28 + 12 + (noteHeight > 0 ? noteHeight + 12 : 0);
+}
+
+// the row of the app icons in the group of the first section: a card with a title, a tile for the icon of the app
+// and one for each alternate icon, and under them what keeps the choice from working where that is so
+@interface YZIconTilesCell : UITableViewCell {
+@public
+    UIView *card;
+    UILabel *title;
+    UILabel *note;
+    NSMutableArray *tiles;
+    YZPosition position;
+    void (^choose)(NSString *name);
+}
+- (void)showNote:(NSString *)text enabled:(BOOL)enabled position:(YZPosition)place;
+- (void)refreshSelection;
+@end
+
+@implementation YZIconTilesCell
+- (id)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)identifier {
+    self = [super initWithStyle:UITableViewCellStyleDefault reuseIdentifier:identifier];
+    (void)style;
+    if (!self)
+        return nil;
+    self.backgroundColor = [UIColor clearColor];
+    self.contentView.backgroundColor = [UIColor clearColor];
+    self.selectionStyle = UITableViewCellSelectionStyleNone;
+    card = [[UIView alloc] initWithFrame:CGRectZero];
+    card.opaque = NO;
+    card.backgroundColor = [UIColor clearColor];
+    [self.contentView addSubview:card];
+    title = [[UILabel alloc] initWithFrame:CGRectZero];
+    title.backgroundColor = [UIColor clearColor];
+    title.font = [YZTheme systemFontOfSize:16];
+    [card addSubview:title];
+    note = [[UILabel alloc] initWithFrame:CGRectZero];
+    note.backgroundColor = [UIColor clearColor];
+    note.font = [YZTheme systemFontOfSize:13];
+    note.numberOfLines = 0;
+    note.lineBreakMode = YZLineBreakWordWrapping;
+    [card addSubview:note];
+    tiles = [[NSMutableArray alloc] init];
+    NSMutableArray *names = [NSMutableArray arrayWithObject:[NSNull null]];
+    [names addObjectsFromArray:YZAlternateIconNames()];
+    for (id name in names) {
+        YZIconTile *tile = [[[YZIconTile alloc] initWithName:name == [NSNull null] ? nil : name] autorelease];
+        [tile addTarget:self action:@selector(tapped:) forControlEvents:UIControlEventTouchUpInside];
+        [card addSubview:tile];
+        [tiles addObject:tile];
+    }
+    return self;
+}
+
+- (void)showNote:(NSString *)text enabled:(BOOL)enabled position:(YZPosition)place {
+    position = place;
+    [YZTheme stretchImage:YZCardImage(position, [YZTheme cardColor]) caps:YZGroupRadius onView:card];
+    title.text = YZT(@"Значок приложения");
+    title.textColor = [YZTheme textColor];
+    note.text = text;
+    note.textColor = [YZTheme subtleTextColor];
+    card.userInteractionEnabled = enabled;
+    for (YZIconTile *tile in tiles)
+        tile.alpha = enabled ? 1 : 0.4f;
+    [self refreshSelection];
+    [self setNeedsLayout];
+}
+
+- (void)refreshSelection {
+    NSString *current = YZAlternateIconName();
+    for (YZIconTile *tile in tiles)
+        [tile showSelected:(!tile->iconName && !current) || [tile->iconName isEqualToString:current]];
+}
+
+- (void)tapped:(YZIconTile *)tile {
+    NSString *current = YZAlternateIconName();
+    if ((!tile->iconName && !current) || [tile->iconName isEqualToString:current])
+        return;
+    if (choose)
+        choose(tile->iconName);
+}
+
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    CGFloat width = self.contentView.bounds.size.width, height = self.contentView.bounds.size.height;
+    card.frame = CGRectMake(16, 1, width - 32, height - 2);
+    CGFloat cw = card.bounds.size.width;
+    title.frame = CGRectMake(16, 14, cw - 32, 22);
+    CGFloat x = 16 - (YZIconTileWidth - YZIconTileSide) / 2;
+    for (YZIconTile *tile in tiles) {
+        tile.frame = CGRectMake(x, YZIconTilesHead, YZIconTileWidth, YZIconTileSide + 28);
+        x += YZIconTileWidth;
+    }
+    CGFloat noteHeight = YZMeasureHeight(note.text, note.font, cw - 32);
+    note.frame = noteHeight > 0 ? CGRectMake(16, YZIconTilesHead + YZIconTileSide + 28 + 4, cw - 32, noteHeight) : CGRectZero;
+}
+
+- (void)dealloc {
+    [card release];
+    [title release];
+    [note release];
+    [tiles release];
+    [choose release];
     [super dealloc];
 }
 @end
@@ -827,7 +1007,7 @@ static NSArray *YZEngineTints(void) {
 - (NSArray *)buildSections {
     NSNumber *(^row)(YZRow) = ^(YZRow kind) { return [NSNumber numberWithInt:kind]; };
     return [NSArray arrayWithObjects:
-        [NSArray arrayWithObjects:YZT(@"Основные"), row(YZRowLanguage), row(YZRowTheme), row(YZRowAccent), row(YZRowPrivateAccent), row(YZRowSearchEngine), row(YZRowTextSize), nil],
+        [NSArray arrayWithObjects:YZT(@"Основные"), row(YZRowLanguage), row(YZRowTheme), row(YZRowAccent), row(YZRowPrivateAccent), row(YZRowSearchEngine), row(YZRowTextSize), row(YZRowAppIcons), nil],
         [NSArray arrayWithObjects:YZT(@"Приватность и безопасность"), row(YZRowBlockTrackers), row(YZRowAdblockRules), row(YZRowSitePermissions), row(YZRowBlockThirdPartyCookies),
          row(YZRowSaveHistory), row(YZRowClearHistory), row(YZRowClearSiteData), nil],
         [NSArray arrayWithObjects:YZT(@"Страницы"), row(YZRowJavascript), row(YZRowEconomy), row(YZRowCrispScrolling), row(YZRowReduceMotion), row(YZRowHideBars), row(YZRowWebFonts), nil],
@@ -948,6 +1128,101 @@ static NSArray *YZEngineTints(void) {
     [_settingsDelegate settingsControllerDidChange:self];
 }
 
+#pragma mark app icon
+
+// why the picker is dimmed, empty where the choice works
+- (NSString *)iconNote {
+    return YZAppIconCurrentMode() == YZAppIconUnavailable ? YZT(@"Значок меняется на iOS 10.3 и новее или на джейлбрейке, где приложению можно записывать в свой пакет") : nil;
+}
+
+- (UITableViewCell *)iconTilesCellForTable:(UITableView *)table path:(NSIndexPath *)path {
+    YZIconTilesCell *cell = (YZIconTilesCell *)[table dequeueReusableCellWithIdentifier:@"YZIconTiles"];
+    if (!cell)
+        cell = [[[YZIconTilesCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"YZIconTiles"] autorelease];
+    YZSettingsController *me = self;
+    [cell->choose release];
+    cell->choose = [^(NSString *name) { [me chooseIcon:name]; } copy];
+    [cell showNote:[self iconNote] enabled:YZAppIconCurrentMode() != YZAppIconUnavailable
+          position:YZPositionOf(path.row - 1, (NSInteger)[[_sections objectAtIndex:path.section] count] - 1)];
+    return cell;
+}
+
+- (void)refreshIconTiles {
+    for (UITableViewCell *cell in [self.tableView visibleCells]) {
+        if ([cell isKindOfClass:[YZIconTilesCell class]])
+            [(YZIconTilesCell *)cell refreshSelection];
+    }
+}
+
+// the screen is covered while the change runs: before ios 10.3 it ends with SpringBoard starting again, which
+// takes the app with it
+- (UIView *)showIconBusy {
+    UIView *host = [self dialogHost];
+    UIView *cover = [[[UIView alloc] initWithFrame:host.bounds] autorelease];
+    cover.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    cover.backgroundColor = [UIColor colorWithWhite:0 alpha:0.35f];
+    UIActivityIndicatorView *spinner = [[[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhiteLarge] autorelease];
+    spinner.center = CGPointMake(host.bounds.size.width / 2, host.bounds.size.height / 2);
+    spinner.autoresizingMask = UIViewAutoresizingFlexibleTopMargin | UIViewAutoresizingFlexibleBottomMargin | UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleRightMargin;
+    [spinner startAnimating];
+    [cover addSubview:spinner];
+    [host addSubview:cover];
+    return cover;
+}
+
+- (void)chooseIcon:(NSString *)name {
+    YZSettingsController *me = self;
+    if (YZAppIconCurrentMode() != YZAppIconRewrite) {
+        [self changeIconTo:name];
+        return;
+    }
+    YZDialog *dialog = [YZDialog dialogWithTitle:YZT(@"Сменить значок?") message:YZT(@"Значок поменяется после перезапуска SpringBoard: экран мигнёт и приложение закроется")
+                                     cancelTitle:YZT(@"Отмена") confirmTitle:YZT(@"Сменить") destructive:NO handler:^(NSInteger index, NSArray *texts) {
+        (void)texts;
+        if (index == 1)
+            [me changeIconTo:name];
+    }];
+    [dialog showInView:[self dialogHost]];
+}
+
+- (void)changeIconTo:(NSString *)name {
+    YZSettingsController *me = self;
+    YZAppIconMode mode = YZAppIconCurrentMode();
+    UIView *busy = [self showIconBusy];
+    YZSetAlternateIcon(name, ^(NSError *error) {
+        [busy removeFromSuperview];
+        [me refreshIconTiles];
+        if (!error)
+            return;
+        NSLog(@"yozora: the app icon was not changed: %@", error);
+        NSString *detail = [NSString stringWithFormat:@"%@\n\n%@ (%@ %ld)", YZT(@"Не удалось сменить значок"), [error localizedDescription], [error domain], (long)[error code]];
+        // the call of ios 10.3 refused, and the bundle can be written: the old way is offered
+        if (mode == YZAppIconNative && YZAppIconCanRewrite()) {
+            YZDialog *ask = [YZDialog dialogWithTitle:YZT(@"Сменить значок?") message:[detail stringByAppendingFormat:@"\n\n%@", YZT(@"Значок поменяется после перезапуска SpringBoard: экран мигнёт и приложение закроется")]
+                                          cancelTitle:YZT(@"Отмена") confirmTitle:YZT(@"Сменить") destructive:NO handler:^(NSInteger index, NSArray *texts) {
+                (void)texts;
+                if (index != 1)
+                    return;
+                UIView *again = [me showIconBusy];
+                YZRewriteAppIcon(name, ^(NSError *rewriteError) {
+                    [again removeFromSuperview];
+                    [me refreshIconTiles];
+                    if (rewriteError)
+                        [me showIconError:[rewriteError localizedDescription]];
+                });
+            }];
+            [ask showInView:[me dialogHost]];
+            return;
+        }
+        [me showIconError:detail];
+    });
+}
+
+- (void)showIconError:(NSString *)text {
+    YZDialog *dialog = [YZDialog dialogWithTitle:YZT(@"Ошибка") message:text cancelTitle:nil confirmTitle:YZT(@"Готово") destructive:NO handler:nil];
+    [dialog showInView:[self dialogHost]];
+}
+
 #pragma mark values
 
 - (NSString *)languageName { return [YZLanguageNames() objectAtIndex:[YZSettings language]]; }
@@ -1050,6 +1325,8 @@ static NSArray *YZEngineLogos(void) {
     case YZRowJit: return @"JIT";
     case YZRowJitState: return YZT(@"Состояние JIT");
     case YZRowAbout: return YZT(@"Об Yozora");
+    // the row of the icon tiles has a title of its own inside its card
+    case YZRowAppIcons: return @"";
     }
     return @"";
 }
@@ -1107,6 +1384,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowJit: return YZIconBolt;
     case YZRowJitState: return YZIconMemory;
     case YZRowAbout: return YZIconInfo;
+    case YZRowAppIcons: return YZIconImage;
     }
     return YZIconInfo;
 }
@@ -1209,6 +1487,8 @@ static NSArray *YZEngineLogos(void) {
     if (path.row == 0)
         return path.section == 0 ? 48 : 60;
     YZRow kind = [self rowAtIndexPath:path];
+    if (kind == YZRowAppIcons)
+        return YZIconTilesHeight(table.bounds.size.width, [self iconNote]);
     return YZRowHeight([self titleForRow:kind], [self detailForRow:kind], table.bounds.size.width, YES, [self isSwitch:kind], [self hasChevron:kind]);
 }
 
@@ -1262,6 +1542,8 @@ static NSArray *YZEngineLogos(void) {
     if (path.row == 0)
         return [self headCellForSection:path.section table:table];
     YZRow kind = [self rowAtIndexPath:path];
+    if (kind == YZRowAppIcons)
+        return [self iconTilesCellForTable:table path:path];
     NSString *detail = [self detailForRow:kind];
     BOOL toggle = [self isSwitch:kind];
     YZSettingsCell *cell = (YZSettingsCell *)[table dequeueReusableCellWithIdentifier:@"YZSettingsRow"];
@@ -1410,6 +1692,9 @@ static NSArray *YZEngineLogos(void) {
     case YZRowTheme:
     case YZRowSearchEngine:
         [self pushChoice:kind];
+        break;
+    case YZRowAppIcons:
+        // the tiles take the taps
         break;
     case YZRowAccent: {
         YZAccentController *accent = [[YZAccentController alloc] initWithChanged:^{ [me changed]; }];

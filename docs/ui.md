@@ -90,6 +90,12 @@ the interface is available in russian, english and japanese. choose a language i
 
 a failed load shows the address, the cause and a retry button in the page area. dns, connection, timeout, tls and interrupted transfers have their own messages, and the technical error stays visible below them.
 
+## app icon
+
+the icon row in settings offers the icon of the app and the alternate icons the Info.plist lists (`Fox`). `app/YZAppIcon.m` picks the way: ios 10.3 and later take `setAlternateIconName:`, older systems and a refused call fall back to a rewrite of the app's own Info.plist (the primary icon files are swapped for the alternate files, the packaged entries are saved under `YozoraOriginalIcons`), `uicache` and a restart of SpringBoard, which closes the app. the choice is also kept in the user defaults and put back at launch, since a new install brings the packaged plist. an install under `/var/mobile/Applications` has its Icon files overwritten from `yozora-original-icons` and the alternate ones. the rewrite needs a bundle the app can write: the deb gives it to mobile in `postinst`, and where it is not so the row is dimmed and says why.
+
+the alternate icon files are rounded and prerendered (`tools/make_icons.py SOURCE OUTPUT NAME`), because the home screen of ios 5 and 6 does not mask the icon of an app in /Applications. the same tool writes the icon of the app with the name `Icon`.
+
 ## reuse
 
 cards, tiles and rows are reused across layout, resize and data updates and not rebuilt: tab cards keep their objects, closing a tab moves the others into the gap, home tiles keep their buttons and get new targets. entrances are limited to eight visible items and 0.36 s. see [performance](performance.md).

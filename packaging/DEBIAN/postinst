@@ -32,6 +32,11 @@ else
   APP=$PAYLOAD
 fi
 
+# the app changes its icon by rewriting its own Info.plist and icon files (YZAppIcon.m), which the mobile user may only
+# do in a bundle it owns. ios 10.3 and later take the call and need no write, a bundle the app cannot write leaves the
+# picker dimmed with the reason
+chown -R mobile:wheel "$APP" 2>/dev/null || true
+
 [ -x "$UICACHE" ] || exit 0
 
 # ios 7 and older keep the app list in mobile's installation cache, and uicache run as root stops at "cannot open

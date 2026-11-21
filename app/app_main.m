@@ -2,6 +2,7 @@
 #import "YZBrowserController.h"
 #import "YZCrash.h"
 #import <QuartzCore/QuartzCore.h>
+#import "YZAppIcon.h"
 #import "YZSplashController.h"
 #import "YZSystemNotifier.h"
 #import "YZSettings.h"
@@ -48,6 +49,8 @@ static void YZDownloadObserver(unsigned identifier, int state, void *context);
     [_splash play];
     [CATransaction flush];
     [self performSelector:@selector(startBrowser) withObject:nil afterDelay:0.05];
+    // a new install brings the icon of the app, the choice of the person is put back
+    YZAppIconRestore();
     return YES;
 }
 
