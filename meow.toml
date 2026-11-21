@@ -17,6 +17,10 @@ TC = "${YOZORA_TC:-${MEOW_TC}}"
 DEPS = "${YOZORA_CORE_DEPS:-${root}/build/core/deps}"
 SDK_V7 = "${YOZORA_SDK_V7:-${DEPS}/sdk/iPhoneOS-armv7.sdk}"
 SDK_V64 = "${YOZORA_SDK_V64:-${DEPS}/sdk/iPhoneOS-arm64.sdk}"
+# the sdk version written into the arm64 binary. ld 253 reads it from the digits of the sdk directory name, and
+# "iPhoneOS-arm64.sdk" gave 64.0, so ios treated the app as linked against an sdk that does not exist. this is the
+# version of the headers the patched sdk was made from
+SDK_V64_VERSION = "${YOZORA_SDK_V64_VERSION:-16.5}"
 CRT_V7 = "${YOZORA_CRT_V7:-${SDK_V7}/usr/lib/crt1.3.1.o}"
 # the cmake tree of the webcore libraries: the jit build, YOZORA_ARMV7_JIT=0 uses webcore-ios
 WEB = "${YOZORA_WEBCORE_IOS_BUILD:-${root}/build/core/webcore-ios-jit}"
@@ -115,6 +119,8 @@ ldflags = ["-Wl,-search_paths_first", "-Wl,-headerpad_max_install_names", "-Xlin
 needs = ["webcore-${slice}"]
 strip = true
 entitlements = "${ENTITLEMENTS}"
+[target.app-arm64.per_slice.arm64]
+ldflags = ["-Wl,-sdk_version,${SDK_V64_VERSION}"]
 [[target.app-arm64.src]]
 files = [
   "app/app_main.m", "app/YZBrowserController.m", "app/YZPageView.m", "app/YZSceneView.m", "app/YZTheme.m",
@@ -145,6 +151,8 @@ strip = true
 entitlements = "${ENTITLEMENTS}"
 [target.app.per_slice.armv7]
 ldflags = ["-nostartfiles", "${CRT_V7}"]
+[target.app.per_slice.arm64]
+ldflags = ["-Wl,-sdk_version,${SDK_V64_VERSION}"]
 [[target.app.src]]
 files = [
   "app/app_main.m", "app/YZBrowserController.m", "app/YZPageView.m", "app/YZSceneView.m", "app/YZTheme.m",
