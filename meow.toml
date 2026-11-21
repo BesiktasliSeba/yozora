@@ -2013,6 +2013,13 @@ inputs = ["core/wasm/*", "tests/test_wasm.py"]
 
 # the WebKit sources of core/source.json, the host gperf and the cross dependencies; each script wipes and refills its
 # own directory, so the steps run only while their outputs are missing (`meow clean NAME` then `meow build NAME` forces one)
+# the deb is cut from the checked ipa, see packaging/ and scripts/build_deb.sh
+[step.deb]
+run = [["bash", "scripts/build_deb.sh"]]
+needs = ["ipa"]
+inputs = ["packaging/DEBIAN/*", "scripts/build_deb.sh", "app/Info.plist"]
+outputs = ["build/ipa/Yozora-v${field:packaging/DEBIAN/control:Version}.deb"]
+
 [step.core-fetch]
 run = [["python3", "-B", "scripts/fetch_core.py"]]
 inputs = ["core/source.json", "scripts/fetch_core.py"]

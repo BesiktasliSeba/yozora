@@ -1,0 +1,53 @@
+#!/bin/sh
+# dpkg does not tell springboard about an app bundle. rootless jailbreaks register /var/jb/Applications with their
+# own uicache, a rootful springboard only lists /Applications, so the bundle is moved there (a copy would keep two
+# 100 MB bundles on a phone with little room)
+
+PAYLOAD=/var/jb/Applications/Yozora.app
+if [ -e /var/jb/.procursus_strapped ] || [ -x /var/jb/basebin/launchctl ] || [ -x /var/jb/usr/bin/dpkg ]; then
+  JBROOT=/var/jb
+else
+  JBROOT=
+fi
+UICACHE=${JBROOT}/usr/bin/uicache
+[ -x "$UICACHE" ] || UICACHE=/usr/bin/uicache
+KILLALL=${JBROOT}/usr/bin/killall
+[ -x "$KILLALL" ] || KILLALL=/usr/bin/killall
+[ -x "$KILLALL" ] || KILLALL=/bin/killall
+
+# the old binary keeps running from memory after an upgrade, and a bundle cannot be replaced under it
+"$KILLALL" -9 Yozora >/dev/null 2>&1 || true
+
+if [ -z "$JBROOT" ]; then
+  APP=/Applications/Yozora.app
+  [ -d "$PAYLOAD" ] || exit 1
+  rm -rf "${APP}.dpkg-new" 2>/dev/null || true
+  mv "$PAYLOAD" "${APP}.dpkg-new" || exit 1
+  : > "${APP}.dpkg-new/.yozora-rootful-move"
+  [ -L "$APP" ] && rm -f "$APP"
+  rm -rf "$APP" 2>/dev/null || true
+  mv "${APP}.dpkg-new" "$APP" || exit 1
+  chmod 755 "$APP" "$APP/Yozora" 2>/dev/null || true
+else
+  APP=$PAYLOAD
+fi
+
+[ -x "$UICACHE" ] || exit 0
+
+# ios 7 and older keep the app list in mobile's installation cache, and uicache run as root stops at "cannot open
+# cache file. incorrect user?"; newer uicache needs root
+INSTALL_CACHE=/var/mobile/Library/Caches/com.apple.mobile.installation.plist
+SU=/bin/su
+[ -x "$SU" ] || SU=/usr/bin/su
+refresh_app_cache() {
+  if [ -z "$JBROOT" ] && [ -f "$INSTALL_CACHE" ] && [ -x "$SU" ]; then
+    "$SU" - mobile -c "$UICACHE -p $APP" && return 0
+    "$SU" - mobile -c "$UICACHE" && return 0
+  fi
+  "$UICACHE" -p "$APP" || "$UICACHE"
+}
+
+# backgrounding avoids an ios 6 uicache deadlock while the old app is still alive
+( refresh_app_cache >/dev/null 2>&1 || true ) </dev/null &
+
+exit 0

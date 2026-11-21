@@ -88,7 +88,7 @@ see [docs/debug.md](docs/debug.md).
 
 ## install
 
-build the ipa, see below, and install it with your sideloading tool.
+build the ipa, see below, and install it with your sideloading tool, or build the deb (`meow build deb`) for a jailbroken phone.
 
 ## build
 
