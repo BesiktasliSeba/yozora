@@ -711,13 +711,25 @@ static NSArray *YZLanguageNames(void) {
 
 static UIImage *YZFlagMark(YZLanguage language, CGFloat side) {
     UIBezierPath *shape = nil;
-    YZBeginMark(side, &shape, language == YZLanguageEnglish ? YZShapeFlower : YZShapeCookie);
+    // the sun shape for the country of the rising sun, the flower for the union jack, the cookie for the bands
+    YZShape kind = language == YZLanguageEnglish ? YZShapeFlower : (language == YZLanguageJapanese ? YZShapeSunny : YZShapeCookie);
+    YZBeginMark(side, &shape, kind);
     CGContextRef ctx = UIGraphicsGetCurrentContext();
     if (language == YZLanguageJapanese) {
+        // the disc is three fifths of the height, as the flag is made, and a little lighter at the top left
         [[UIColor whiteColor] setFill];
         CGContextFillRect(ctx, CGRectMake(0, 0, side, side));
-        [YZHex(0xBC002D) setFill];
-        CGContextFillEllipseInRect(ctx, CGRectMake(side * 0.25f, side * 0.25f, side * 0.5f, side * 0.5f));
+        CGRect disc = CGRectMake(side * 0.2f, side * 0.2f, side * 0.6f, side * 0.6f);
+        CGContextSaveGState(ctx);
+        CGContextAddEllipseInRect(ctx, disc);
+        CGContextClip(ctx);
+        CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+        const CGFloat colors[8] = { 0.835f, 0.0f, 0.2f, 1.0f, 0.737f, 0.0f, 0.176f, 1.0f };
+        CGGradientRef gradient = CGGradientCreateWithColorComponents(space, colors, NULL, 2);
+        CGContextDrawLinearGradient(ctx, gradient, disc.origin, CGPointMake(CGRectGetMaxX(disc), CGRectGetMaxY(disc)), 0);
+        CGGradientRelease(gradient);
+        CGColorSpaceRelease(space);
+        CGContextRestoreGState(ctx);
     } else if (language == YZLanguageRussian) {
         [[UIColor whiteColor] setFill];
         CGContextFillRect(ctx, CGRectMake(0, 0, side, side / 3));
