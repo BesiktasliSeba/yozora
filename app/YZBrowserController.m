@@ -2717,6 +2717,41 @@ typedef enum {
     }
 }
 
+#pragma mark the jit question
+
+// the jit is chosen while JavaScriptCore starts, before any screen exists, so the answer counts at the next launch.
+// the arm64 jit has not run on a device: it is asked about once and a start that died turns it off by itself
+- (void)offerJit {
+    if (_jitDialog)
+        return;
+    __block YZBrowserController *me = self;
+    if ([YZSettings jitDisabledAfterFailedStart]) {
+        _jitDialog = [[YZDialog dialogWithTitle:YZT(@"JIT выключен") message:YZT(@"Прошлый запуск с JIT оборвался, поэтому он выключен. Включить его снова можно в настройках разработчика.")
+                                    cancelTitle:nil confirmTitle:YZT(@"Понятно") destructive:NO handler:^(NSInteger index, NSArray *texts) {
+            (void)index; (void)texts;
+            [me->_jitDialog release];
+            me->_jitDialog = nil;
+        }] retain];
+        [_jitDialog showInView:self.view];
+        return;
+    }
+#if defined(__arm64__)
+    if ([YZSettings jitAnswered])
+        return;
+    _jitDialog = [[YZDialog dialogWithTitle:YZT(@"Включить JIT?")
+                                    message:YZT(@"JIT ускоряет сайты с тяжёлым JavaScript. На arm64 он ещё не проверен на устройстве и на новых версиях iOS может оборвать запуск: тогда при следующем запуске он выключится сам. Выбор вступит в силу после перезапуска приложения.")
+                                cancelTitle:YZT(@"Не включать") confirmTitle:YZT(@"Включить") destructive:NO handler:^(NSInteger index, NSArray *texts) {
+        (void)texts;
+        [me->_jitDialog release];
+        me->_jitDialog = nil;
+        [YZSettings setJit:index != 0];
+        if (index != 0)
+            [me showTransientBanner:YZT(@"JIT включится после перезапуска")];
+    }] retain];
+    [_jitDialog showInView:self.view];
+#endif
+}
+
 - (void)dealloc {
     [NSObject cancelPreviousPerformRequestsWithTarget:self];
     [self closePageControls];
@@ -2730,6 +2765,8 @@ typedef enum {
     [_tabStripSignature release];
     [_authAlert dismissSilently];
     [_authAlert release];
+    [_jitDialog dismissSilently];
+    [_jitDialog release];
     [_geoAlert dismissSilently];
     [_geoAlert release];
     [_notificationAlert dismissSilently];

@@ -253,6 +253,13 @@ static NSDictionary *YZEnglish(void) {
         @"Link copied", @"Ссылка скопирована",
         @"Address copied", @"Адрес скопирован",
         @"Text copied", @"Текст скопирован",
+        @"JIT is off", @"JIT выключен",
+        @"The last launch with the JIT broke off, so it is off. You can turn it on again in developer settings.", @"Прошлый запуск с JIT оборвался, поэтому он выключен. Включить его снова можно в настройках разработчика.",
+        @"Turn on the JIT?", @"Включить JIT?",
+        @"The JIT speeds up sites with heavy JavaScript. On arm64 it has not run on a device yet and on newer iOS it may cut the launch short: then it turns itself off at the next launch. The choice counts after the app is restarted.", @"JIT ускоряет сайты с тяжёлым JavaScript. На arm64 он ещё не проверен на устройстве и на новых версиях iOS может оборвать запуск: тогда при следующем запуске он выключится сам. Выбор вступит в силу после перезапуска приложения.",
+        @"Do not turn on", @"Не включать",
+        @"Turn on", @"Включить",
+        @"The JIT turns on after a restart", @"JIT включится после перезапуска",
         nil];
     return table;
 }
@@ -509,6 +516,13 @@ static NSDictionary *YZJapanese(void) {
         @"リンクをコピーしました", @"Ссылка скопирована",
         @"アドレスをコピーしました", @"Адрес скопирован",
         @"テキストをコピーしました", @"Текст скопирован",
+        @"JIT はオフです", @"JIT выключен",
+        @"前回の JIT 付きの起動が途中で終了したため、JIT をオフにしました。開発者設定で再びオンにできます。", @"Прошлый запуск с JIT оборвался, поэтому он выключен. Включить его снова можно в настройках разработчика.",
+        @"JIT をオンにしますか？", @"Включить JIT?",
+        @"JIT は重い JavaScript を使うサイトを高速にします。arm64 ではまだ実機で確認されておらず、新しい iOS では起動が途中で終了することがあります。その場合は次回の起動時に自動でオフになります。選択はアプリを再起動すると反映されます。", @"JIT ускоряет сайты с тяжёлым JavaScript. На arm64 он ещё не проверен на устройстве и на новых версиях iOS может оборвать запуск: тогда при следующем запуске он выключится сам. Выбор вступит в силу после перезапуска приложения.",
+        @"オンにしない", @"Не включать",
+        @"オンにする", @"Включить",
+        @"JIT は再起動後にオンになります", @"JIT включится после перезапуска",
         nil];
     return table;
 }

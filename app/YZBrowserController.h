@@ -43,6 +43,8 @@
     // the question for a name and a password that a site asked, and the number the core gave it
     YZDialog *_authAlert;
     unsigned _authID;
+    // the question about the jit, asked once, and the notice that a failed start turned it off
+    YZDialog *_jitDialog;
     // a page asks where the device is: the question of the person, and the location manager that runs while a page watches
     YZDialog *_geoAlert;
     // the question of a page that wants to show notifications, and the text of the notification that is on the banner now
@@ -143,4 +145,6 @@
 - (void)saveTabsAndWait;
 /* a link another app handed over: only http and https, opened in the blank tab or in a new one. returns NO for anything else */
 - (BOOL)openExternalURL:(NSURL *)url;
+/* asks about the jit once, or says that a failed start turned it off. the answer counts at the next launch */
+- (void)offerJit;
 @end

@@ -61,6 +61,9 @@ static void YZDownloadObserver(unsigned identifier, int state, void *context);
     YZSplashController *splash = _splash;
     _splash = nil;
     [splash fadeOutOverWindow:self.window completion:^{ [splash release]; }];
+    // the launch got past JavaScriptCore and the first page core
+    [YZSettings endJitStart];
+    [_browser offerJit];
     if (_pendingURL) {
         [_browser openExternalURL:_pendingURL];
         [_pendingURL release];
@@ -273,6 +276,7 @@ int main(int argc, char **argv) {
         [YZCrash enableZombies];
     }
     // the jit is chosen while JavaScriptCore starts, so the setting is read here and a change in the settings counts at the next launch
+    [YZSettings beginJitStart];
     yozora_set_jit_requested([YZSettings jit] ? 1 : 0);
     [YZCrash note:@"launch: javascriptcore start"];
     yozora_initialize_javascript();

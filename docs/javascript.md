@@ -5,6 +5,7 @@
 javascriptcore of the same revision as webcore, linked statically.
 
 - armv7 and arm64: baseline jit, dfg jit and regexp jit
+- the jit switch of developer settings is on by default on armv7 and off by default on arm64, where the jit has not run on a device: ios 15 and later may refuse or kill the executable mapping while javascriptcore starts. a switch the person already set is kept. the interpreter of the same binary runs pages with the switch off, noticeably slower on heavy scripts
 - when the system refuses executable memory the assembler interpreter of the same binary runs, there is no second build for it
 - `YOZORA_ARMV7_JIT=0` at build time builds the c loop instead of the jit, `YOZORA_NO_JIT=1` turns the jit off at run time
 - ftl is off, there is no llvm on the phone
@@ -16,6 +17,10 @@ the jit needs memory that is both writable and executable. the entitlement is si
 the 32 bit arm jit of this revision did not run as shipped. `core/patches/webkit-yozora.patch` carries the changes: linked property caches, the darwin calling convention for doubles, concurrent compilation, map and set iterators under dfg. each has a regression in `tests/jit_device.sh` that requires optimized compilation to happen.
 
 ## settings
+
+on arm64 a new install asks once at the first launch whether to turn the jit on (`offerJit` in `YZBrowserController`). the answer is stored as the switch and counts at the next launch, because the jit is chosen in `main` before any screen exists.
+
+a launch with the jit sets a mark (`YZJitStarting`) before JavaScriptCore starts and clears it once the browser is up. when the next launch finds the mark, the earlier one died on the way: the jit is turned off, the switch goes off, and a notice says so. this keeps a jit that kills the launch from locking the person out of the switch. a normal quit during the first second leaves the mark too and costs the jit the same way, it can be turned on again.
 
 developer settings show a jit switch and a line with what javascriptcore reports after it started: baseline, dfg, regexp, or why it is off. the switch is read once in `main`, it counts at the next launch.
 

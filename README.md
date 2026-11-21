@@ -17,7 +17,7 @@ an old phone is not slow, its browser is old. yozora throws the browser away and
 ## engine
 
 - webkit 2.54.1, webcore and javascriptcore from one revision, one process, no gpu process
-- javascript: baseline, dfg and regexp jit on armv7 and arm64, the assembler interpreter of the same binary when the system refuses executable memory
+- javascript: baseline, dfg and regexp jit on armv7 and arm64 (on arm64 a new install starts with the jit switch off, see [docs/javascript.md](docs/javascript.md)), the assembler interpreter of the same binary when the system refuses executable memory or the switch is off
 - graphics: retained skia recordings per layer, a raster thread of its own, a native core animation layer tree, so scrolling and transform animations go on while a script holds the page
 - text: freetype, harfbuzz, icu 78.3, site fonts in ttf, otf, woff and woff2, color emoji
 - network: libcurl, openssl, http/2, brotli, an own root bundle, the chain, the host and the dates are always checked

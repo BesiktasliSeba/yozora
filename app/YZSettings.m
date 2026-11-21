@@ -30,6 +30,9 @@ static NSString *const YZDebugOverlayKey = @"YZDebugOverlay";
 static NSString *const YZLoggingKey = @"YZLogging";
 static NSString *const YZZombiesKey = @"YZZombies";
 static NSString *const YZJitKey = @"YZJit";
+// set while a launch with the jit has not reached the browser yet
+static NSString *const YZJitStartingKey = @"YZJitStarting";
+static BOOL YZJitDisabledByFailedStart;
 
 // colors ask for the accent on every call, so it is read once and kept until it changes. there are two
 // accents, the normal profile's and the private session's, each under three keys
@@ -266,8 +269,44 @@ static void YZClearAccent(BOOL isPrivate) {
 + (void)setLogging:(BOOL)enabled { [self storeBool:enabled forKey:YZLoggingKey]; }
 + (BOOL)zombies { return [self boolForKey:YZZombiesKey defaultValue:NO]; }
 + (void)setZombies:(BOOL)enabled { [self storeBool:enabled forKey:YZZombiesKey]; }
-+ (BOOL)jit { return [self boolForKey:YZJitKey defaultValue:YES]; }
+// the armv7 jit ran pages on a phone. the arm64 one has not run on a device and ios 15 and later may refuse or
+// kill the executable mapping while javascriptcore starts, before the crash recorder of a launch could say so,
+// so a new install runs arm64 in the interpreter until the switch in developer settings is turned on
++ (BOOL)jit {
+#if defined(__arm64__)
+    return [self boolForKey:YZJitKey defaultValue:NO];
+#else
+    return [self boolForKey:YZJitKey defaultValue:YES];
+#endif
+}
 + (void)setJit:(BOOL)enabled { [self storeBool:enabled forKey:YZJitKey]; }
++ (BOOL)jitAnswered { return [[NSUserDefaults standardUserDefaults] objectForKey:YZJitKey] != nil; }
+
+// a launch that died while JavaScriptCore started leaves the mark, and the executable mapping is the likely
+// cause: the next launch runs without the jit instead of dying again before the person can reach the switch
++ (void)beginJitStart {
+    if (![self jit])
+        return;
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    if ([defaults boolForKey:YZJitStartingKey]) {
+        [defaults setBool:NO forKey:YZJitKey];
+        [defaults removeObjectForKey:YZJitStartingKey];
+        YZJitDisabledByFailedStart = YES;
+    } else
+        [defaults setBool:YES forKey:YZJitStartingKey];
+    // written now: the process may be gone within a second
+    [defaults synchronize];
+}
+
++ (void)endJitStart {
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    if (![defaults objectForKey:YZJitStartingKey])
+        return;
+    [defaults removeObjectForKey:YZJitStartingKey];
+    [defaults synchronize];
+}
+
++ (BOOL)jitDisabledAfterFailedStart { return YZJitDisabledByFailedStart; }
 
 + (BOOL)incognito { return YZIncognito; }
 + (void)setIncognito:(BOOL)enabled {

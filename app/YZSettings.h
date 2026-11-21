@@ -70,6 +70,13 @@ extern NSString *const YZSettingsDidChangeNotification;
 + (void)setZombies:(BOOL)enabled;
 + (BOOL)jit;
 + (void)setJit:(BOOL)enabled;
+/* the person has answered the question about the jit, or set the switch */
++ (BOOL)jitAnswered;
+/* main calls this before it reads the jit: the mark of a launch with the jit that did not finish turns the jit
+   off. endJitStart clears the mark once the browser is up. the flag says the jit was turned off that way */
++ (void)beginJitStart;
++ (void)endJitStart;
++ (BOOL)jitDisabledAfterFailedStart;
 /* not stored, the app starts in the normal profile. purples the interface, keeps pages out of the history and
    gives the core its private session. call it before the first private page is created and after the last
    profile page is parked */
