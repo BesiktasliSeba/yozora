@@ -321,6 +321,11 @@ int yozora_set_site_data(const char *directory, char *error, size_t capacity);
 void yozora_flush_site_data(void);
 /* forgets every cookie and all local storage, logins included */
 void yozora_clear_site_data(void);
+/* the Cookie header the current session (the profile's, or the private one while it is on) would send to the
+   address: name=value pairs, HttpOnly and Secure ones included. returns its length, 0 when none match or the
+   address is not valid, -1 when it does not fit capacity (out is empty then). waits for the core thread, call it
+   from a thread that may wait */
+int yozora_cookie_header(const char *url, char *out, size_t capacity);
 
 /* the private session: pages that start keep cookies, local storage and databases in memory and use no stored
    responses or bytecode, pages started before keep what they had. turn it on before the first private page

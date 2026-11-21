@@ -16,6 +16,7 @@ every number here is in the code, the file is named so it can be changed. a limi
 - http cache 64 MB, one response up to 4 MB, its headers up to 16 KB (`yozora_httpcache.h`), 4 MB may wait for the writer
 - bytecode cache 64 MB, a script of 16 KB or more, 8 MB may wait for the writer
 - site icons: 96 in memory, 512 KB each, previews of tabs on disk without a bound that the system may empty
+- a sign in request: a link of 16384 bytes, an address 2048, the callback and the state 256, a cookie name 128, an answer 32768, cookies read for it 16384 (`core/yozora_signin.h`, `app/YZSignIn.m`)
 - log: 256 KB in memory, 1 MB per run on disk, the crash record 64 KB
 
 ## network

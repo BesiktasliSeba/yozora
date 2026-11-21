@@ -18,7 +18,7 @@ libcurl 8.23.0 over openssl 3.5.8, nghttp2 for http/2, brotli for `br`, libpsl f
 
 ## cookies
 
-`cookies.db` in the profile. the setting for third party cookies uses the registrable domain of the request against the main document. in the private session cookies live in a second store in memory, see [incognito](incognito.md).
+`cookies.db` in the profile. the setting for third party cookies uses the registrable domain of the request against the main document. in the private session cookies live in a second store in memory, see [incognito](incognito.md). `yozora_cookie_header` reads the header the store would send to an address, `HttpOnly` and `Secure` cookies included.
 
 ## http cache
 

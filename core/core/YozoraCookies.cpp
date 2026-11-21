@@ -79,6 +79,15 @@ String requestHeader(const ResourceRequest& request)
     return value;
 }
 
+String headerForURL(const URL& url)
+{
+    if (!url.isValid())
+        return { };
+    ResourceRequest request { URL { url } };
+    request.setFirstPartyForCookies(url);
+    return requestHeader(request);
+}
+
 void receive(const ResourceRequest& request, const CurlResponse& response)
 {
     if (!request.allowCookies())

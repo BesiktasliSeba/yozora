@@ -2288,6 +2288,21 @@ extern "C" void yozora_clear_site_data(void)
     });
 }
 
+extern "C" int yozora_cookie_header(const char* url, char* out, size_t capacity)
+{
+    if (!out || !capacity)
+        return -1;
+    out[0] = 0;
+    if (!url)
+        return 0;
+    CString header;
+    YozoraCoreThread::call([&] { header = YozoraCookies::headerForURL(URL { String::fromUTF8(url) }).utf8(); });
+    if (header.length() >= capacity)
+        return -1;
+    std::memcpy(out, header.data(), header.length() + 1);
+    return static_cast<int>(header.length());
+}
+
 extern "C" void yozora_set_private_session(int enabled)
 {
     YozoraPrivateSession::set(enabled != 0);

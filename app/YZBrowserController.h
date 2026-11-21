@@ -20,6 +20,8 @@
 #import "YZTranslateSheet.h"
 #import "YZTranslation.h"
 #import "YZLocation.h"
+#import "YZSignIn.h"
+#import "YZTab.h"
 #include "yozora_core.h"
 
 @interface YZBrowserController : UIViewController <UITextFieldDelegate, UITableViewDataSource, UITableViewDelegate,
@@ -43,8 +45,14 @@
     // the question for a name and a password that a site asked, and the number the core gave it
     YZDialog *_authAlert;
     unsigned _authID;
+    // a sign in another app asked for: the question the person is asked, then the request and its private tab
+    YZDialog *_signInDialog;
     // the question about the jit, asked once, and the notice that a failed start turned it off
     YZDialog *_jitDialog;
+    YZSignIn *_signIn;
+    YZTab *_signInTab;
+    // the sign in switched to the private tabs, so it switches back when it ends
+    BOOL _signInLeavesPrivate;
     // a page asks where the device is: the question of the person, and the location manager that runs while a page watches
     YZDialog *_geoAlert;
     // the question of a page that wants to show notifications, and the text of the notification that is on the banner now

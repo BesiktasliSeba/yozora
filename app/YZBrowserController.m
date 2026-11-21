@@ -111,6 +111,14 @@ static UIImage *YZThumbnailFromView(UIView *view) {
 - (void)switchToTab:(NSUInteger)index;
 - (void)addBlankTab;
 - (void)closeTabAtIndex:(NSUInteger)index;
+- (BOOL)beginSignInFromURL:(NSURL *)link;
+- (void)startSignIn:(YZSignIn *)request;
+- (void)closeSignInTab;
+- (void)sendSignIn:(YZSignIn *)signIn outcome:(yozora_signin_outcome)outcome address:(NSString *)address cookies:(NSString *)cookies;
+- (void)finishSignIn:(YZSignIn *)signIn address:(NSString *)address cookies:(NSString *)cookies tooLarge:(BOOL)tooLarge;
+- (void)answerSignIn:(YZSignIn *)signIn outcome:(yozora_signin_outcome)outcome;
+- (void)leavePrivateAfterSignIn;
+- (void)checkSignInAtTime:(CFTimeInterval)now;
 - (void)setIncognito:(BOOL)incognito;
 - (void)wobbleChrome;
 - (void)styleBarButton:(UIButton *)button icon:(YZIcon)icon;
@@ -623,6 +631,14 @@ static UIImage *YZThumbnailFromView(UIView *view) {
 - (void)closeTabAtIndex:(NSUInteger)index {
     if (index >= [_tabs count])
         return;
+    // the person closed the tab of a sign in: the app that asked hears that it was cancelled
+    YZSignIn *cancelled = nil;
+    if (_signIn && [_tabs objectAtIndex:index] == _signInTab) {
+        cancelled = [_signIn retain];
+        _signInTab = nil;
+        [_signIn release];
+        _signIn = nil;
+    }
     BOOL closingCurrent = index == _current;
     if (closingCurrent)
         [self destroyCore];
@@ -644,6 +660,11 @@ static UIImage *YZThumbnailFromView(UIView *view) {
     [_tabsView showTabs:_tabs selected:_current];
     if ([YZSettings incognito])
         [self endPrivateSessionIfEmpty];
+    if (cancelled) {
+        [self leavePrivateAfterSignIn];
+        [self answerSignIn:cancelled outcome:YOZORA_SIGNIN_CANCELLED];
+        [cancelled release];
+    }
 }
 
 #pragma mark private session
@@ -756,14 +777,8 @@ static void YZOpenInOtherApp(NSURL *url, BOOL universalOnly, void (^done)(BOOL o
     done(universalOnly ? NO : [application openURL:url]);
 }
 
-- (BOOL)openExternalURL:(NSURL *)url {
-    NSString *scheme = [[url scheme] lowercaseString];
-    if (![scheme isEqualToString:@"http"] && ![scheme isEqualToString:@"https"])
-        return NO;
-    NSString *text = [url absoluteString];
-    if (![text length])
-        return NO;
-    // the menu, the tray, a list, the settings or the player would cover the page the link opens
+// the menu, the tray, a list, the settings or the player would cover the page a link opens
+- (void)clearScreenForExternalLink {
     [_input resignFirstResponder];
     if (_menu)
         [self dismissMenu];
@@ -775,10 +790,169 @@ static void YZOpenInOtherApp(NSURL *url, BOOL universalOnly, void (^done)(BOOL o
         [_popupController closePopup];
     else if (self.presentedViewController)
         [self dismissViewControllerAnimated:NO completion:nil];
+}
+
+- (BOOL)openExternalURL:(NSURL *)url {
+    NSString *scheme = [[url scheme] lowercaseString];
+    if ([scheme isEqualToString:@"yozora-auth"])
+        return [self beginSignInFromURL:url];
+    if (![scheme isEqualToString:@"http"] && ![scheme isEqualToString:@"https"])
+        return NO;
+    NSString *text = [url absoluteString];
+    if (![text length])
+        return NO;
+    [self clearScreenForExternalLink];
     if (![[self currentTab] isBlank])
         [self addBlankTab];
     [self openAddressText:text];
     return YES;
+}
+
+#pragma mark sign in for another app
+
+// the person is asked first: any app can send this link, and the answer carries the cookies of the page
+- (BOOL)beginSignInFromURL:(NSURL *)link {
+    yozora_signin_status status = YOZORA_SIGNIN_OK;
+    YZSignIn *request = [YZSignIn signInForLink:link status:&status];
+    if (!request) {
+        [self showError:[YZSignIn reasonForStatus:status]];
+        return NO;
+    }
+    [self clearScreenForExternalLink];
+    // a request that arrives while the earlier one is still asked about replaces it
+    [_signInDialog dismissSilently];
+    [_signInDialog release];
+    _signInDialog = nil;
+    NSString *message = [NSString stringWithFormat:YZT(@"Приложение «%@:» просит открыть %@ в приватной вкладке и вернуть ему адрес страницы и cookies, когда вход закончится."),
+                                                   [request callbackScheme], [request host]];
+    __block YZBrowserController *me = self;
+    _signInDialog = [[YZDialog dialogWithTitle:YZT(@"Вход для другого приложения") message:message cancelTitle:YZT(@"Отмена") confirmTitle:YZT(@"Открыть")
+                                   destructive:NO handler:^(NSInteger index, NSArray *texts) {
+        (void)texts;
+        [me->_signInDialog release];
+        me->_signInDialog = nil;
+        if (index == 0)
+            [me answerSignIn:request outcome:YOZORA_SIGNIN_CANCELLED];
+        else
+            [me startSignIn:request];
+    }] retain];
+    [_signInDialog showInView:self.view];
+    return YES;
+}
+
+// the sign in runs in a tab of the private session, which keeps its own cookies and drops them with its last tab
+- (void)startSignIn:(YZSignIn *)request {
+    [self closeSignInTab];
+    if (![YZSettings incognito]) {
+        [self setIncognito:YES];
+        if (![YZSettings incognito]) {
+            [self answerSignIn:request outcome:YOZORA_SIGNIN_CANCELLED];
+            return;
+        }
+        _signInLeavesPrivate = YES;
+    }
+    if (![[self currentTab] isBlank]) {
+        [self addBlankTab];
+        // a full tray refused, addBlankTab told the person why
+        if (![[self currentTab] isBlank]) {
+            [self leavePrivateAfterSignIn];
+            [self answerSignIn:request outcome:YOZORA_SIGNIN_CANCELLED];
+            return;
+        }
+    }
+    _signIn = [request retain];
+    _signInTab = [self currentTab];
+    [self openAddressText:[request startURL]];
+}
+
+// the sign in is over without an answer: the tab goes and the state with it
+- (void)closeSignInTab {
+    YZTab *tab = _signInTab;
+    _signInTab = nil;
+    [_signIn release];
+    _signIn = nil;
+    if (!tab)
+        return;
+    NSUInteger index = [_tabs indexOfObjectIdenticalTo:tab];
+    if (index != NSNotFound) {
+        [self closeTabAtIndex:index];
+        return;
+    }
+    // the person went back to the normal tabs and the sign in tab waits in the other list
+    [_otherTabs removeObjectIdenticalTo:tab];
+    [tab removeStoredThumbnail];
+    if (![_otherTabs count]) {
+        YZTab *blank = [[[YZTab alloc] init] autorelease];
+        blank.isPrivate = YES;
+        [_otherTabs addObject:blank];
+        _otherCurrent = 0;
+    } else if (_otherCurrent >= [_otherTabs count])
+        _otherCurrent = [_otherTabs count] - 1;
+    if ([_otherTabs count] == 1 && [(YZTab *)[_otherTabs objectAtIndex:0] isBlank])
+        yozora_clear_private_session();
+}
+
+// back to the normal tabs when the sign in is what switched to the private ones and nothing else is open in them
+- (void)leavePrivateAfterSignIn {
+    BOOL leave = _signInLeavesPrivate;
+    _signInLeavesPrivate = NO;
+    if (leave && [YZSettings incognito] && [_tabs count] == 1 && [(YZTab *)[_tabs objectAtIndex:0] isBlank])
+        [self setIncognito:NO];
+}
+
+// opens the link of the app that asked, with the answer on it
+- (void)answerSignIn:(YZSignIn *)signIn outcome:(yozora_signin_outcome)outcome {
+    [self sendSignIn:signIn outcome:outcome address:nil cookies:nil];
+}
+
+- (void)sendSignIn:(YZSignIn *)signIn outcome:(yozora_signin_outcome)outcome address:(NSString *)address cookies:(NSString *)cookies {
+    NSURL *result = [signIn resultURLForOutcome:outcome address:address cookies:cookies];
+    if (!result) {
+        [self showError:YZT(@"Не удалось вернуться в приложение")];
+        return;
+    }
+    __block YZBrowserController *me = self;
+    YZOpenInOtherApp(result, NO, ^(BOOL opened) {
+        if (!opened)
+            [me showError:YZT(@"Не удалось вернуться в приложение")];
+    });
+}
+
+// every frame: the address is the cheap check, the cookies are read at most once a second away from this thread
+- (void)checkSignInAtTime:(CFTimeInterval)now {
+    YZSignIn *signIn = _signIn;
+    if (signIn.finishing)
+        return;
+    NSString *address = [self currentURL];
+    __block YZBrowserController *me = self;
+    if ([signIn finishedAtAddress:address cookies:nil]) {
+        signIn.finishing = YES;
+        [signIn readCookiesForAddress:address completion:^(NSString *cookies, BOOL tooLarge) {
+            [me finishSignIn:signIn address:address cookies:cookies tooLarge:tooLarge];
+        }];
+        return;
+    }
+    if ([signIn watchesCookie] && [signIn shouldPollAt:now]) {
+        [signIn readCookiesForAddress:address completion:^(NSString *cookies, BOOL tooLarge) {
+            if (me->_signIn != signIn || signIn.finishing)
+                return;
+            if (tooLarge || [signIn finishedAtAddress:address cookies:cookies]) {
+                signIn.finishing = YES;
+                [me finishSignIn:signIn address:address cookies:cookies tooLarge:tooLarge];
+            }
+        }];
+    }
+}
+
+// the cookies are read before the tab closes: the private session drops them with its last tab
+- (void)finishSignIn:(YZSignIn *)signIn address:(NSString *)address cookies:(NSString *)cookies tooLarge:(BOOL)tooLarge {
+    if (_signIn != signIn)
+        return;
+    [signIn retain];
+    [self closeSignInTab];
+    [self leavePrivateAfterSignIn];
+    [self sendSignIn:signIn outcome:tooLarge ? YOZORA_SIGNIN_TOO_LARGE : YOZORA_SIGNIN_DONE address:address cookies:cookies];
+    [signIn release];
 }
 
 - (void)watchExternalLinks {
@@ -1693,6 +1867,8 @@ static const CGFloat YZTabStripHeight = 44;
         }
         visited = YES;
     }
+    if (_signIn && _signInTab == [self currentTab])
+        [self checkSignInAtTime:link.timestamp];
     yozora_load_state state = yozora_core_state(_core);
     // a page that has just finished is photographed after a moment, once its first frames are on screen
     if ((int)state != _lastLoadState) {
@@ -2765,8 +2941,11 @@ typedef enum {
     [_tabStripSignature release];
     [_authAlert dismissSilently];
     [_authAlert release];
+    [_signInDialog dismissSilently];
+    [_signInDialog release];
     [_jitDialog dismissSilently];
     [_jitDialog release];
+    [_signIn release];
     [_geoAlert dismissSilently];
     [_geoAlert release];
     [_notificationAlert dismissSilently];

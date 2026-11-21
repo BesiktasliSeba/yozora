@@ -46,10 +46,11 @@ see [docs/webgl.md](docs/webgl.md), [docs/webassembly.md](docs/webassembly.md), 
 - ipad: all orientations, a tab strip above one toolbar, split view and slide over
 - default browser on ios 14 and later
 - links and buttons that point to another app (`tg://`, `mailto:`, `tel:`, app store links) open that app, and on ios 10 and later an https link that an installed app claims as a universal link opens there too
+- another app can ask for a sign in on a site: `yozora-auth://` opens it in a private tab and gives the page address and the cookies back to that app, after the person agrees
 - downloads with pause, resume, a wave progress bar, and system notifications when a file is done
 - translation of pages, language, theme, text size, search engines (google, duckduckgo, yandex)
 
-see [docs/ui.md](docs/ui.md), [docs/tabs.md](docs/tabs.md), [docs/incognito.md](docs/incognito.md), [docs/downloads.md](docs/downloads.md).
+see [docs/ui.md](docs/ui.md), [docs/tabs.md](docs/tabs.md), [docs/incognito.md](docs/incognito.md), [docs/signin.md](docs/signin.md), [docs/downloads.md](docs/downloads.md).
 
 ## blocker
 
@@ -116,6 +117,7 @@ outputs `build/ipa/Yozora-armv7.ipa` and `build/ipa/Yozora-arm64.ipa`, signed, a
 - [ui](docs/ui.md): the interface, controls of pages, motion, ipad, settings
 - [tabs](docs/tabs.md): tab tray, suspension, previews, memory
 - [incognito](docs/incognito.md): what the private session keeps
+- [signin](docs/signin.md): the sign in for another app, the link, the answer, the limits
 - [adblock](docs/adblock.md): rules, the syntax, hiding, limits
 - [permissions](docs/permissions.md): geolocation, notifications, site decisions
 - [downloads](docs/downloads.md): pause, resume, background, notifications

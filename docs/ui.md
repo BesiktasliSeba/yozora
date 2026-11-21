@@ -64,7 +64,7 @@ tiles, rows of bookmarks and history, and tab cards show the `favicon.ico` of th
 
 ## default browser
 
-`Info.plist` declares `http` and `https` and the entitlement `com.apple.developer.web-browser` is signed in, so ios 14 and later list yozora under the default browser setting and links from other apps open in it.
+`Info.plist` declares `http` and `https` and the entitlement `com.apple.developer.web-browser` is signed in, so ios 14 and later list yozora under the default browser setting and links from other apps open in it. the scheme `yozora-auth` is declared too, it is the entry for the sign in of another app, see [signin](signin.md).
 
 
 ## links to other apps

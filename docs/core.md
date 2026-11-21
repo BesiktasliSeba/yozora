@@ -25,6 +25,7 @@ between tasks the thread sleeps in the webcore run loop. page timers and network
 - questions the page asks the person, taken by the interface and answered by id: `take_choice`, `take_files`, `take_date`, `take_auth`, `take_geolocation_request`, `take_notification_request`, `take_media`, `take_popup`
 - links for other apps: `take_external` hands over the address, `answer_external` tells the page whether an app opened a universal link
 - downloads, site data, caches, the blocker, site decisions
+- `yozora_cookie_header`: the `Cookie` header the current store would send to an address, for the sign in of another app, see [signin](signin.md)
 
 a question carries an id, the interface shows its own control and answers with the id. a queue that is full refuses at once, so a page that asks in a loop gets a denial and not a silence.
 

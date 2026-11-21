@@ -18,6 +18,10 @@ all of it is dropped when the last private tab is closed (`yozora_clear_private_
 
 downloaded files, bookmarks and the answers to http authentication are not part of the session.
 
+## sign in for another app
+
+an app can ask for a sign in in a private tab and get the address and the cookies back, see [signin](signin.md). the tab is an ordinary private tab: it shares the private store with the others.
+
 ## decisions of sites
 
 geolocation, notifications and the pause of the blocker are not stored in the private session: the site asks again, and the menu offers no pause. see [permissions](permissions.md).

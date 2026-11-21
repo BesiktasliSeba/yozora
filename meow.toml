@@ -101,7 +101,7 @@ files = [
   "app/YZFindBar.m", "app/YZSheets.m", "app/YZDialog.m", "app/YZErrorPopup.m", "app/YZShape.m", "app/YZLog.m",
   "app/YZCrash.m", "app/YZLogController.m", "app/YZSystemNotifier.m", "app/YZSitesController.m",
   "app/YZAdblockController.m", "app/YZDebugOverlay.m", "app/YZTranslation.m", "app/YZTranslateBar.m",
-  "app/YZTranslateSheet.m", "app/YZColorPicker.m", "app/YZSplashController.m", "app/YZTabStrip.m",
+  "app/YZTranslateSheet.m", "app/YZColorPicker.m", "app/YZSplashController.m", "app/YZTabStrip.m", "app/YZSignIn.m",
 ]
 
 
@@ -131,7 +131,7 @@ files = [
   "app/YZFindBar.m", "app/YZSheets.m", "app/YZDialog.m", "app/YZErrorPopup.m", "app/YZShape.m", "app/YZLog.m",
   "app/YZCrash.m", "app/YZLogController.m", "app/YZSystemNotifier.m", "app/YZSitesController.m",
   "app/YZAdblockController.m", "app/YZDebugOverlay.m", "app/YZTranslation.m", "app/YZTranslateBar.m",
-  "app/YZTranslateSheet.m", "app/YZColorPicker.m", "app/YZSplashController.m", "app/YZTabStrip.m",
+  "app/YZTranslateSheet.m", "app/YZColorPicker.m", "app/YZSplashController.m", "app/YZTabStrip.m", "app/YZSignIn.m",
 ]
 
 
@@ -163,7 +163,7 @@ files = [
   "app/YZFindBar.m", "app/YZSheets.m", "app/YZDialog.m", "app/YZErrorPopup.m", "app/YZShape.m", "app/YZLog.m",
   "app/YZCrash.m", "app/YZLogController.m", "app/YZSystemNotifier.m", "app/YZSitesController.m",
   "app/YZAdblockController.m", "app/YZDebugOverlay.m", "app/YZTranslation.m", "app/YZTranslateBar.m",
-  "app/YZTranslateSheet.m", "app/YZColorPicker.m", "app/YZSplashController.m", "app/YZTabStrip.m",
+  "app/YZTranslateSheet.m", "app/YZColorPicker.m", "app/YZSplashController.m", "app/YZTabStrip.m", "app/YZSignIn.m",
 ]
 
 
@@ -1918,6 +1918,11 @@ src = [
 ]
 cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
 libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.signin]
+src = ["tests/test_signin.c", "core/yozora_signin.c"]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
 sanitize = "address,undefined"
 
 [test.clock]
