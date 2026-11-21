@@ -3,6 +3,7 @@
 #import "YZHomeView.h"
 #import "YZListController.h"
 #import "YZMenuView.h"
+#import "YZPopupMenu.h"
 #import "YZPageView.h"
 #import "YZSettingsController.h"
 #import "YZStore.h"
@@ -112,6 +113,8 @@
     // the sheet of a list or a date field of the page, and the picker of a file field: at most one of them is open
     YZSheet *_controlSheet;
     YZFilePicker *_filePicker;
+    // the menu of a long press on a link, an image or a video
+    YZPopupMenu *_targetMenu;
     // the share sheet of an ipad, which the system dismisses without a word when an activity is chosen
     UIPopoverController *_sharePopover;
     // a line on the bottom bar for download progress, and the downloads already announced

@@ -39,6 +39,7 @@
 #include "FontManagerYozora.h"
 #include "FrameLoadRequest.h"
 #include "FrameLoader.h"
+#include "YozoraDownloads.h"
 #include "NavigationAction.h"
 #include "ResourceRequest.h"
 #include "HitTestResult.h"
@@ -1808,7 +1809,8 @@ extern "C" void yozora_core_long_press(yozora_core* core, int x, int y)
         found->y = y;
         bool link = copy_hit_url(hit.absoluteLinkURL(), found->link, sizeof(found->link));
         bool image = copy_hit_url(hit.absoluteImageURL(), found->image, sizeof(found->image));
-        core->press_on_target = link || image;
+        bool media = copy_hit_url(hit.absoluteMediaURL(), found->media, sizeof(found->media));
+        core->press_on_target = link || image || media;
         core->press_passes_through = false;
         if (!core->press_on_target) {
             // a finger held on words selects the word. on anything else (a challenge checkbox, a button, a
@@ -1839,6 +1841,32 @@ extern "C" void yozora_core_long_press(yozora_core* core, int x, int y)
         if (core->shared.hits.size() < 4)
             core->shared.hits.push_back(WTF::move(found));
         pthread_mutex_unlock(&core->lock);
+    });
+}
+
+extern "C" void yozora_core_download(yozora_core* core, const char* url)
+{
+    if (!core || !url)
+        return;
+    std::string address(url);
+    YozoraCoreThread::post([core, address] {
+        RefPtr frame = core->page->localMainFrame();
+        URL target { String::fromUTF8(address.c_str()) };
+        if (!frame || !target.isValid() || !target.protocolIsInHTTPFamily()) {
+            yozora_core_message(*core, "Этот файл не удалось загрузить");
+            return;
+        }
+        // asked the way a click on the link would ask: the page is the referrer and the first party
+        ResourceRequest request { URL(target) };
+        if (RefPtr document = frame->document()) {
+            request.setHTTPReferrer(document->url().string());
+            request.setFirstPartyForCookies(document->url());
+        }
+        request.setHTTPUserAgent(frame->loader().userAgent(target));
+        if (YozoraDownloads::start(request, String()))
+            yozora_core_message(*core, "Загрузка файла началась");
+        else
+            yozora_core_message(*core, "Этот файл не удалось загрузить");
     });
 }
 

@@ -484,7 +484,7 @@ void yozora_core_select_clear(yozora_core *core);
 /* the selection as of the last pass of the core thread, 0 when nothing is selected */
 int yozora_core_selection(yozora_core *core, yozora_selection *out);
 
-/* what lies under a finger that stays down. a link or an image is reported instead of a selection, other text
+/* what lies under a finger that stays down. a link, an image or a video is reported instead of a selection, other text
    is selected as before. places are in view points. addresses are absolute http or https: an inline data
    image or a javascript link is no target, an address that does not fit is dropped, so a link around a huge
    image still shows its own address */
@@ -495,6 +495,9 @@ typedef struct {
     /* the text the link shows, cut at the end of the buffer, empty when the link holds a picture */
     char link_text[256];
     char image[YOZORA_HIT_URL];
+    /* the source of the audio or video element under the finger, empty when there is none. a stream the page
+       builds in memory (a blob address) is no target */
+    char media[YOZORA_HIT_URL];
 } yozora_hit;
 void yozora_core_long_press(yozora_core *core, int x, int y);
 /* the finger of a long press lifts at x, y (where the press began). a press that selected nothing and opened
@@ -503,6 +506,10 @@ void yozora_core_long_press(yozora_core *core, int x, int y);
 void yozora_core_long_press_release(yozora_core *core, int x, int y);
 /* the answers to long presses that found a link or an image, oldest first, 0 when there is none */
 int yozora_core_take_hit(yozora_core *core, yozora_hit *out);
+/* queues the file at an address a hit reported as a download, with the address of the page as the referrer and
+   its cookies. the list of downloads shows it, and the core says in a message when the address cannot be
+   downloaded. http and https only */
+void yozora_core_download(yozora_core *core, const char *url);
 
 /* the page as a desktop browser sees it: the user agent of Safari on a Mac and a layout at least 980 points
    wide where the zoom floor allows (50 percent shows 640 points on a phone), applied to each new site until

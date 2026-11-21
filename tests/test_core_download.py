@@ -44,6 +44,16 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 status = 403
                 body = b"no cookie"
+        elif path == "/private.bin":
+            # a file the server gives only to a request that comes from the page that offers it
+            if self.headers.get("Referer", "").endswith("/holder"):
+                body = b"for the page only"
+            else:
+                status = 403
+                body = b"no referrer"
+        elif path == "/holder":
+            kind = "text/html"
+            body = b"<!doctype html><title>holder</title><a href=/private.bin>file</a>"
         elif path == "/missing":
             status = 404
             kind = "text/html"
@@ -60,10 +70,10 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
-def run(binary, url, directory):
+def run(binary, url, directory, actions=""):
     result = subprocess.run([binary, str(ROOT / "app/fonts"), str(ROOT / "app/ca-bundle.crt"), url, str(Path(directory) / "page.png"), "320", "480"],
                             capture_output=True, text=True, timeout=120,
-                            env=dict(os.environ, YOZORA_RENDER_SCALE="2", YOZORA_RENDER_DOWNLOADS=str(Path(directory) / "Downloads")))
+                            env=dict(os.environ, YOZORA_RENDER_SCALE="2", YOZORA_RENDER_DOWNLOADS=str(Path(directory) / "Downloads"), YOZORA_RENDER_ACTIONS=actions))
     assert result.returncode in (0, 1), result
     return re.findall(r"download state (\d) received (\d+) total (\d+) name (.*?) error (.*)", result.stderr), result.stderr
 
@@ -95,8 +105,15 @@ def main():
         # a page is not a download
         listed, _ = run(binary, base + "/page", directory)
         assert listed == [], listed
+        # the sheet of a long press downloads an address of the page with the page as referrer
+        listed, log = run(binary, base + "/holder", directory, "download:" + base + "/private.bin;wait:300")
+        assert listed and listed[0][0] == "2" and listed[0][3] == "private.bin", (listed, log)
+        assert (folder / "private.bin").read_bytes() == b"for the page only", log
+        # an address that is no web address is refused, nothing is listed
+        listed, log = run(binary, base + "/holder", directory, "download:javascript:alert(1);wait:300")
+        assert listed == [] and "Этот файл не удалось загрузить" in log, (listed, log)
     server.shutdown()
-    print("core download: unsupported types and attachments are saved by name, redirects and cookies work, a name is never taken twice")
+    print("core download: unsupported types and attachments are saved by name, redirects and cookies work, a name is never taken twice, a sheet download sends the page as referrer")
 
 
 if __name__ == "__main__":

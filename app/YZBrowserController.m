@@ -1225,7 +1225,7 @@ static void YZOpenInOtherApp(NSURL *url, BOOL universalOnly, void (^done)(BOOL o
     }
     int delta = scroll - _lastScrollY;
     _lastScrollY = scroll;
-    BOOL busy = _editing || _pageEditing || [self findBarOpen] || !_tabsView.hidden || _menu || _controlSheet || _filePicker || self.presentedViewController
+    BOOL busy = _editing || _pageEditing || [self findBarOpen] || !_tabsView.hidden || _menu || _controlSheet || _targetMenu || _filePicker || self.presentedViewController
         || yozora_core_state(_core) == YOZORA_LOAD_FAILED || [[self currentTab] isBlank];
     if (busy || scroll <= 8 || delta > 1200 || delta < -1200) {
         [self setBottomBarShown:YES animated:YES];
@@ -2486,7 +2486,11 @@ typedef enum {
     YZTargetShareLink,
     YZTargetOpenImage,
     YZTargetCopyImage,
-    YZTargetShareImage
+    YZTargetShareImage,
+    YZTargetDownloadLink,
+    YZTargetDownloadImage,
+    YZTargetDownloadMedia,
+    YZTargetCopyMedia
 } YZTargetAction;
 
 // the share sheet exists from ios 6, an older system gets no share entries at all
@@ -2561,12 +2565,13 @@ typedef enum {
     [self openAddressText:url];
 }
 
-// the sheet of a long press on a link or image, as in Firefox. it is the page controls sheet, so it closes
-// with the page
+// the menu of a long press on a link, an image or a video: it grows out of the finger and it closes with the
+// page, like the page controls. the files go to the downloads list
 - (void)presentTargetSheetForHit:(const yozora_hit *)hit {
     NSString *link = hit->link[0] ? [NSString stringWithUTF8String:hit->link] : nil;
     NSString *image = hit->image[0] ? [NSString stringWithUTF8String:hit->image] : nil;
-    if (!link && !image)
+    NSString *media = hit->media[0] ? [NSString stringWithUTF8String:hit->media] : nil;
+    if (!link && !image && !media)
         return;
     BOOL share = [self canShare];
     NSMutableArray *actions = [NSMutableArray array], *texts = [NSMutableArray array], *icons = [NSMutableArray array];
@@ -2580,23 +2585,31 @@ typedef enum {
         // inside the private session every tab is private already
         if (![YZSettings incognito])
             add(YZTargetOpenPrivateTab, YZT(@"Открыть в приватной вкладке"), YZIconIncognito);
+        add(YZTargetDownloadLink, YZT(@"Скачать файл по ссылке"), YZIconDownload);
         add(YZTargetCopyLink, YZT(@"Скопировать ссылку"), YZIconLink);
         if (share)
             add(YZTargetShareLink, YZT(@"Поделиться ссылкой"), YZIconShare);
     }
     if (image) {
         add(YZTargetOpenImage, YZT(@"Открыть картинку в новой вкладке"), YZIconImage);
+        add(YZTargetDownloadImage, YZT(@"Скачать картинку"), YZIconDownload);
         add(YZTargetCopyImage, YZT(@"Скопировать адрес картинки"), YZIconCopy);
         if (share)
             add(YZTargetShareImage, YZT(@"Поделиться адресом картинки"), YZIconShare);
     }
+    if (media) {
+        add(YZTargetDownloadMedia, YZT(@"Скачать видео"), YZIconDownload);
+        add(YZTargetCopyMedia, YZT(@"Скопировать адрес видео"), YZIconCopy);
+    }
     [_input resignFirstResponder];
     CGPoint touch = [_pageView convertPoint:[_pageView screenPointForViewportPoint:CGPointMake(hit->x, hit->y)] toView:self.view];
     CGRect place = CGRectMake(touch.x, touch.y, 1, 1);
-    _controlSheet = [[YZPickers presentActionsInView:self.view title:link ? link : image texts:texts icons:icons bottomInset:[self chromeInsets].bottom
-                                          completion:^(NSInteger index) {
-        [_controlSheet release];
-        _controlSheet = nil;
+    __block YZPopupMenu *menu = nil;
+    menu = [[YZPopupMenu alloc] initWithTitles:texts icons:icons handler:^(NSInteger index) {
+        if (_targetMenu == menu) {
+            [_targetMenu release];
+            _targetMenu = nil;
+        }
         if (index < 0 || index >= (NSInteger)[actions count])
             return;
         switch ((YZTargetAction)[[actions objectAtIndex:index] intValue]) {
@@ -2621,8 +2634,31 @@ typedef enum {
         case YZTargetShareImage:
             [self shareText:image fromRect:place inView:self.view];
             break;
+        case YZTargetDownloadLink:
+            [self downloadAddress:link];
+            break;
+        case YZTargetDownloadImage:
+            [self downloadAddress:image];
+            break;
+        case YZTargetDownloadMedia:
+            [self downloadAddress:media];
+            break;
+        case YZTargetCopyMedia:
+            [self copyText:media banner:YZT(@"Адрес скопирован")];
+            break;
         }
-    }] retain];
+    }];
+    menu.bottomInset = [self chromeInsets].bottom + (_bottomBarShown && ![self isWide] ? [self barHeight] : 0);
+    _targetMenu = menu;
+    [menu showInView:self.view anchor:touch];
+}
+
+// the core asks for the file with the page as referrer. the bottom bar shows its progress from the list
+- (void)downloadAddress:(NSString *)address {
+    if (!_core || ![address length])
+        return;
+    yozora_core_download(_core, [address UTF8String]);
+    [self showTransientBanner:YZT(@"Загрузка началась")];
 }
 
 // an answer that arrives while another screen is up is dropped, a sheet for a press from seconds ago would
@@ -2631,7 +2667,7 @@ typedef enum {
     yozora_hit hit;
     if (!_core || !yozora_core_take_hit(_core, &hit))
         return;
-    if (_controlSheet || _filePicker || _menu || self.presentedViewController || !_tabsView.hidden)
+    if (_controlSheet || _targetMenu || _filePicker || _menu || self.presentedViewController || !_tabsView.hidden)
         return;
     [self presentTargetSheetForHit:&hit];
 }
@@ -2641,6 +2677,8 @@ typedef enum {
 // questions of the core are answered by id. the sheet closes unanswered when the page goes, an id of a gone
 // page does nothing
 - (void)closePageControls {
+    // the menu of a long press answers -1 and lets go of itself
+    [_targetMenu dismissAnimated:NO];
     if (_controlSheet) {
         _controlSheet.onCancel = nil;
         _controlSheet.onDone = nil;
@@ -2658,7 +2696,7 @@ typedef enum {
 
 - (void)watchPageControls {
     // one question at a time, and none under another screen: the rest waits in the core
-    if (!_core || _controlSheet || _filePicker || _menu || self.presentedViewController || !_tabsView.hidden)
+    if (!_core || _controlSheet || _targetMenu || _filePicker || _menu || self.presentedViewController || !_tabsView.hidden)
         return;
     yozora_core *core = _core;
     CGFloat inset = [self chromeInsets].bottom;

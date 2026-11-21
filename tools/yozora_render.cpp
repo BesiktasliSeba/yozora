@@ -434,7 +434,10 @@ int main(int argc, char** argv)
                 yozora_core_long_press_release(core, x, y);
                 yozora_hit hit;
                 if (yozora_core_take_hit(core, &hit))
-                    std::fprintf(stderr, "yozora-render: long press sheet link %s image %s\n", hit.link, hit.image);
+                    std::fprintf(stderr, "yozora-render: long press sheet link %s image %s media %s\n", hit.link, hit.image, hit.media);
+            } else if (action.compare(0, 9, "download:") == 0) {
+                // the download of a link, image or video from the sheet of a long press
+                yozora_core_download(core, action.c_str() + 9);
             } else if (action.compare(0, 8, "geo-ask:") == 0) {
                 // answers the oldest question of a page about the position: geo-ask:1 allows, geo-ask:0 refuses
                 yozora_geolocation_request request;

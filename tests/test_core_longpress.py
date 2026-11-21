@@ -1,3 +1,4 @@
+import base64
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import os
 from pathlib import Path
@@ -15,6 +16,7 @@ PAGE = """<!doctype html><meta charset=utf-8><body style='margin:0'>
 <div id=box style='position:absolute;left:20px;top:20px;width:40px;height:40px;background:#468' onclick="document.title='clicks=' + (++window.n) + ' sel=' + String(getSelection())"></div>
 <p id=text style='position:absolute;left:20px;top:100px;margin:0;font-size:24px'>some words to select</p>
 <a id=link href='/next' style='position:absolute;left:20px;top:200px;font-size:24px'>a link to hold</a>
+<img id=pic src='/pic.png' style='position:absolute;left:20px;top:260px;width:60px;height:60px'>
 <script>window.n = 0; document.title = 'clicks=0 sel=';</script>"""
 
 
@@ -25,6 +27,14 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
+        if self.path == "/pic.png":
+            body = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         body = (PAGE if self.path == "/" else "<!doctype html><title>next page</title>").encode()
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -60,6 +70,9 @@ def main():
         title, log = hold(binary, base, directory, "hold:30,212;wait:400")
         assert title == "clicks=0 sel=", title
         assert "long press sheet link " + base + "next" in log, log
+        # held on an image: its sheet reports the image address, which the download action of the sheet takes
+        title, log = hold(binary, base, directory, "hold:40,290;wait:400")
+        assert "image " + base + "pic.png" in log, log
         # an ordinary tap is still one click
         title, _ = hold(binary, base, directory, "tap:40,40;wait:400")
         assert title == "clicks=1 sel=", title
