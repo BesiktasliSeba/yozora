@@ -17,6 +17,7 @@ static NSString *const YZBlockThirdPartyCookiesKey = @"YZBlockThirdPartyCookies"
 static NSString *const YZTextZoomKey = @"YZTextZoom";
 static NSString *const YZReduceMotionKey = @"YZReduceMotion";
 static NSString *const YZHideBarsKey = @"YZHideBarsOnScroll";
+static NSString *const YZCrispScrollingKey = @"YZCrispScrolling";
 static NSString *const YZWebFontsKey = @"YZWebFonts";
 static NSString *const YZTranslateTargetKey = @"YZTranslateTarget";
 static NSString *const YZTranslateNeverKey = @"YZTranslateNever";
@@ -137,6 +138,10 @@ static YZLanguage YZDeviceLanguage(void) {
 // page that grows under the finger is not what every person wants
 + (BOOL)hideBarsOnScroll { return [self boolForKey:YZHideBarsKey defaultValue:NO]; }
 + (void)setHideBarsOnScroll:(BOOL)enabled { [self storeBool:enabled forKey:YZHideBarsKey]; }
+
+// off until asked for: the half resolution tile keeps a slow phone from showing blank strips while it scrolls
++ (BOOL)crispScrolling { return [self boolForKey:YZCrispScrollingKey defaultValue:NO]; }
++ (void)setCrispScrolling:(BOOL)enabled { [self storeBool:enabled forKey:YZCrispScrollingKey]; }
 
 + (BOOL)webFonts { return [self boolForKey:YZWebFontsKey defaultValue:YES]; }
 + (void)setWebFonts:(BOOL)enabled { [self storeBool:enabled forKey:YZWebFontsKey]; }
@@ -380,6 +385,7 @@ static NSString *YZAdblockRulesPath(void) {
     yozora_set_options(&options);
     yozora_set_tracker_blocking([self blockTrackers] ? 1 : 0);
     yozora_set_economy_raster([self economyRaster] ? 1 : 0);
+    yozora_set_crisp_scrolling([self crispScrolling] ? 1 : 0);
 }
 
 @end

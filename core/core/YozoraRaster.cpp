@@ -86,6 +86,16 @@ extern "C" void yozora_image_release(yozora_image* image)
         reinterpret_cast<SkImage*>(image)->unref();
 }
 
+// 1 keeps tiles that come into view while the page moves at the screen scale: a slow device then shows the
+// page color where a tile is not ready yet, instead of a half resolution tile that is replaced when the page
+// stops
+static std::atomic<bool> crisp_scrolling { false };
+
+extern "C" void yozora_set_crisp_scrolling(int enabled)
+{
+    crisp_scrolling.store(enabled != 0);
+}
+
 namespace Yozora {
 namespace {
 constexpr int tileWidth = 256;
@@ -1134,7 +1144,7 @@ struct Raster::State {
             bool viewport_pass = !flat && state.needsViewportPass(*scene, scroll);
             // the page moved within the last moments: tiles of the screen that are missing are made coarse
             bool moving = state.last_scroll_move != Clock::time_point() && Clock::now() - state.last_scroll_move < std::chrono::milliseconds(150);
-            bool coarse = !flat && moving && scene->scale > 1.01f;
+            bool coarse = !flat && moving && scene->scale > 1.01f && !crisp_scrolling.load();
             state.requested = false;
             // this pass is the refinement that was waited for
             if (state.refine_pending && Clock::now() >= state.refine_at)

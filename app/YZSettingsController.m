@@ -36,6 +36,7 @@ typedef enum {
     YZRowEconomy,
     YZRowReduceMotion,
     YZRowHideBars,
+    YZRowCrispScrolling,
     YZRowWebFonts,
     YZRowDebug,
     YZRowLogging,
@@ -829,7 +830,7 @@ static NSArray *YZEngineTints(void) {
         [NSArray arrayWithObjects:YZT(@"Основные"), row(YZRowLanguage), row(YZRowTheme), row(YZRowAccent), row(YZRowPrivateAccent), row(YZRowSearchEngine), row(YZRowTextSize), nil],
         [NSArray arrayWithObjects:YZT(@"Приватность и безопасность"), row(YZRowBlockTrackers), row(YZRowAdblockRules), row(YZRowSitePermissions), row(YZRowBlockThirdPartyCookies),
          row(YZRowSaveHistory), row(YZRowClearHistory), row(YZRowClearSiteData), nil],
-        [NSArray arrayWithObjects:YZT(@"Страницы"), row(YZRowJavascript), row(YZRowEconomy), row(YZRowReduceMotion), row(YZRowHideBars), row(YZRowWebFonts), nil],
+        [NSArray arrayWithObjects:YZT(@"Страницы"), row(YZRowJavascript), row(YZRowEconomy), row(YZRowCrispScrolling), row(YZRowReduceMotion), row(YZRowHideBars), row(YZRowWebFonts), nil],
         [NSArray arrayWithObjects:YZT(@"Для разработчиков"), row(YZRowDebug), row(YZRowLogging), row(YZRowLogOpen), row(YZRowZombies), row(YZRowJit), row(YZRowJitState), nil],
         [NSArray arrayWithObjects:YZT(@"О программе"), row(YZRowAbout), nil],
         nil];
@@ -1040,6 +1041,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowEconomy: return YZT(@"Экономная отрисовка");
     case YZRowReduceMotion: return YZT(@"Меньше анимаций");
     case YZRowHideBars: return YZT(@"Прятать адресную строку при прокрутке");
+    case YZRowCrispScrolling: return YZT(@"Чёткость при прокрутке");
     case YZRowWebFonts: return YZT(@"Шрифты сайтов");
     case YZRowDebug: return YZT(@"Отладка");
     case YZRowLogging: return YZT(@"Логирование");
@@ -1063,6 +1065,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowAdblockRules: return YZT(@"Свои правила, как в списках Adblock Plus");
     case YZRowSitePermissions: return YZT(@"Место, уведомления и сайты без блокировщика");
     case YZRowEconomy: return YZT(@"Страницы рисуются быстрее и мягче");
+    case YZRowCrispScrolling: return YZT(@"Страницы не размываются на ходу, на медленном телефоне возможны пустые полосы");
     case YZRowReduceMotion: return YZT(@"Сайты анимируют меньше и реже");
     case YZRowHideBars: return YZT(@"Страница занимает весь экран, адрес возвращается наверху страницы");
     case YZRowWebFonts: return YZT(@"Без них страницы грузятся быстрее");
@@ -1093,6 +1096,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowClearSiteData: return YZIconSweep;
     case YZRowJavascript: return YZIconCode;
     case YZRowEconomy: return YZIconSpeed;
+    case YZRowCrispScrolling: return YZIconImage;
     case YZRowReduceMotion: return YZIconAnimation;
     case YZRowHideBars: return YZIconArrowDown;
     case YZRowWebFonts: return YZIconFont;
@@ -1109,7 +1113,7 @@ static NSArray *YZEngineLogos(void) {
 
 - (BOOL)isSwitch:(YZRow)kind {
     return kind == YZRowBlockTrackers || kind == YZRowBlockThirdPartyCookies || kind == YZRowSaveHistory
-        || kind == YZRowJavascript || kind == YZRowEconomy || kind == YZRowReduceMotion || kind == YZRowHideBars || kind == YZRowWebFonts
+        || kind == YZRowJavascript || kind == YZRowEconomy || kind == YZRowCrispScrolling || kind == YZRowReduceMotion || kind == YZRowHideBars || kind == YZRowWebFonts
         || kind == YZRowDebug || kind == YZRowLogging || kind == YZRowZombies || kind == YZRowJit;
 }
 
@@ -1120,6 +1124,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowSaveHistory: return [YZSettings saveHistory];
     case YZRowJavascript: return [YZSettings javascript];
     case YZRowEconomy: return [YZSettings economyRaster];
+    case YZRowCrispScrolling: return [YZSettings crispScrolling];
     case YZRowReduceMotion: return [YZSettings reduceMotion];
     case YZRowHideBars: return [YZSettings hideBarsOnScroll];
     case YZRowWebFonts: return [YZSettings webFonts];
@@ -1139,6 +1144,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowSaveHistory: [YZSettings setSaveHistory:on]; break;
     case YZRowJavascript: [YZSettings setJavascript:on]; break;
     case YZRowEconomy: [YZSettings setEconomyRaster:on]; break;
+    case YZRowCrispScrolling: [YZSettings setCrispScrolling:on]; break;
     case YZRowReduceMotion: [YZSettings setReduceMotion:on]; break;
     case YZRowHideBars: [YZSettings setHideBarsOnScroll:on]; break;
     case YZRowWebFonts: [YZSettings setWebFonts:on]; break;

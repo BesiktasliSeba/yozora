@@ -39,6 +39,8 @@ extern NSString *const YZSettingsDidChangeNotification;
 + (void)setBlockThirdPartyCookies:(BOOL)enabled;
 /* pages are asked for fewer animations and run them at 30 frames a second, on by default for phones under a gigabyte */
 + (BOOL)reduceMotion;
++ (BOOL)crispScrolling;
++ (void)setCrispScrolling:(BOOL)enabled;
 + (BOOL)hideBarsOnScroll;
 + (void)setHideBarsOnScroll:(BOOL)enabled;
 + (void)setReduceMotion:(BOOL)enabled;
