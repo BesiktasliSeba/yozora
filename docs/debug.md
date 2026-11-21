@@ -13,7 +13,7 @@ the core writes lines as `HH:MM:SS.mmm L category: message`, `core/yozora_log.c`
 
 ## crashes
 
-the app keeps its own record of the last run (`YZCrash`): the screen it was on, notes at the steps of a launch, memory warnings, faults. the log screen shows it as crashes. a signal handler writes the addresses of the stack and `tools/yozora_crash.py LOG UNSTRIPPED_BINARY` symbolizes them.
+the app keeps its own record of the last run (`YZCrash`, `Library/Caches/yozora-crash.log`): the screen it was on, notes at the steps of a launch, memory warnings, faults. the log screen shows it as crashes. the recorder is installed first in `main`, before javascriptcore starts, and the notes `launch: javascriptcore start` and `launch: javascriptcore ready` bracket that step: a record with the first and not the second means the launch died while the engine started (the jit maps its executable region there). a crash before `main` (dyld, a static initializer) leaves no record, only the system crash report. a signal handler writes the addresses of the stack and `tools/yozora_crash.py LOG UNSTRIPPED_BINARY` symbolizes them.
 
 ## environment
 

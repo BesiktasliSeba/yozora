@@ -20,6 +20,7 @@ in `Library/Caches`, which the system may empty and does not back up:
 - `YozoraThumbnails`: previews of tabs
 - `YozoraIcons`: site icons
 - `yozora.log`, `yozora-previous.log`: the log of this run and of the run before, see [debug](debug.md)
+- `yozora-crash.log`: the crash record, 64 KB, see [debug](debug.md)
 
 ## the store
 

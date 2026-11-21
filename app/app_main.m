@@ -31,8 +31,6 @@ static void YZDownloadObserver(unsigned identifier, int state, void *context);
 @synthesize window = _window;
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)options {
     (void)options;
-    // first, so that a crash while the rest starts is recorded too
-    [YZCrash install];
     _backgroundTask = UIBackgroundTaskInvalid;
     _pausedForBackground = [[NSMutableSet alloc] init];
     yozora_downloads_set_observer(YZDownloadObserver, self);
@@ -265,6 +263,9 @@ int main(int argc, char **argv) {
     // the class and the selector (and every NSLog of the app) then reaches the log file
     setenv("CFLOG_FORCE_STDERR", "1", 1);
     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+    // before JavaScriptCore: its start maps the jit region and a signal there happened ahead of the recorder
+    // that used to be installed in didFinishLaunching, so a launch crash on a new ios left no file at all
+    [YZCrash install];
     // zombies first, before any object of the app can be freed: the names of the freed objects need the log, so
     // the capture goes on with them
     if ([YZSettings zombies]) {
@@ -273,7 +274,9 @@ int main(int argc, char **argv) {
     }
     // the jit is chosen while JavaScriptCore starts, so the setting is read here and a change in the settings counts at the next launch
     yozora_set_jit_requested([YZSettings jit] ? 1 : 0);
+    [YZCrash note:@"launch: javascriptcore start"];
     yozora_initialize_javascript();
+    [YZCrash note:@"launch: javascriptcore ready"];
     int result = UIApplicationMain(argc, argv, nil, NSStringFromClass([YZAppDelegate class]));
     [pool drain];
     return result;
