@@ -73,18 +73,24 @@ static BOOL YZIncognito = NO;
     [self storeInteger:value ? 1 : 0 forKey:key];
 }
 
-// until a language is picked the interface follows the first language of the device: russian for a russian
-// device, english for the rest, those are the two it has. the guess is not written, so it keeps following the
-// device
+// until a language is picked the interface follows the first language of the device when supported
 static YZLanguage YZDeviceLanguage(void) {
     NSArray *preferred = [NSLocale preferredLanguages];
     NSString *first = [preferred count] ? [preferred objectAtIndex:0] : nil;
-    return [first hasPrefix:@"ru"] ? YZLanguageRussian : YZLanguageEnglish;
+    if ([first hasPrefix:@"ru"])
+        return YZLanguageRussian;
+    if ([first hasPrefix:@"ja"])
+        return YZLanguageJapanese;
+    return YZLanguageEnglish;
 }
 
 + (YZLanguage)language {
     NSInteger value = [self integerForKey:YZLanguageKey defaultValue:YZDeviceLanguage()];
-    return value == YZLanguageEnglish ? YZLanguageEnglish : YZLanguageRussian;
+    switch (value) {
+    case YZLanguageEnglish: return YZLanguageEnglish;
+    case YZLanguageJapanese: return YZLanguageJapanese;
+    default: return YZLanguageRussian;
+    }
 }
 + (void)setLanguage:(YZLanguage)language { [self storeInteger:language forKey:YZLanguageKey]; }
 
@@ -140,8 +146,13 @@ static YZLanguage YZDeviceLanguage(void) {
         // the first language the device lists, or the language of the interface when the table has none of them
         NSArray *preferred = [NSLocale preferredLanguages];
         index = [preferred count] ? yozora_tr_language_find([[preferred objectAtIndex:0] UTF8String]) : -1;
-        if (index < 0)
-            index = yozora_tr_language_find([self language] == YZLanguageEnglish ? "en" : "ru");
+        if (index < 0) {
+            switch ([self language]) {
+            case YZLanguageRussian: index = yozora_tr_language_find("ru"); break;
+            case YZLanguageEnglish: index = yozora_tr_language_find("en"); break;
+            case YZLanguageJapanese: index = yozora_tr_language_find("ja"); break;
+            }
+        }
     }
     return [NSString stringWithUTF8String:yozora_tr_language_code((size_t)index)];
 }

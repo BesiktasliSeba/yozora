@@ -84,7 +84,7 @@ the menu offers to translate the page (`core/yozora_translate.c`, the library `y
 
 ## languages
 
-the interface is russian and english. until a language is chosen it follows the first language of the device.
+the interface is available in russian, english and japanese. choose a language in settings under general. until a language is chosen, the app uses the first language of the device if supported, or english otherwise.
 
 ## error pages
 

@@ -5,7 +5,8 @@
 
 typedef enum {
     YZLanguageRussian,
-    YZLanguageEnglish
+    YZLanguageEnglish,
+    YZLanguageJapanese
 } YZLanguage;
 
 typedef enum {

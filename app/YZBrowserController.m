@@ -749,7 +749,7 @@ static void YZOpenInOtherApp(NSURL *url, BOOL universalOnly, void (^done)(BOOL o
         // the value of UIApplicationOpenURLOptionUniversalLinksOnly is its own name, the constant is missing from the old sdk
         NSDictionary *options = universalOnly ? [NSDictionary dictionaryWithObject:[NSNumber numberWithBool:YES] forKey:@"UIApplicationOpenURLOptionUniversalLinksOnly"] : [NSDictionary dictionary];
         void (^handler)(BOOL) = [[done copy] autorelease];
-        void (*open)(id, SEL, NSURL *, NSDictionary *, void (^)(BOOL)) = (void (*)(id, SEL, NSURL *, NSDictionary *, void (^)(BOOL)))objc_msgSend;
+        void (*open)(id, SEL, NSURL *, NSDictionary *, void (^)(BOOL)) = (void (*)(id, SEL, NSURL *, NSDictionary *, void (^)(BOOL)))(void *)objc_msgSend;
         open(application, modern, url, options, handler);
         return;
     }

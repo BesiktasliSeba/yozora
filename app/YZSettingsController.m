@@ -704,12 +704,21 @@ static UIColor *YZHex(unsigned rgb) {
     return [UIColor colorWithRed:((rgb >> 16) & 255) / 255.0f green:((rgb >> 8) & 255) / 255.0f blue:(rgb & 255) / 255.0f alpha:1];
 }
 
-// the Russian flag as three bands, the British one as the union jack (the red diagonals are not offset, at this size nobody sees it)
-static UIImage *YZFlagMark(BOOL english, CGFloat side) {
+// the options are in YZLanguage order and use their own language names
+static NSArray *YZLanguageNames(void) {
+    return [NSArray arrayWithObjects:@"Русский", @"English", @"日本語", nil];
+}
+
+static UIImage *YZFlagMark(YZLanguage language, CGFloat side) {
     UIBezierPath *shape = nil;
-    YZBeginMark(side, &shape, english ? YZShapeFlower : YZShapeCookie);
+    YZBeginMark(side, &shape, language == YZLanguageEnglish ? YZShapeFlower : YZShapeCookie);
     CGContextRef ctx = UIGraphicsGetCurrentContext();
-    if (!english) {
+    if (language == YZLanguageJapanese) {
+        [[UIColor whiteColor] setFill];
+        CGContextFillRect(ctx, CGRectMake(0, 0, side, side));
+        [YZHex(0xBC002D) setFill];
+        CGContextFillEllipseInRect(ctx, CGRectMake(side * 0.25f, side * 0.25f, side * 0.5f, side * 0.5f));
+    } else if (language == YZLanguageRussian) {
         [[UIColor whiteColor] setFill];
         CGContextFillRect(ctx, CGRectMake(0, 0, side, side / 3));
         [YZHex(0x0039A6) setFill];
@@ -927,7 +936,7 @@ static NSArray *YZEngineTints(void) {
 
 #pragma mark values
 
-- (NSString *)languageName { return [YZSettings language] == YZLanguageEnglish ? @"English" : @"Русский"; }
+- (NSString *)languageName { return [YZLanguageNames() objectAtIndex:[YZSettings language]]; }
 
 // the hex digits of the chosen accent, or the word for the purple of the palette
 - (NSString *)accentName {
@@ -1315,9 +1324,10 @@ static NSArray *YZEngineLogos(void) {
     switch (kind) {
     case YZRowLanguage:
         choice.heading = YZT(@"Язык");
-        choice.titles = [NSArray arrayWithObjects:@"Русский", @"English", nil];
+        choice.titles = YZLanguageNames();
         choice.details = nil;
-        choice.pictures = [NSArray arrayWithObjects:YZFlagMark(NO, 40), YZFlagMark(YES, 40), nil];
+        choice.pictures = [NSArray arrayWithObjects:YZFlagMark(YZLanguageRussian, 40), YZFlagMark(YZLanguageEnglish, 40),
+                           YZFlagMark(YZLanguageJapanese, 40), nil];
         choice.tints = nil;
         choice.bareMarks = YES;
         choice.selected = [YZSettings language];
