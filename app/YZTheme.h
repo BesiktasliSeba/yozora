@@ -1,4 +1,5 @@
 #import <UIKit/UIKit.h>
+#import "YZSettings.h"
 
 typedef enum {
     YZIconBack,
@@ -113,6 +114,10 @@ typedef enum {
 + (UIImage *)logoNamed:(NSString *)name;
 /* the app name in Metropolis Bold, the face of the Firefox wordmark, as a tinted picture of the given height */
 + (UIImage *)wordmarkWithHeight:(CGFloat)height color:(UIColor *)color;
+/* the picture of the chosen mascot for a place: @"hero" (start page and splash), @"sticker" (about) or @"error" */
++ (UIImage *)mascotImage:(NSString *)place;
+/* the same for a mascot that is not the chosen one, for the picker */
++ (UIImage *)mascotImage:(NSString *)place mascot:(YZMascot)mascot;
 /* a stable pastel color for a site tile, from its host */
 + (UIColor *)tileColorForHost:(NSString *)host;
 /* the interface animations of the chrome: they finish at once when the system asks for reduced motion (ios 8 and later) */

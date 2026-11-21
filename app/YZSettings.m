@@ -17,6 +17,7 @@ static NSString *const YZBlockThirdPartyCookiesKey = @"YZBlockThirdPartyCookies"
 static NSString *const YZTextZoomKey = @"YZTextZoom";
 static NSString *const YZReduceMotionKey = @"YZReduceMotion";
 static NSString *const YZHideBarsKey = @"YZHideBarsOnScroll";
+static NSString *const YZMascotKey = @"YZMascot";
 static NSString *const YZCrispScrollingKey = @"YZCrispScrolling";
 static NSString *const YZWebFontsKey = @"YZWebFonts";
 static NSString *const YZTranslateTargetKey = @"YZTranslateTarget";
@@ -98,6 +99,13 @@ static YZLanguage YZDeviceLanguage(void) {
     }
 }
 + (void)setLanguage:(YZLanguage)language { [self storeInteger:language forKey:YZLanguageKey]; }
+
+
+// the girl that came with the app until the person picks the fox, a value of a later version counts as the girl
++ (YZMascot)mascot {
+    return [self integerForKey:YZMascotKey defaultValue:YZMascotSan] == YZMascotFox ? YZMascotFox : YZMascotSan;
+}
++ (void)setMascot:(YZMascot)mascot { [self storeInteger:mascot forKey:YZMascotKey]; }
 
 + (YZThemeKind)theme {
     NSInteger value = [self integerForKey:YZThemeKey defaultValue:YZThemeLight];

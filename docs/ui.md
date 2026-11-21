@@ -90,11 +90,13 @@ the interface is available in russian, english and japanese. choose a language i
 
 a failed load shows the address, the cause and a retry button in the page area. dns, connection, timeout, tls and interrupted transfers have their own messages, and the technical error stays visible below them.
 
-## app icon
+## app icon and mascot
 
 the icon row in settings offers the icon of the app and the alternate icons the Info.plist lists (`Fox`). `app/YZAppIcon.m` picks the way: ios 10.3 and later take `setAlternateIconName:`, older systems and a refused call fall back to a rewrite of the app's own Info.plist (the primary icon files are swapped for the alternate files, the packaged entries are saved under `YozoraOriginalIcons`), `uicache` and a restart of SpringBoard, which closes the app. the choice is also kept in the user defaults and put back at launch, since a new install brings the packaged plist. an install under `/var/mobile/Applications` has its Icon files overwritten from `yozora-original-icons` and the alternate ones. the rewrite needs a bundle the app can write: the deb gives it to mobile in `postinst`, and where it is not so the row is dimmed and says why.
 
 the alternate icon files are rounded and prerendered (`tools/make_icons.py SOURCE OUTPUT NAME`), because the home screen of ios 5 and 6 does not mask the icon of an app in /Applications. the same tool writes the icon of the app with the name `Icon`.
+
+the mascot is the picture of the start page and the splash (hero), the about screen (sticker) and the error screens (error): `Yozora-san`, the default, or `Yozora fox`. the fox art is cut from the pictures in `tools/art` by `tools/make_mascot_art.py`, which finds the black ground from the border and fades the edge by brightness so no dark halo is left.
 
 ## reuse
 

@@ -13,7 +13,7 @@
     root.backgroundColor = [YZSplashController launchColor];
     self.view = root;
     [root release];
-    _hero = [[UIImageView alloc] initWithImage:[UIImage imageNamed:@"yozora-hero.png"]];
+    _hero = [[UIImageView alloc] initWithImage:[YZTheme mascotImage:@"hero"]];
     _hero.contentMode = UIViewContentModeScaleAspectFit;
     [root addSubview:_hero];
     _name = [[UIImageView alloc] initWithImage:[YZTheme wordmarkWithHeight:30 color:[UIColor whiteColor]]];

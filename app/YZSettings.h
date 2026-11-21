@@ -9,6 +9,12 @@ typedef enum {
     YZLanguageJapanese
 } YZLanguage;
 
+/* the picture that stands for the app on the start page, the about screen and the error screens */
+typedef enum {
+    YZMascotSan,
+    YZMascotFox
+} YZMascot;
+
 typedef enum {
     YZThemeLight,
     YZThemeDark,
@@ -22,6 +28,8 @@ extern NSString *const YZSettingsDidChangeNotification;
 @interface YZSettings : NSObject
 + (YZLanguage)language;
 + (void)setLanguage:(YZLanguage)language;
++ (YZMascot)mascot;
++ (void)setMascot:(YZMascot)mascot;
 + (YZThemeKind)theme;
 + (void)setTheme:(YZThemeKind)theme;
 + (yozora_search_engine)searchEngine;

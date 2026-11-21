@@ -322,7 +322,7 @@ to = "yozora-sticker@2x.png"
 from = "app/icons/yozora-sticker@3x.png"
 to = "yozora-sticker@3x.png"
 
-# the alternate icon and the copies of the icon of the app: YZAppIcon.m puts those back over the Icon files of an install that has to overwrite them
+# the alternate icon, the fox mascot and the copies of the icon of the app: YZAppIcon.m puts those back over the Icon files of an install that has to overwrite them
 
 [[ipa.ipa-armv7.file]]
 from = "app/icons/Fox-60.png"
@@ -359,6 +359,38 @@ to = "Fox.png"
 [[ipa.ipa-armv7.file]]
 from = "app/icons/Fox@2x.png"
 to = "Fox@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/fox-error.png"
+to = "fox-error.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/fox-error@2x.png"
+to = "fox-error@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/fox-error@3x.png"
+to = "fox-error@3x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/fox-hero.png"
+to = "fox-hero.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/fox-hero@2x.png"
+to = "fox-hero@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/fox-sticker.png"
+to = "fox-sticker.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/fox-sticker@2x.png"
+to = "fox-sticker@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/fox-sticker@3x.png"
+to = "fox-sticker@3x.png"
 
 [[ipa.ipa-armv7.file]]
 from = "app/icons/Icon-60.png"
@@ -868,7 +900,7 @@ to = "yozora-sticker@2x.png"
 from = "app/icons/yozora-sticker@3x.png"
 to = "yozora-sticker@3x.png"
 
-# the alternate icon and the copies of the icon of the app: YZAppIcon.m puts those back over the Icon files of an install that has to overwrite them
+# the alternate icon, the fox mascot and the copies of the icon of the app: YZAppIcon.m puts those back over the Icon files of an install that has to overwrite them
 
 [[ipa.ipa-arm64.file]]
 from = "app/icons/Fox-60.png"
@@ -905,6 +937,38 @@ to = "Fox.png"
 [[ipa.ipa-arm64.file]]
 from = "app/icons/Fox@2x.png"
 to = "Fox@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/fox-error.png"
+to = "fox-error.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/fox-error@2x.png"
+to = "fox-error@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/fox-error@3x.png"
+to = "fox-error@3x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/fox-hero.png"
+to = "fox-hero.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/fox-hero@2x.png"
+to = "fox-hero@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/fox-sticker.png"
+to = "fox-sticker.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/fox-sticker@2x.png"
+to = "fox-sticker@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/fox-sticker@3x.png"
+to = "fox-sticker@3x.png"
 
 [[ipa.ipa-arm64.file]]
 from = "app/icons/Icon-60.png"
@@ -1414,7 +1478,7 @@ to = "yozora-sticker@2x.png"
 from = "app/icons/yozora-sticker@3x.png"
 to = "yozora-sticker@3x.png"
 
-# the alternate icon and the copies of the icon of the app: YZAppIcon.m puts those back over the Icon files of an install that has to overwrite them
+# the alternate icon, the fox mascot and the copies of the icon of the app: YZAppIcon.m puts those back over the Icon files of an install that has to overwrite them
 
 [[ipa.ipa.file]]
 from = "app/icons/Fox-60.png"
@@ -1451,6 +1515,38 @@ to = "Fox.png"
 [[ipa.ipa.file]]
 from = "app/icons/Fox@2x.png"
 to = "Fox@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/fox-error.png"
+to = "fox-error.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/fox-error@2x.png"
+to = "fox-error@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/fox-error@3x.png"
+to = "fox-error@3x.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/fox-hero.png"
+to = "fox-hero.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/fox-hero@2x.png"
+to = "fox-hero@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/fox-sticker.png"
+to = "fox-sticker.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/fox-sticker@2x.png"
+to = "fox-sticker@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/fox-sticker@3x.png"
+to = "fox-sticker@3x.png"
 
 [[ipa.ipa.file]]
 from = "app/icons/Icon-60.png"

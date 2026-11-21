@@ -9,7 +9,7 @@
     self = [super initWithFrame:CGRectZero];
     if (!self)
         return nil;
-    _picture = [[UIImageView alloc] initWithImage:[UIImage imageNamed:@"yozora-error.png"]];
+    _picture = [[UIImageView alloc] initWithImage:[YZTheme mascotImage:@"error"]];
     _picture.contentMode = UIViewContentModeScaleAspectFit;
     [self addSubview:_picture];
     _heading = [[UILabel alloc] initWithFrame:CGRectZero];
@@ -46,6 +46,7 @@
 
 - (void)applyTheme {
     self.backgroundColor = [YZTheme surfaceColor];
+    _picture.image = [YZTheme mascotImage:@"error"];
     _heading.textColor = [YZTheme textColor];
     _detail.textColor = [YZTheme textColor];
     _address.textColor = [YZTheme subtleTextColor];

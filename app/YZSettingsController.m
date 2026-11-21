@@ -24,6 +24,7 @@ typedef enum {
     YZRowTheme,
     YZRowAccent,
     YZRowPrivateAccent,
+    YZRowMascot,
     YZRowSearchEngine,
     YZRowTextSize,
     YZRowAppIcons,
@@ -891,6 +892,16 @@ static NSArray *YZLanguageNames(void) {
     return [NSArray arrayWithObjects:@"Русский", @"English", @"日本語", nil];
 }
 
+// the sticker of a mascot as it is, fitted into a square, for the picker: its outline is its own shape
+static UIImage *YZMascotMark(YZMascot mascot, CGFloat side) {
+    UIImage *picture = [YZTheme mascotImage:@"sticker" mascot:mascot];
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(side, side), NO, 0);
+    [picture drawInRect:CGRectMake(0, 0, side, side)];
+    UIImage *mark = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return mark;
+}
+
 static UIImage *YZFlagMark(YZLanguage language, CGFloat side) {
     UIBezierPath *shape = nil;
     // the sun shape for the country of the rising sun, the flower for the union jack, the cookie for the bands
@@ -1007,7 +1018,7 @@ static NSArray *YZEngineTints(void) {
 - (NSArray *)buildSections {
     NSNumber *(^row)(YZRow) = ^(YZRow kind) { return [NSNumber numberWithInt:kind]; };
     return [NSArray arrayWithObjects:
-        [NSArray arrayWithObjects:YZT(@"Основные"), row(YZRowLanguage), row(YZRowTheme), row(YZRowAccent), row(YZRowPrivateAccent), row(YZRowSearchEngine), row(YZRowTextSize), row(YZRowAppIcons), nil],
+        [NSArray arrayWithObjects:YZT(@"Основные"), row(YZRowLanguage), row(YZRowTheme), row(YZRowAccent), row(YZRowPrivateAccent), row(YZRowMascot), row(YZRowSearchEngine), row(YZRowTextSize), row(YZRowAppIcons), nil],
         [NSArray arrayWithObjects:YZT(@"Приватность и безопасность"), row(YZRowBlockTrackers), row(YZRowAdblockRules), row(YZRowSitePermissions), row(YZRowBlockThirdPartyCookies),
          row(YZRowSaveHistory), row(YZRowClearHistory), row(YZRowClearSiteData), nil],
         [NSArray arrayWithObjects:YZT(@"Страницы"), row(YZRowJavascript), row(YZRowEconomy), row(YZRowCrispScrolling), row(YZRowReduceMotion), row(YZRowHideBars), row(YZRowWebFonts), nil],
@@ -1275,6 +1286,11 @@ static NSArray *YZEngineTints(void) {
     return state;
 }
 
+// the names of the mascots are names, they stay as they are in every language
+- (NSString *)mascotName {
+    return [YZSettings mascot] == YZMascotFox ? @"Yozora fox" : @"Yozora-san";
+}
+
 - (NSString *)themeName {
     switch ([YZSettings theme]) {
     case YZThemeDark: return YZT(@"Тёмная");
@@ -1303,6 +1319,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowTheme: return YZT(@"Тема");
     case YZRowAccent: return YZT(@"Цвет акцента");
     case YZRowPrivateAccent: return YZT(@"Акцент приватной вкладки");
+    case YZRowMascot: return YZT(@"Маскот");
     case YZRowSearchEngine: return YZT(@"Поисковая система");
     case YZRowTextSize: return YZT(@"Размер текста");
     case YZRowBlockTrackers: return YZT(@"Блокировать рекламу и трекеры");
@@ -1337,6 +1354,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowTheme: return [self themeName];
     case YZRowAccent: return [self accentName];
     case YZRowPrivateAccent: return [self privateAccentName];
+    case YZRowMascot: return [self mascotName];
     case YZRowSearchEngine: return [self coreName];
     case YZRowTextSize: return [NSString stringWithFormat:@"%d%%", (int)[YZSettings textZoom]];
     case YZRowAdblockRules: return YZT(@"Свои правила, как в списках Adblock Plus");
@@ -1362,6 +1380,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowTheme: return YZIconPalette;
     case YZRowAccent: return YZIconPalette;
     case YZRowPrivateAccent: return YZIconBrush;
+    case YZRowMascot: return YZIconImage;
     case YZRowSearchEngine: return YZIconSearch;
     case YZRowTextSize: return YZIconTextSize;
     case YZRowBlockTrackers: return YZIconShield;
@@ -1648,6 +1667,15 @@ static NSArray *YZEngineLogos(void) {
         choice.bareMarks = YES;
         choice.selected = [YZSettings theme];
         break;
+    case YZRowMascot:
+        choice.heading = YZT(@"Маскот");
+        choice.titles = [NSArray arrayWithObjects:@"Yozora-san", @"Yozora fox", nil];
+        choice.details = nil;
+        choice.pictures = [NSArray arrayWithObjects:YZMascotMark(YZMascotSan, 40), YZMascotMark(YZMascotFox, 40), nil];
+        choice.tints = nil;
+        choice.bareMarks = YES;
+        choice.selected = [YZSettings mascot];
+        break;
     case YZRowSearchEngine:
         choice.heading = YZT(@"Поисковая система");
         choice.titles = YZEngineNames();
@@ -1668,6 +1696,7 @@ static NSArray *YZEngineLogos(void) {
         switch (kind) {
         case YZRowLanguage: [YZSettings setLanguage:(YZLanguage)index]; break;
         case YZRowTheme: [YZSettings setTheme:(YZThemeKind)index]; break;
+        case YZRowMascot: [YZSettings setMascot:(YZMascot)index]; break;
         case YZRowSearchEngine: [YZSettings setSearchEngine:(yozora_search_engine)index]; break;
         default: break;
         }
@@ -1690,6 +1719,7 @@ static NSArray *YZEngineLogos(void) {
     switch (kind) {
     case YZRowLanguage:
     case YZRowTheme:
+    case YZRowMascot:
     case YZRowSearchEngine:
         [self pushChoice:kind];
         break;
@@ -2088,7 +2118,7 @@ static NSArray *YZEngineLogos(void) {
     [host addSubview:card];
     CGFloat inner = cardWidth - 48;
     CGFloat y = 28;
-    UIImageView *sticker = [[[UIImageView alloc] initWithImage:[UIImage imageNamed:@"yozora-sticker.png"]] autorelease];
+    UIImageView *sticker = [[[UIImageView alloc] initWithImage:[YZTheme mascotImage:@"sticker"]] autorelease];
     sticker.contentMode = UIViewContentModeScaleAspectFit;
     sticker.frame = CGRectMake((cardWidth - 144) / 2, y, 144, 144);
     [card addSubview:sticker];

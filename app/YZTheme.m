@@ -344,6 +344,14 @@ static UIImage *YZTintedMask(CGImageRef mask, CGFloat size, UIColor *color, void
     return logo;
 }
 
++ (UIImage *)mascotImage:(NSString *)place {
+    return [self mascotImage:place mascot:[YZSettings mascot]];
+}
+
++ (UIImage *)mascotImage:(NSString *)place mascot:(YZMascot)mascot {
+    return [UIImage imageNamed:[NSString stringWithFormat:@"%@-%@", mascot == YZMascotFox ? @"fox" : @"yozora", place]];
+}
+
 + (UIImage *)wordmarkWithHeight:(CGFloat)height color:(UIColor *)color {
     static UIImage *mask;
     if (!mask)

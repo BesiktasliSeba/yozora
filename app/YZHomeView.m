@@ -106,6 +106,8 @@ static const CGFloat YZTileSide = 16;
 
 - (void)applyTheme {
     self.backgroundColor = [YZTheme surfaceColor];
+    // the mascot is a setting like the theme, and the picture is only made when the brand is first laid out
+    _brandImage.image = [YZTheme mascotImage:@"hero"];
     _contentDirty = YES;
     _builtWidth = 0;
     [self setNeedsLayout];
@@ -220,7 +222,7 @@ static const CGFloat YZTileSide = 16;
 // begin
 - (CGFloat)layoutBrandFromTop:(CGFloat)top {
     if (!_brandImage) {
-        _brandImage = [[UIImageView alloc] initWithImage:[UIImage imageNamed:@"yozora-hero"]];
+        _brandImage = [[UIImageView alloc] initWithImage:[YZTheme mascotImage:@"hero"]];
         _brandImage.contentMode = UIViewContentModeScaleAspectFit;
         [self addSubview:_brandImage];
         _brandName = [[UIImageView alloc] initWithFrame:CGRectZero];

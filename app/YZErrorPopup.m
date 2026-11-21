@@ -32,7 +32,7 @@ static const CGFloat YZPopupButtonHeight = 44;
     _card.layer.shadowOffset = CGSizeMake(0, 8);
     [self addSubview:_card];
     // the sticker has its own outline, so it is drawn whole and never clipped
-    _picture = [[UIImageView alloc] initWithImage:[UIImage imageNamed:@"yozora-error"]];
+    _picture = [[UIImageView alloc] initWithImage:[YZTheme mascotImage:@"error"]];
     _picture.contentMode = UIViewContentModeScaleAspectFit;
     [_card addSubview:_picture];
     _title = [[UILabel alloc] initWithFrame:CGRectZero];
