@@ -628,6 +628,37 @@ static BOOL YZAcceptsPhotos(NSString *accept) {
     return NO;
 }
 
+// the photo picker lists videos too when the field takes them, it shows pictures only until it is told
+static BOOL YZAcceptsVideo(NSString *accept) {
+    if (![accept length])
+        return YES;
+    NSString *lower = [accept lowercaseString];
+    NSArray *markers = [NSArray arrayWithObjects:@"video", @"*/*", @".mov", @".mp4", @".m4v", nil];
+    for (NSString *marker in markers) {
+        if ([lower rangeOfString:marker].location != NSNotFound)
+            return YES;
+    }
+    return NO;
+}
+
+// the media folder of the user. ios before 8 has no system file picker, so a file that is not a photo is
+// reached from here, as far as the process can read the folders
+static NSString *const YZStorageRoot = @"/var/mobile/Media";
+
+static BOOL YZStorageReadable(void) {
+    return [[NSFileManager defaultManager] contentsOfDirectoryAtPath:YZStorageRoot error:NULL] != nil;
+}
+
+// a folder of downloads without a file in it is no source: its sheet would close the picker without a word
+static BOOL YZDownloadsHaveFiles(void) {
+    NSString *directory = [YZDownloadsController directory];
+    for (NSString *name in [[NSFileManager defaultManager] contentsOfDirectoryAtPath:directory error:NULL]) {
+        if (![name hasPrefix:@"."] && ![name hasSuffix:@".part"])
+            return YES;
+    }
+    return NO;
+}
+
 static NSString *YZUploadDirectory(void) {
     NSString *directory = [NSTemporaryDirectory() stringByAppendingPathComponent:@"YozoraUploads"];
     [[NSFileManager defaultManager] createDirectoryAtPath:directory withIntermediateDirectories:YES attributes:nil error:NULL];
@@ -646,7 +677,7 @@ static void YZPruneUploads(NSString *directory) {
     }
 }
 
-typedef enum { YZFileSourcePhotos, YZFileSourceDownloads, YZFileSourceDocuments } YZFileSource;
+typedef enum { YZFileSourcePhotos, YZFileSourceDownloads, YZFileSourceDocuments, YZFileSourceStorage } YZFileSource;
 
 @implementation YZFilePicker
 
@@ -679,9 +710,13 @@ typedef enum { YZFileSourcePhotos, YZFileSourceDownloads, YZFileSourceDocuments 
         [titles addObject:YZT(@"Фото")];
         [sources addObject:[NSNumber numberWithInt:YZFileSourcePhotos]];
     }
-    if ([[NSFileManager defaultManager] fileExistsAtPath:[YZDownloadsController directory]]) {
+    if (YZDownloadsHaveFiles()) {
         [titles addObject:YZT(@"Загрузки")];
         [sources addObject:[NSNumber numberWithInt:YZFileSourceDownloads]];
+    }
+    if (YZStorageReadable()) {
+        [titles addObject:YZT(@"Память устройства")];
+        [sources addObject:[NSNumber numberWithInt:YZFileSourceStorage]];
     }
     if ([self hasDocumentPicker]) {
         [titles addObject:YZT(@"Файлы")];
@@ -744,6 +779,8 @@ typedef enum { YZFileSourcePhotos, YZFileSourceDownloads, YZFileSourceDocuments 
         [self openPhotos];
     else if (source == YZFileSourceDownloads)
         [self openDownloads];
+    else if (source == YZFileSourceStorage)
+        [self openStorageAt:YZStorageRoot];
     else
         [self openDocuments];
 }
@@ -768,6 +805,11 @@ typedef enum { YZFileSourcePhotos, YZFileSourceDownloads, YZFileSourceDocuments 
     UIImagePickerController *picker = [[[UIImagePickerController alloc] init] autorelease];
     picker.sourceType = UIImagePickerControllerSourceTypePhotoLibrary;
     picker.delegate = (id)self;
+    if (YZAcceptsVideo(_accept)) {
+        NSArray *types = [UIImagePickerController availableMediaTypesForSourceType:UIImagePickerControllerSourceTypePhotoLibrary];
+        if ([types count])
+            picker.mediaTypes = types;
+    }
     [self presentPicker:picker];
 }
 
@@ -845,6 +887,73 @@ typedef enum { YZFileSourcePhotos, YZFileSourceDownloads, YZFileSourceDocuments 
             return;
         }
         [self finishWithPaths:[NSArray arrayWithObject:[[entries objectAtIndex:index] objectForKey:@"path"]]];
+    }] retain];
+}
+
+#pragma mark device storage
+
+// one folder at a time as a list: a row to go up, folders, then files by name. a longer list is cut at the
+// size of a page list and says so. what the process cannot read shows as a row that says it
+- (void)openStorageAt:(NSString *)directory {
+    NSFileManager *files = [NSFileManager defaultManager];
+    NSError *error = nil;
+    NSArray *names = [files contentsOfDirectoryAtPath:directory error:&error];
+    NSMutableArray *folders = [NSMutableArray array], *plain = [NSMutableArray array];
+    for (NSString *name in names) {
+        if ([name hasPrefix:@"."])
+            continue;
+        NSString *path = [directory stringByAppendingPathComponent:name];
+        BOOL isDirectory = NO;
+        if (![files fileExistsAtPath:path isDirectory:&isDirectory])
+            continue;
+        [(isDirectory ? folders : plain) addObject:[NSDictionary dictionaryWithObjectsAndKeys:name, @"name", path, @"path", [NSNumber numberWithBool:isDirectory], @"directory", nil]];
+    }
+    NSComparisonResult (^byName)(NSDictionary *, NSDictionary *) = ^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+        return [[a objectForKey:@"name"] caseInsensitiveCompare:[b objectForKey:@"name"]];
+    };
+    [folders sortUsingComparator:byName];
+    [plain sortUsingComparator:byName];
+    NSMutableArray *entries = [NSMutableArray array], *texts = [NSMutableArray array], *flags = [NSMutableArray array];
+    void (^add)(NSDictionary *, NSString *, int) = ^(NSDictionary *entry, NSString *text, int flag) {
+        [entries addObject:entry ? entry : [NSDictionary dictionary]];
+        [texts addObject:text];
+        [flags addObject:[NSNumber numberWithInt:flag]];
+    };
+    if (![directory isEqualToString:@"/"])
+        add([NSDictionary dictionaryWithObject:[directory stringByDeletingLastPathComponent] forKey:@"up"], YZT(@"На уровень выше"), 0);
+    if (!names)
+        add(nil, YZT(@"Нет доступа к папке"), YOZORA_CHOICE_DISABLED);
+    else if (![folders count] && ![plain count])
+        add(nil, YZT(@"Папка пуста"), YOZORA_CHOICE_DISABLED);
+    NSUInteger room = YOZORA_CHOICE_MAX - [entries count] - 1;
+    NSUInteger listed = 0;
+    BOOL cut = NO;
+    for (NSDictionary *entry in [folders arrayByAddingObjectsFromArray:plain]) {
+        if (listed == room) {
+            cut = YES;
+            break;
+        }
+        BOOL isDirectory = [[entry objectForKey:@"directory"] boolValue];
+        add(entry, isDirectory ? [[entry objectForKey:@"name"] stringByAppendingString:@"/"] : [entry objectForKey:@"name"], 0);
+        ++listed;
+    }
+    if (cut)
+        add(nil, [NSString stringWithFormat:YZT(@"Показаны первые %d"), (int)listed], YOZORA_CHOICE_DISABLED);
+    _sheet = [[YZPickers presentChoicesInView:_hostView title:directory texts:texts flags:flags selected:-1 bottomInset:_bottomInset
+                                  completion:^(NSInteger index) {
+        [_sheet release];
+        _sheet = nil;
+        if (index < 0 || index >= (NSInteger)[entries count]) {
+            [self finishWithPaths:nil];
+            return;
+        }
+        NSDictionary *entry = [entries objectAtIndex:index];
+        if ([entry objectForKey:@"up"])
+            [self openStorageAt:[entry objectForKey:@"up"]];
+        else if ([[entry objectForKey:@"directory"] boolValue])
+            [self openStorageAt:[entry objectForKey:@"path"]];
+        else
+            [self finishWithPaths:[NSArray arrayWithObject:[entry objectForKey:@"path"]]];
     }] retain];
 }
 
