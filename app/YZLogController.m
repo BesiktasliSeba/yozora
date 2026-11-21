@@ -1,4 +1,5 @@
 #import "YZLogController.h"
+#import "YZClassic.h"
 #import "YZCrash.h"
 #import "YZCompat.h"
 #import "YZControls.h"
@@ -69,10 +70,8 @@ static UIFont *YZLogFont(CGFloat size) {
 - (UIButton *)roundButton:(YZIcon)icon action:(SEL)action label:(NSString *)label {
     UIButton *button = [UIButton buttonWithType:UIButtonTypeCustom];
     button.frame = CGRectMake(0, 0, 44, 44);
-    button.layer.cornerRadius = 22;
     button.tag = icon;
-    button.backgroundColor = [YZTheme stateColor];
-    [button setImage:[YZTheme icon:icon size:22 color:[YZTheme accentColor]] forState:UIControlStateNormal];
+    [YZClassic styleGlyphKey:button icon:icon size:22 modernRadius:22];
     button.accessibilityLabel = label;
     [button addTarget:self action:action forControlEvents:UIControlEventTouchUpInside];
     YZMotionAttachBounce(button, 0.06f);
@@ -141,8 +140,7 @@ static UIFont *YZLogFont(CGFloat size) {
     _titleLabel.textColor = [YZTheme textColor];
     _subtitleLabel.textColor = [YZTheme subtleTextColor];
     for (UIButton *button in [NSArray arrayWithObjects:_copy, _clear, nil]) {
-        button.backgroundColor = [YZTheme stateColor];
-        [button setImage:[YZTheme icon:(YZIcon)button.tag size:22 color:[YZTheme accentColor]] forState:UIControlStateNormal];
+        [YZClassic styleGlyphKey:button icon:(YZIcon)button.tag size:22 modernRadius:22];
     }
     [_table reloadData];
     [_sources applyTheme];
@@ -153,7 +151,7 @@ static UIFont *YZLogFont(CGFloat size) {
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
     CGFloat width = self.view.bounds.size.width, height = self.view.bounds.size.height;
-    CGFloat top = CGRectGetMaxY(self.navigationController.navigationBar.frame);
+    CGFloat top = [YZTheme barOverlap:self.navigationController.navigationBar];
     YZInstallBarTitle(self, _heading, self, @selector(back));
     [_fill placeInView:self.view controller:self];
     CGFloat side = 12;

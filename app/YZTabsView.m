@@ -1,4 +1,5 @@
 #import "YZTabsView.h"
+#import "YZClassic.h"
 #import "YZControls.h"
 #import "YZFavicons.h"
 #import "YZMotion.h"
@@ -82,10 +83,20 @@ static const CGFloat YZFabSize = 56;
 
 - (void)updateSelected:(BOOL)selected {
     // a card is the container of the page it shows: the lowest surface on a light theme, the bar color on the dark ones
-    self.backgroundColor = [YZTheme isDark] ? [YZTheme toolbarColor] : [YZTheme surfaceColor];
-    self.layer.borderWidth = selected ? 2 : 0;
-    self.layer.borderColor = [[YZTheme accentColor] CGColor];
-    picture.backgroundColor = [YZTheme fieldColor];
+    BOOL classic = [YZTheme isClassic];
+    self.layer.cornerRadius = [YZTheme cardRadius];
+    picture.layer.cornerRadius = classic ? 3 : [YZTheme cardRadius] - YZCardPictureInset;
+    if (classic) {
+        // a classic card is a lit plate with an outline, the chosen one outlined in the accent
+        self.backgroundColor = [YZTheme cardColor];
+        self.layer.borderWidth = selected ? 3 : 1;
+        self.layer.borderColor = [(selected ? [YZClassic barMidColor] : [YZTheme separatorColor]) CGColor];
+    } else {
+        self.backgroundColor = [YZTheme isDark] ? [YZTheme toolbarColor] : [YZTheme surfaceColor];
+        self.layer.borderWidth = selected ? 2 : 0;
+        self.layer.borderColor = [[YZTheme accentColor] CGColor];
+    }
+    picture.backgroundColor = [YZTheme isClassic] ? [YZTheme surfaceColor] : [YZTheme fieldColor];
     UIImage *preview = open.tab.thumbnail;
     if (picture.image != preview)
         picture.image = preview;
@@ -217,8 +228,20 @@ static void YZPlaceView(UIView *view, CGRect frame) {
     self.backgroundColor = [YZTheme backdropColor];
     [(YZSegmentedPill *)_modes setTitles:[NSArray arrayWithObjects:YZT(@"Обычные"), YZT(@"Инкогнито"), nil]];
     [(YZSegmentedPill *)_modes setSelectedSegment:_incognito ? 1 : 0];
-    _newTab.backgroundColor = [YZTheme accentColor];
-    [_newTab setImage:[YZTheme icon:YZIconPlus size:26 color:[YZTheme surfaceColor]] forState:UIControlStateNormal];
+    if ([YZTheme isClassic]) {
+        // a glossy key with a white plus stamped on it
+        _newTab.layer.cornerRadius = 0;
+        _newTab.backgroundColor = [UIColor clearColor];
+        [_newTab setBackgroundImage:[YZClassic keyImageWithColor:[YZClassic barMidColor] radius:10 pressed:NO] forState:UIControlStateNormal];
+        [_newTab setBackgroundImage:[YZClassic keyImageWithColor:[YZClassic barMidColor] radius:10 pressed:YES] forState:UIControlStateHighlighted];
+        [_newTab setImage:[YZClassic stampedImage:[YZTheme icon:YZIconPlus size:26 color:[UIColor whiteColor]]] forState:UIControlStateNormal];
+    } else {
+        _newTab.layer.cornerRadius = 18;
+        [_newTab setBackgroundImage:nil forState:UIControlStateNormal];
+        [_newTab setBackgroundImage:nil forState:UIControlStateHighlighted];
+        _newTab.backgroundColor = [YZTheme accentColor];
+        [_newTab setImage:[YZTheme icon:YZIconPlus size:26 color:[YZTheme surfaceColor]] forState:UIControlStateNormal];
+    }
     _newTab.accessibilityLabel = YZT(@"Новая вкладка");
     [_done setTitle:YZT(@"Готово") forState:UIControlStateNormal];
     [_done setTitleColor:[YZTheme accentColor] forState:UIControlStateNormal];

@@ -55,6 +55,25 @@ typedef enum {
 } YZIcon;
 
 @interface YZTheme : NSObject
+/* the classic design is on: lit glossy surfaces, an accent colored bar, small corners */
++ (BOOL)isClassic;
+/* how far a screen's content has to reach under its navigation bar: the bar's height over a transparent bar of the modern design, nothing under the
+   opaque bar of the classic one, which the system already lays the content below */
++ (CGFloat)barOverlap:(UINavigationBar *)bar;
+/* the ink of what stands on a bar (the top and bottom bars, the find bar, the tab strip): white in the classic design,
+   the text color in the modern one */
++ (UIColor *)barInkColor;
++ (UIColor *)barSubtleInkColor;
+/* a glyph for a bar: the plain icon in the modern design, white with a dark stamp under it in the classic one */
++ (UIImage *)barIcon:(YZIcon)icon size:(CGFloat)size disabled:(BOOL)disabled;
+/* the tab counter for a bar, the same way */
++ (UIImage *)barTabsIconWithCount:(NSUInteger)count size:(CGFloat)size;
+/* what stands out on a bar: the accent in the modern design, which the accent bar of the classic one would swallow, a gold */
++ (UIColor *)barHighlightColor;
+/* the load progress and the download line on a bar: the accent in the modern design, a light line on the accent bar of the classic one */
++ (UIColor *)barHighlightProgressColor;
+/* the fill of a pressed row or card: the field color in the modern design, a darker grey in the classic one */
++ (UIColor *)pressedColor;
 + (UIColor *)toolbarColor;
 + (UIColor *)fieldColor;
 + (UIColor *)textColor;

@@ -1,4 +1,5 @@
 #import "YZAdblockController.h"
+#import "YZClassic.h"
 #import "YZCompat.h"
 #import "YZCrash.h"
 #import "YZSettings.h"
@@ -77,8 +78,7 @@ static UIFont *YZAdblockFont(CGFloat size) {
     _hint.textColor = [YZTheme subtleTextColor];
     _text.textColor = [YZTheme textColor];
     _status.textColor = [YZTheme subtleTextColor];
-    _apply.backgroundColor = [YZTheme stateColor];
-    [_apply setImage:[YZTheme icon:YZIconCheck size:22 color:[YZTheme accentColor]] forState:UIControlStateNormal];
+    [YZClassic styleGlyphKey:_apply icon:YZIconCheck size:22 modernRadius:22];
     [self.view setNeedsLayout];
 }
 
@@ -113,7 +113,7 @@ static UIFont *YZAdblockFont(CGFloat size) {
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
     CGFloat width = self.view.bounds.size.width, height = self.view.bounds.size.height;
-    CGFloat top = CGRectGetMaxY(self.navigationController.navigationBar.frame);
+    CGFloat top = [YZTheme barOverlap:self.navigationController.navigationBar];
     YZInstallBarTitle(self, YZT(@"Правила блокировщика"), self, @selector(back));
     [_fill placeInView:self.view controller:self];
     CGFloat side = 12;

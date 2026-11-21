@@ -1,4 +1,5 @@
 #import "YZDialog.h"
+#import "YZClassic.h"
 #import "YZCompat.h"
 #import "YZMotion.h"
 #import "YZTheme.h"
@@ -34,9 +35,10 @@ static const CGFloat YZDialogFieldHeight = 44;
     _secureIndex = -1;
     self.backgroundColor = [YZTheme scrimColor];
     self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    _card = [[UIView alloc] initWithFrame:CGRectZero];
-    _card.backgroundColor = [YZTheme surfaceColor];
-    _card.layer.cornerRadius = [YZTheme sheetRadius];
+    _card = [[YZPlateView alloc] initWithFrame:CGRectZero];
+    [(YZPlateView *)_card setSurfaceInModern:YES];
+    [(YZPlateView *)_card setSheetCornersInModern:YES];
+    [(YZPlateView *)_card applyTheme];
     _card.layer.shadowColor = [UIColor blackColor].CGColor;
     _card.layer.shadowOpacity = 0.3f;
     _card.layer.shadowRadius = 18;
@@ -81,8 +83,18 @@ static const CGFloat YZDialogFieldHeight = 44;
 - (UIButton *)makeButton:(NSString *)title filled:(UIColor *)fill text:(UIColor *)text index:(NSInteger)index {
     UIButton *button = [UIButton buttonWithType:UIButtonTypeCustom];
     button.titleLabel.font = [YZTheme boldSystemFontOfSize:16];
-    button.backgroundColor = fill;
-    button.layer.cornerRadius = YZDialogButtonHeight / 2;
+    if ([YZTheme isClassic]) {
+        // a glossy key lit from above, white stamped text on it. the cancel key is grey, a color the fill does not give
+        UIColor *key = index == 0 && _cancelTitle ? [UIColor colorWithRed:0.43f green:0.45f blue:0.5f alpha:1] : fill;
+        [button setBackgroundImage:[YZClassic keyImageWithColor:key radius:7 pressed:NO] forState:UIControlStateNormal];
+        [button setBackgroundImage:[YZClassic keyImageWithColor:key radius:7 pressed:YES] forState:UIControlStateHighlighted];
+        button.titleLabel.shadowColor = [YZClassic stampColor];
+        button.titleLabel.shadowOffset = CGSizeMake(0, -1);
+        text = [UIColor whiteColor];
+    } else {
+        button.backgroundColor = fill;
+        button.layer.cornerRadius = YZDialogButtonHeight / 2;
+    }
     button.tag = index;
     [button setTitle:title forState:UIControlStateNormal];
     [button setTitleColor:text forState:UIControlStateNormal];
@@ -113,7 +125,11 @@ static const CGFloat YZDialogFieldHeight = 44;
     for (NSUInteger i = 0; i < [_placeholders count]; ++i) {
         UITextField *field = [[[UITextField alloc] initWithFrame:CGRectZero] autorelease];
         field.backgroundColor = [YZTheme fieldColor];
-        field.layer.cornerRadius = 12;
+        field.layer.cornerRadius = [YZTheme isClassic] ? 6 : 12;
+        if ([YZTheme isClassic]) {
+            field.layer.borderWidth = 1;
+            field.layer.borderColor = [[YZTheme separatorColor] CGColor];
+        }
         field.font = [YZTheme systemFontOfSize:16];
         field.textColor = [YZTheme textColor];
         field.autocapitalizationType = UITextAutocapitalizationTypeNone;
@@ -203,7 +219,7 @@ static const CGFloat YZDialogFieldHeight = 44;
     CGAffineTransform held = _card.transform;
     _card.transform = CGAffineTransformIdentity;
     _card.frame = CGRectMake(floor((self.bounds.size.width - width) / 2), MAX((CGFloat)8, floor((room - y) / 2)), width, y);
-    _card.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:_card.bounds cornerRadius:[YZTheme sheetRadius]].CGPath;
+    _card.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:_card.bounds cornerRadius:[YZTheme isClassic] ? [YZTheme cardRadius] : [YZTheme sheetRadius]].CGPath;
     _card.transform = held;
 }
 

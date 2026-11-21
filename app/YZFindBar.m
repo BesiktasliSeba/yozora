@@ -25,7 +25,9 @@ static const NSTimeInterval YZFindDelay = 0.25;
     self = [super initWithFrame:frame];
     if (!self)
         return nil;
-    _field = [[UIView alloc] initWithFrame:CGRectZero];
+    // an image view: the classic field is a well with its own corners
+    _field = [[UIImageView alloc] initWithFrame:CGRectZero];
+    _field.userInteractionEnabled = YES;
     [self addSubview:_field];
     _input = [[UITextField alloc] initWithFrame:CGRectZero];
     _input.delegate = self;
@@ -63,15 +65,22 @@ static const NSTimeInterval YZFindDelay = 0.25;
 }
 
 - (void)applyTheme {
-    self.backgroundColor = [YZTheme toolbarColor];
-    _field.backgroundColor = [YZTheme fieldColor];
+    [super applyTheme];
+    UIImageView *well = (UIImageView *)_field;
+    if ([YZTheme isClassic]) {
+        well.image = [YZClassic wellImageWithRadius:7];
+        well.backgroundColor = [UIColor clearColor];
+    } else {
+        well.image = nil;
+        well.backgroundColor = [YZTheme fieldColor];
+    }
     _input.textColor = [YZTheme textColor];
     _input.keyboardAppearance = [YZTheme isDark] ? UIKeyboardAppearanceAlert : UIKeyboardAppearanceDefault;
     YZSetPlaceholder(_input, YZT(@"Найти на странице"), [[YZTheme textColor] colorWithAlphaComponent:0.7f]);
     _count.textColor = [YZTheme subtleTextColor];
-    [_previous setImage:[YZTheme icon:YZIconArrowUp size:24 color:[YZTheme textColor]] forState:UIControlStateNormal];
-    [_next setImage:[YZTheme icon:YZIconArrowDown size:24 color:[YZTheme textColor]] forState:UIControlStateNormal];
-    [_close setImage:[YZTheme icon:YZIconClose size:24 color:[YZTheme textColor]] forState:UIControlStateNormal];
+    [_previous setImage:[YZTheme barIcon:YZIconArrowUp size:24 disabled:NO] forState:UIControlStateNormal];
+    [_next setImage:[YZTheme barIcon:YZIconArrowDown size:24 disabled:NO] forState:UIControlStateNormal];
+    [_close setImage:[YZTheme barIcon:YZIconClose size:24 disabled:NO] forState:UIControlStateNormal];
 }
 
 - (void)layoutInRect:(CGRect)rect topInset:(CGFloat)top barHeight:(CGFloat)bar leftInset:(CGFloat)left rightInset:(CGFloat)right {
@@ -83,7 +92,7 @@ static const NSTimeInterval YZFindDelay = 0.25;
     _next.frame = CGRectMake(CGRectGetMinX(_close.frame) - 40, CGRectGetMinY(_close.frame), 40, 40);
     _previous.frame = CGRectMake(CGRectGetMinX(_next.frame) - 40, CGRectGetMinY(_close.frame), 40, 40);
     _field.frame = CGRectMake(left + 12, top + 8, MAX((CGFloat)0, width - left - right - 12 - buttons - 4), fieldHeight);
-    _field.layer.cornerRadius = fieldHeight / 2;
+    _field.layer.cornerRadius = [YZTheme isClassic] ? 0 : fieldHeight / 2;
     CGFloat countWidth = 64;
     _count.frame = CGRectMake(_field.bounds.size.width - countWidth - 14, 0, countWidth, fieldHeight);
     _input.frame = CGRectMake(16, 0, MAX((CGFloat)0, _field.bounds.size.width - 16 - countWidth - 18), fieldHeight);

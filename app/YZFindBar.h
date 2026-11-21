@@ -1,10 +1,11 @@
 #import <UIKit/UIKit.h>
+#import "YZClassic.h"
 
 @protocol YZFindBarDelegate;
 
 /* the find bar replaces the address bar: text, the place of the match ("3/12"), previous and next, close.
    typing searches after a pause, return goes to the next match */
-@interface YZFindBar : UIView <UITextFieldDelegate> {
+@interface YZFindBar : YZGlossBarView <UITextFieldDelegate> {
     id<YZFindBarDelegate> _delegate;
     UIView *_field;
     UITextField *_input;

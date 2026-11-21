@@ -4,6 +4,7 @@
 #import "YZStrings.h"
 #import "YZMotion.h"
 #import "YZTheme.h"
+#import "YZClassic.h"
 #import <QuartzCore/QuartzCore.h>
 
 @implementation YZScrollView
@@ -39,7 +40,8 @@
     // bounds and center stay defined while a motion scales the pill
     _pill.bounds = CGRectMake(0, 0, frame.size.width, frame.size.height);
     _pill.center = CGPointMake(CGRectGetMidX(frame), CGRectGetMidY(frame));
-    _pill.layer.cornerRadius = frame.size.height / 2;
+    // the classic design presses a button as a dark rounded square, not a pill of the accent
+    _pill.layer.cornerRadius = [YZTheme isClassic] ? MIN(frame.size.height / 2, (CGFloat)7) : frame.size.height / 2;
     [self sendSubviewToBack:_pill];
 }
 
@@ -48,6 +50,13 @@
     [super setHighlighted:highlighted];
     if (!changed)
         return;
+    if ([YZTheme isClassic]) {
+        // lit from above: pressed is darker, with no bounce
+        _pill.backgroundColor = [UIColor colorWithWhite:0 alpha:0.28f];
+        _pill.transform = CGAffineTransformIdentity;
+        [UIView animateWithDuration:[YZTheme animationsEnabled] ? 0.08 : 0 animations:^{ _pill.alpha = highlighted ? 1 : 0; }];
+        return;
+    }
     _pill.backgroundColor = [YZTheme stateColor];
     if (highlighted) {
         if (_pill.alpha == 0)
@@ -58,7 +67,7 @@
     }
 }
 
-- (void)applyTheme { _pill.backgroundColor = [YZTheme stateColor]; }
+- (void)applyTheme { _pill.backgroundColor = [YZTheme isClassic] ? [UIColor colorWithWhite:0 alpha:0.28f] : [YZTheme stateColor]; }
 
 - (void)dealloc {
     [_pill release];
@@ -124,12 +133,24 @@ static const CGFloat YZSegmentHeight = 36;
 }
 
 - (void)applyTheme {
-    self.backgroundColor = [YZTheme fieldColor];
-    _indicator.backgroundColor = [YZTheme stateColor];
+    BOOL classic = [YZTheme isClassic];
+    if (classic) {
+        // a segmented control of the old system: a sunk grey well and a lit glossy key of the accent under the chosen segment
+        self.backgroundColor = [YZTheme pressedColor];
+        self.layer.borderWidth = 1;
+        self.layer.borderColor = [[UIColor colorWithWhite:0 alpha:0.45f] CGColor];
+        _indicator.backgroundColor = [UIColor clearColor];
+        [YZTheme stretchImage:[YZClassic keyImageWithColor:[YZClassic barMidColor] radius:7 pressed:NO] caps:7 onView:_indicator];
+    } else {
+        self.backgroundColor = [YZTheme fieldColor];
+        self.layer.borderWidth = 0;
+        _indicator.layer.contents = nil;
+        _indicator.backgroundColor = [YZTheme stateColor];
+    }
     for (NSUInteger i = 0; i < [_buttons count]; ++i) {
         UIButton *button = [_buttons objectAtIndex:i];
         BOOL chosen = (NSInteger)i == _selected;
-        UIColor *color = chosen ? [YZTheme accentColor] : [YZTheme subtleTextColor];
+        UIColor *color = chosen ? (classic ? [UIColor whiteColor] : [YZTheme accentColor]) : [YZTheme subtleTextColor];
         [button setTitle:[_titles objectAtIndex:i] forState:UIControlStateNormal];
         [button setTitleColor:color forState:UIControlStateNormal];
         // a segment without a glyph is only its title
@@ -154,8 +175,9 @@ static const CGFloat YZSegmentHeight = 36;
     CGFloat each = [_buttons count] ? bounds.size.width / [_buttons count] : 0;
     for (NSUInteger i = 0; i < [_buttons count]; ++i)
         [[_buttons objectAtIndex:i] setFrame:CGRectMake(each * i, 0, each, bounds.size.height)];
-    self.layer.cornerRadius = bounds.size.height / 2;
-    _indicator.layer.cornerRadius = bounds.size.height / 2;
+    BOOL classicShape = [YZTheme isClassic];
+    self.layer.cornerRadius = classicShape ? 8 : bounds.size.height / 2;
+    _indicator.layer.cornerRadius = classicShape ? 7 : bounds.size.height / 2;
     if (![[_indicator.layer animationKeys] count] && _selected < (NSInteger)[_buttons count]) {
         CGRect target = [[_buttons objectAtIndex:(NSUInteger)_selected] frame];
         _indicator.bounds = CGRectMake(0, 0, target.size.width, target.size.height);
@@ -189,11 +211,11 @@ static const CGFloat YZToggleThumb = 24;
     self = [super initWithFrame:CGRectMake(0, 0, YZToggleWidth, YZToggleHeight)];
     if (!self)
         return nil;
-    _track = [[UIView alloc] initWithFrame:self.bounds];
+    _track = [[YZGradientView alloc] initWithFrame:self.bounds];
     _track.userInteractionEnabled = NO;
     _track.layer.cornerRadius = YZToggleHeight / 2;
     [self addSubview:_track];
-    _thumb = [[UIView alloc] initWithFrame:CGRectMake(4, (YZToggleHeight - YZToggleThumb) / 2, YZToggleThumb, YZToggleThumb)];
+    _thumb = [[YZGradientView alloc] initWithFrame:CGRectMake(4, (YZToggleHeight - YZToggleThumb) / 2, YZToggleThumb, YZToggleThumb)];
     _thumb.userInteractionEnabled = NO;
     _thumb.layer.cornerRadius = YZToggleThumb / 2;
     [self addSubview:_thumb];
@@ -211,14 +233,47 @@ static const CGFloat YZToggleThumb = 24;
 
 // the thumb is placed on the left and moved by its transform: small when off, full size and 20 points to the right when on
 - (CGAffineTransform)thumbTransform {
+    // the classic knob keeps its size when the switch is off
+    if ([YZTheme isClassic])
+        return _on ? CGAffineTransformMakeTranslation(YZToggleWidth - YZToggleHeight, 0) : CGAffineTransformIdentity;
     return _on ? CGAffineTransformMakeTranslation(YZToggleWidth - YZToggleHeight, 0) : CGAffineTransformMakeScale(0.667f, 0.667f);
 }
 
+// the colors of the track and the knob for the state: flat in the modern design, a lit gradient with an outline and a shadow in the classic one
+- (void)paintParts {
+    YZGradientView *track = (YZGradientView *)_track, *thumb = (YZGradientView *)_thumb;
+    if ([YZTheme isClassic]) {
+        if (_on)
+            [track setTop:[YZClassic barBottomColor] bottom:[YZClassic barTopColor]];
+        else
+            [track setTop:[UIColor colorWithWhite:0.72f alpha:1] bottom:[UIColor colorWithWhite:0.95f alpha:1]];
+        track.layer.cornerRadius = YZToggleHeight / 2;
+        track.layer.borderWidth = 1;
+        track.layer.borderColor = [[UIColor colorWithWhite:0 alpha:0.5f] CGColor];
+        [thumb setTop:[UIColor colorWithWhite:1 alpha:1] bottom:[UIColor colorWithWhite:0.82f alpha:1]];
+        thumb.layer.cornerRadius = YZToggleThumb / 2;
+        thumb.layer.borderWidth = 1;
+        thumb.layer.borderColor = [[UIColor colorWithWhite:0 alpha:0.45f] CGColor];
+        thumb.layer.shadowColor = [[UIColor blackColor] CGColor];
+        thumb.layer.shadowOpacity = 0.35f;
+        thumb.layer.shadowRadius = 1.5f;
+        thumb.layer.shadowOffset = CGSizeMake(0, 1);
+        return;
+    }
+    UIColor *trackColor = _on ? [YZTheme accentColor] : [YZTheme fieldColor];
+    [track setTop:trackColor bottom:trackColor];
+    track.layer.cornerRadius = YZToggleHeight / 2;
+    track.layer.borderWidth = _on ? 0 : 2;
+    track.layer.borderColor = [[YZTheme subtleTextColor] CGColor];
+    UIColor *thumbColor = _on ? [YZTheme surfaceColor] : [YZTheme subtleTextColor];
+    [thumb setTop:thumbColor bottom:thumbColor];
+    thumb.layer.cornerRadius = YZToggleThumb / 2;
+    thumb.layer.borderWidth = 0;
+    thumb.layer.shadowOpacity = 0;
+}
+
 - (void)applyTheme {
-    _track.backgroundColor = _on ? [YZTheme accentColor] : [YZTheme fieldColor];
-    _track.layer.borderWidth = _on ? 0 : 2;
-    _track.layer.borderColor = [[YZTheme subtleTextColor] CGColor];
-    _thumb.backgroundColor = _on ? [YZTheme surfaceColor] : [YZTheme subtleTextColor];
+    [self paintParts];
     self.accessibilityValue = _on ? @"1" : @"0";
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
@@ -236,14 +291,10 @@ static const CGFloat YZToggleThumb = 24;
         return;
     }
     _on = on;
-    _track.layer.borderWidth = on ? 0 : 2;
     self.accessibilityValue = on ? @"1" : @"0";
     if (animated && self.window) {
-        YZMotionAnimateView(_thumb, [self thumbTransform], 1, YOZORA_MOTION_WOBBLE, 0, nil);
-        [UIView animateWithDuration:0.2 animations:^{
-            _track.backgroundColor = _on ? [YZTheme accentColor] : [YZTheme fieldColor];
-            _thumb.backgroundColor = _on ? [YZTheme surfaceColor] : [YZTheme subtleTextColor];
-        }];
+        YZMotionAnimateView(_thumb, [self thumbTransform], 1, [YZTheme isClassic] ? YOZORA_MOTION_ENTER : YOZORA_MOTION_WOBBLE, 0, nil);
+        [UIView animateWithDuration:0.2 animations:^{ [self paintParts]; }];
     } else {
         [self applyTheme];
     }
@@ -293,7 +344,7 @@ static const CGFloat YZToggleThumb = 24;
 
 // what the title looks like depends on the text color and the interface text scale: the same ones need no new pass
 - (void)applyThemeIfChanged {
-    NSString *key = [NSString stringWithFormat:@"%@|%.1f", [YZTheme textColor], [YZTheme boldSystemFontOfSize:22].pointSize];
+    NSString *key = [NSString stringWithFormat:@"%@|%d|%.1f", [YZTheme barInkColor], [YZTheme isClassic] ? 1 : 0, [YZTheme boldSystemFontOfSize:22].pointSize];
     if ([key isEqualToString:_appliedKey])
         return;
     [self applyTheme];
@@ -301,11 +352,15 @@ static const CGFloat YZToggleThumb = 24;
 
 - (void)applyTheme {
     [_appliedKey release];
-    _appliedKey = [[NSString stringWithFormat:@"%@|%.1f", [YZTheme textColor], [YZTheme boldSystemFontOfSize:22].pointSize] retain];
-    [_arrow setImage:[YZTheme icon:YZIconBack size:24 color:[YZTheme textColor]] forState:UIControlStateNormal];
+    _appliedKey = [[NSString stringWithFormat:@"%@|%d|%.1f", [YZTheme barInkColor], [YZTheme isClassic] ? 1 : 0, [YZTheme boldSystemFontOfSize:22].pointSize] retain];
+    [_arrow setImage:[YZTheme barIcon:YZIconBack size:24 disabled:NO] forState:UIControlStateNormal];
     [_arrow applyTheme];
     _label.font = [YZTheme boldSystemFontOfSize:22];
-    _label.textColor = [YZTheme textColor];
+    _label.textColor = [YZTheme barInkColor];
+    if ([YZTheme isClassic])
+        [YZClassic stampLabel:_label];
+    else
+        _label.shadowColor = nil;
     // a long name shrinks a little before it is cut, the bar has one row
     YZShrinkToFit(_label);
     [self setNeedsLayout];
@@ -421,6 +476,12 @@ static CGFloat YZRestingOffset(UIScrollView *scroll) {
 }
 
 - (void)attachToScrollView:(UIScrollView *)scroll controller:(UIViewController *)controller {
+    // the classic bar is opaque and the content starts below it, so a fill of the ground over the top of the list would only cover its first rows
+    if ([YZTheme isClassic]) {
+        self.hidden = YES;
+        return;
+    }
+    self.hidden = NO;
     UINavigationBar *bar = controller.navigationController.navigationBar;
     CGFloat height = bar ? CGRectGetMaxY(bar.frame) : 0;
     if (self.superview != scroll)
@@ -437,6 +498,11 @@ static CGFloat YZRestingOffset(UIScrollView *scroll) {
 }
 
 - (void)placeInView:(UIView *)view controller:(UIViewController *)controller {
+    if ([YZTheme isClassic]) {
+        self.hidden = YES;
+        return;
+    }
+    self.hidden = NO;
     UINavigationBar *bar = controller.navigationController.navigationBar;
     CGFloat height = bar ? CGRectGetMaxY(bar.frame) : 0;
     if (self.superview != view)

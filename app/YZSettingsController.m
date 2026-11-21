@@ -4,6 +4,7 @@
 #import "YZCompat.h"
 #import "YZAccentEditor.h"
 #import "YZAppIcon.h"
+#import "YZClassic.h"
 #import "YZControls.h"
 #import "YZDialog.h"
 #import "YZLog.h"
@@ -22,6 +23,7 @@
 typedef enum {
     YZRowLanguage,
     YZRowTheme,
+    YZRowDesign,
     YZRowAccent,
     YZRowPrivateAccent,
     YZRowMascot,
@@ -109,20 +111,31 @@ static UIImage *YZCardImage(YZPosition position, UIColor *color) {
         cache = [[NSMutableDictionary alloc] init];
     CGFloat c[4] = { 0, 0, 0, 1 };
     [color getRed:&c[0] green:&c[1] blue:&c[2] alpha:&c[3]];
-    NSString *key = [NSString stringWithFormat:@"%d:%.3f:%.3f:%.3f:%.3f", (int)position, c[0], c[1], c[2], c[3]];
+    BOOL classic = [YZTheme isClassic];
+    NSString *key = [NSString stringWithFormat:@"%d:%d:%.3f:%.3f:%.3f:%.3f", classic ? 1 : 0, (int)position, c[0], c[1], c[2], c[3]];
     UIImage *image = [cache objectForKey:key];
     if (image)
         return image;
     // a bound on the pictures held, a new accent makes a new set
     if ([cache count] > 80)
         [cache removeAllObjects];
-    CGFloat big = YZGroupRadius, small = YZInnerRadius;
+    CGFloat big = classic ? [YZTheme cardRadius] : YZGroupRadius, small = classic ? 0 : YZInnerRadius;
     CGFloat top = (position == YZPositionSingle || position == YZPositionFirst) ? big : small;
     CGFloat bottom = (position == YZPositionSingle || position == YZPositionLast) ? big : small;
     CGFloat side = 2 * big + 2;
     UIGraphicsBeginImageContextWithOptions(CGSizeMake(side, side), NO, 0);
     [color setFill];
     [YZCornerPath(CGRectMake(0, 0, side, side), top, top, bottom, bottom) fill];
+    if (classic) {
+        // a grouped list of the old system: a thin outline around the group. a row below another leaves out its top line, which is the
+        // bottom line of the row above, so two rows meet in one line
+        BOOL opensGroup = position == YZPositionSingle || position == YZPositionFirst;
+        CGRect box = opensGroup ? CGRectMake(0.5f, 0.5f, side - 1, side - 1) : CGRectMake(0.5f, -0.5f, side - 1, side);
+        UIBezierPath *outline = YZCornerPath(box, top, top, bottom, bottom);
+        outline.lineWidth = 1;
+        [[YZTheme separatorColor] setStroke];
+        [outline stroke];
+    }
     image = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
     [cache setObject:image forKey:key];
@@ -271,7 +284,7 @@ static CGFloat YZRowHeight(NSString *title, NSString *detail, CGFloat tableWidth
     [super setHighlighted:highlighted animated:animated];
     // a row with a switch changes by its switch, so only the other rows light up and bounce their glyph
     BOOL pressed = highlighted && ![self showsSwitch];
-    [self showCardColor:pressed ? [YZTheme fieldColor] : (restColor ? restColor : [YZTheme cardColor])];
+    [self showCardColor:pressed ? [YZTheme pressedColor] : (restColor ? restColor : [YZTheme cardColor])];
     if (pressed)
         [YZTheme animateFeedbackOfView:disc];
 }
@@ -279,7 +292,8 @@ static CGFloat YZRowHeight(NSString *title, NSString *detail, CGFloat tableWidth
 - (void)layoutSubviews {
     [super layoutSubviews];
     CGFloat width = self.contentView.bounds.size.width, height = self.contentView.bounds.size.height;
-    card.frame = CGRectMake(16, 1, width - 32, height - 2);
+    // the rows of a classic group touch, the modern cards stand a point apart
+    card.frame = [YZTheme isClassic] ? CGRectMake(16, 0, width - 32, height) : CGRectMake(16, 1, width - 32, height - 2);
     CGFloat cw = card.bounds.size.width, ch = card.bounds.size.height;
     disc.hidden = !withDisc;
     if (withDisc) {
@@ -332,6 +346,18 @@ static void YZConfigureCell(YZSettingsCell *cell, NSString *title, NSString *det
     cell->disc.layer.borderWidth = (picture && !cell->bareMark) ? 1 : 0;
     cell->disc.layer.borderColor = [[YZTheme separatorColor] CGColor];
     cell->icon.image = picture ? picture : (hasGlyph ? [YZTheme icon:glyph size:24 color:destructive ? [YZTheme errorColor] : [YZTheme accentColor]] : nil);
+    // the classic glyph is white on a lit rounded tile of the accent (or of the error red), the tile of the settings of the old system
+    if ([YZTheme isClassic] && !picture && hasGlyph) {
+        CGFloat radius = 9;
+        UIColor *tile = destructive ? [YZTheme errorColor] : [YZClassic barMidColor];
+        cell->disc.layer.cornerRadius = radius;
+        cell->disc.backgroundColor = [UIColor clearColor];
+        cell->disc.layer.borderWidth = 0;
+        [YZTheme stretchImage:[YZClassic keyImageWithColor:tile radius:radius pressed:NO] caps:radius onView:cell->disc];
+        cell->icon.image = [YZClassic stampedImage:[YZTheme icon:glyph size:24 color:[UIColor whiteColor]]];
+    } else {
+        cell->disc.layer.contents = nil;
+    }
     cell->ball.hidden = YES;
     cell->icon.hidden = NO;
     // a row that is reused takes the size of the text of the moment
@@ -746,7 +772,7 @@ static UIColor *YZMixColors(UIColor *first, UIColor *second, CGFloat t) {
     CGFloat width = MIN((CGFloat)480, _scroll.bounds.size.width);
     CGFloat x = floor((_scroll.bounds.size.width - width) / 2);
     // the screen reaches under the bar, so its content starts below it
-    CGFloat inset = CGRectGetMaxY(self.navigationController.navigationBar.frame);
+    CGFloat inset = [YZTheme barOverlap:self.navigationController.navigationBar];
     CGFloat top = inset + 8;
     YZInstallBarTitle(self, _heading, self, @selector(back));
     _glow.frame = self.view.bounds;
@@ -1018,7 +1044,7 @@ static NSArray *YZEngineTints(void) {
 - (NSArray *)buildSections {
     NSNumber *(^row)(YZRow) = ^(YZRow kind) { return [NSNumber numberWithInt:kind]; };
     return [NSArray arrayWithObjects:
-        [NSArray arrayWithObjects:YZT(@"Основные"), row(YZRowLanguage), row(YZRowTheme), row(YZRowAccent), row(YZRowPrivateAccent), row(YZRowMascot), row(YZRowSearchEngine), row(YZRowTextSize), row(YZRowAppIcons), nil],
+        [NSArray arrayWithObjects:YZT(@"Основные"), row(YZRowLanguage), row(YZRowTheme), row(YZRowDesign), row(YZRowAccent), row(YZRowPrivateAccent), row(YZRowMascot), row(YZRowSearchEngine), row(YZRowTextSize), row(YZRowAppIcons), nil],
         [NSArray arrayWithObjects:YZT(@"Приватность и безопасность"), row(YZRowBlockTrackers), row(YZRowAdblockRules), row(YZRowSitePermissions), row(YZRowBlockThirdPartyCookies),
          row(YZRowSaveHistory), row(YZRowClearHistory), row(YZRowClearSiteData), nil],
         [NSArray arrayWithObjects:YZT(@"Страницы"), row(YZRowJavascript), row(YZRowEconomy), row(YZRowCrispScrolling), row(YZRowReduceMotion), row(YZRowHideBars), row(YZRowWebFonts), nil],
@@ -1066,7 +1092,7 @@ static NSArray *YZEngineTints(void) {
     UINavigationBar *bar = self.navigationController.navigationBar;
     BOOL moved = NO;
     if (bar && [[[UIDevice currentDevice] systemVersion] floatValue] < 7.0f) {
-        CGFloat top = CGRectGetMaxY(bar.frame);
+        CGFloat top = [YZTheme barOverlap:bar];
         UIEdgeInsets inset = self.tableView.contentInset;
         if (fabs(inset.top - top) > 0.5) {
             BOOL atTop = self.tableView.contentOffset.y <= -inset.top + 1;
@@ -1291,6 +1317,10 @@ static NSArray *YZEngineTints(void) {
     return [YZSettings mascot] == YZMascotFox ? @"Yozora fox" : @"Yozora-san";
 }
 
+- (NSString *)designName {
+    return [YZSettings design] == YZDesignClassic ? YZT(@"Классическое") : YZT(@"Современное");
+}
+
 - (NSString *)themeName {
     switch ([YZSettings theme]) {
     case YZThemeDark: return YZT(@"Тёмная");
@@ -1317,6 +1347,7 @@ static NSArray *YZEngineLogos(void) {
     switch (kind) {
     case YZRowLanguage: return YZT(@"Язык");
     case YZRowTheme: return YZT(@"Тема");
+    case YZRowDesign: return YZT(@"Оформление");
     case YZRowAccent: return YZT(@"Цвет акцента");
     case YZRowPrivateAccent: return YZT(@"Акцент приватной вкладки");
     case YZRowMascot: return YZT(@"Маскот");
@@ -1352,6 +1383,7 @@ static NSArray *YZEngineLogos(void) {
     switch (kind) {
     case YZRowLanguage: return [self languageName];
     case YZRowTheme: return [self themeName];
+    case YZRowDesign: return [self designName];
     case YZRowAccent: return [self accentName];
     case YZRowPrivateAccent: return [self privateAccentName];
     case YZRowMascot: return [self mascotName];
@@ -1378,6 +1410,7 @@ static NSArray *YZEngineLogos(void) {
     switch (kind) {
     case YZRowLanguage: return YZIconLanguage;
     case YZRowTheme: return YZIconPalette;
+    case YZRowDesign: return YZIconSwap;
     case YZRowAccent: return YZIconPalette;
     case YZRowPrivateAccent: return YZIconBrush;
     case YZRowMascot: return YZIconImage;
@@ -1667,6 +1700,15 @@ static NSArray *YZEngineLogos(void) {
         choice.bareMarks = YES;
         choice.selected = [YZSettings theme];
         break;
+    case YZRowDesign:
+        choice.heading = YZT(@"Оформление");
+        choice.titles = [NSArray arrayWithObjects:YZT(@"Современное"), YZT(@"Классическое"), nil];
+        choice.details = [NSArray arrayWithObjects:YZT(@"Плоские карточки Material"), YZT(@"Объёмные панели с бликами, как в iOS 5 и 6"), nil];
+        choice.pictures = nil;
+        choice.tints = nil;
+        choice.bareMarks = NO;
+        choice.selected = [YZSettings design];
+        break;
     case YZRowMascot:
         choice.heading = YZT(@"Маскот");
         choice.titles = [NSArray arrayWithObjects:@"Yozora-san", @"Yozora fox", nil];
@@ -1696,6 +1738,7 @@ static NSArray *YZEngineLogos(void) {
         switch (kind) {
         case YZRowLanguage: [YZSettings setLanguage:(YZLanguage)index]; break;
         case YZRowTheme: [YZSettings setTheme:(YZThemeKind)index]; break;
+        case YZRowDesign: [YZSettings setDesign:(YZDesign)index]; break;
         case YZRowMascot: [YZSettings setMascot:(YZMascot)index]; break;
         case YZRowSearchEngine: [YZSettings setSearchEngine:(yozora_search_engine)index]; break;
         default: break;
@@ -1719,6 +1762,7 @@ static NSArray *YZEngineLogos(void) {
     switch (kind) {
     case YZRowLanguage:
     case YZRowTheme:
+    case YZRowDesign:
     case YZRowMascot:
     case YZRowSearchEngine:
         [self pushChoice:kind];
@@ -1846,7 +1890,7 @@ static NSArray *YZEngineLogos(void) {
     [super viewDidLayoutSubviews];
     UINavigationBar *bar = self.navigationController.navigationBar;
     if (bar && [[[UIDevice currentDevice] systemVersion] floatValue] < 7.0f) {
-        CGFloat top = CGRectGetMaxY(bar.frame);
+        CGFloat top = [YZTheme barOverlap:bar];
         UIEdgeInsets inset = self.tableView.contentInset;
         if (fabs(inset.top - top) > 0.5) {
             BOOL atTop = self.tableView.contentOffset.y <= -inset.top + 1;
@@ -2039,7 +2083,7 @@ static NSArray *YZEngineLogos(void) {
 
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
-    CGFloat inset = CGRectGetMaxY(self.navigationController.navigationBar.frame);
+    CGFloat inset = [YZTheme barOverlap:self.navigationController.navigationBar];
     CGFloat width = MIN((CGFloat)480, _scroll.bounds.size.width);
     CGFloat x = floor((_scroll.bounds.size.width - width) / 2);
     CGFloat top = inset + 8;
@@ -2198,7 +2242,7 @@ static NSArray *YZEngineLogos(void) {
     [super viewDidLayoutSubviews];
     UINavigationBar *bar = self.navigationController.navigationBar;
     if (bar && [[[UIDevice currentDevice] systemVersion] floatValue] < 7.0f) {
-        CGFloat top = CGRectGetMaxY(bar.frame);
+        CGFloat top = [YZTheme barOverlap:bar];
         UIEdgeInsets inset = self.tableView.contentInset;
         if (fabs(inset.top - top) > 0.5) {
             BOOL atTop = self.tableView.contentOffset.y <= -inset.top + 1;

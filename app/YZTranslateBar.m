@@ -85,14 +85,24 @@ static NSString *YZLanguageNamed(NSString *code) {
 }
 
 - (void)applyTheme {
-    self.backgroundColor = [YZTheme cardColor];
-    _disc.backgroundColor = [YZTheme stateColor];
-    _glyph.image = [YZTheme icon:YZIconTranslate size:22 color:[YZTheme accentColor]];
+    [super applyTheme];
+    if ([YZTheme isClassic]) {
+        // the glyph stands on a lit rounded tile of the accent, as in the rows of the settings
+        _disc.backgroundColor = [UIColor clearColor];
+        _disc.layer.cornerRadius = 8;
+        [YZTheme stretchImage:[YZClassic keyImageWithColor:[YZClassic barMidColor] radius:8 pressed:NO] caps:8 onView:_disc];
+        _glyph.image = [YZClassic stampedImage:[YZTheme icon:YZIconTranslate size:22 color:[UIColor whiteColor]]];
+    } else {
+        _disc.layer.contents = nil;
+        _disc.layer.cornerRadius = YZBarGlyph / 2;
+        _disc.backgroundColor = [YZTheme stateColor];
+        _glyph.image = [YZTheme icon:YZIconTranslate size:22 color:[YZTheme accentColor]];
+    }
     _title.textColor = [YZTheme textColor];
     _subtitle.textColor = [YZTheme subtleTextColor];
     _wave.playedColor = [YZTheme accentColor];
     _wave.restColor = [YZTheme stateColor];
-    _primary.backgroundColor = [YZTheme accentColor];
+    [YZClassic styleKey:_primary color:[YZTheme isClassic] ? [YZClassic barMidColor] : [YZTheme accentColor] radius:8 modernRadius:YZBarButton / 2];
     [_primary setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
     [_close setImage:[YZTheme icon:YZIconClose size:20 color:[YZTheme subtleTextColor]] forState:UIControlStateNormal];
     _close.accessibilityLabel = YZT(@"Закрыть");

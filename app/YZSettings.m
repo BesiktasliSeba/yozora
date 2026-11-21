@@ -1,3 +1,4 @@
+#import <UIKit/UIKit.h>
 #import "YZSettings.h"
 #import "YZStrings.h"
 #include "yozora_core.h"
@@ -18,6 +19,7 @@ static NSString *const YZTextZoomKey = @"YZTextZoom";
 static NSString *const YZReduceMotionKey = @"YZReduceMotion";
 static NSString *const YZHideBarsKey = @"YZHideBarsOnScroll";
 static NSString *const YZMascotKey = @"YZMascot";
+static NSString *const YZDesignKey = @"YZDesign";
 static NSString *const YZCrispScrollingKey = @"YZCrispScrolling";
 static NSString *const YZWebFontsKey = @"YZWebFonts";
 static NSString *const YZTranslateTargetKey = @"YZTranslateTarget";
@@ -100,6 +102,21 @@ static YZLanguage YZDeviceLanguage(void) {
 }
 + (void)setLanguage:(YZLanguage)language { [self storeInteger:language forKey:YZLanguageKey]; }
 
+// an unset choice is the classic design on ios 10 and older, where the system itself draws lit and glossy surfaces.
+// kept in memory because every color of the interface asks for it
+static NSInteger YZDesignCurrent = -1;
+
++ (YZDesign)design {
+    if (YZDesignCurrent < 0) {
+        NSInteger fallback = [[[UIDevice currentDevice] systemVersion] floatValue] < 11.0f ? YZDesignClassic : YZDesignModern;
+        YZDesignCurrent = [self integerForKey:YZDesignKey defaultValue:fallback] == YZDesignClassic ? YZDesignClassic : YZDesignModern;
+    }
+    return (YZDesign)YZDesignCurrent;
+}
++ (void)setDesign:(YZDesign)design {
+    YZDesignCurrent = design;
+    [self storeInteger:design forKey:YZDesignKey];
+}
 
 // the girl that came with the app until the person picks the fox, a value of a later version counts as the girl
 + (YZMascot)mascot {

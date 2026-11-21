@@ -58,7 +58,10 @@ static const CGFloat YZDownloadEmptyHeight = 220;
     self.contentView.backgroundColor = [UIColor clearColor];
     self.selectionStyle = UITableViewCellSelectionStyleNone;
     card = [[UIView alloc] initWithFrame:CGRectZero];
-    card.layer.cornerRadius = YZDownloadCardRadius;
+    card.layer.cornerRadius = [YZTheme isClassic] ? [YZTheme cardRadius] : YZDownloadCardRadius;
+    // the card of the classic design has an outline of its own
+    card.layer.borderWidth = [YZTheme isClassic] ? 1 : 0;
+    card.layer.borderColor = [[YZTheme separatorColor] CGColor];
     [self.contentView addSubview:card];
     disc = [[UIView alloc] initWithFrame:CGRectZero];
     [card addSubview:disc];
@@ -119,7 +122,7 @@ static const CGFloat YZDownloadEmptyHeight = 220;
     [super setHighlighted:highlighted animated:animated];
     if (empty)
         return;
-    card.backgroundColor = highlighted ? [YZTheme fieldColor] : [YZTheme cardColor];
+    card.backgroundColor = highlighted ? [YZTheme pressedColor] : [YZTheme cardColor];
     if (highlighted)
         [YZTheme animateFeedbackOfView:disc];
 }
@@ -133,7 +136,7 @@ static const CGFloat YZDownloadEmptyHeight = 220;
         CGFloat side = 72;
         disc.bounds = CGRectMake(0, 0, side, side);
         disc.center = CGPointMake(cw / 2, ch / 2 - 34);
-        disc.layer.cornerRadius = side / 2;
+        disc.layer.cornerRadius = [YZTheme isClassic] ? 16 : side / 2;
         icon.frame = CGRectInset(disc.bounds, 20, 20);
         title.frame = CGRectMake(16, ch / 2 + 14, cw - 32, 22);
         detail.frame = CGRectMake(16, ch / 2 + 38, cw - 32, 18);
@@ -147,7 +150,8 @@ static const CGFloat YZDownloadEmptyHeight = 220;
     CGFloat top = active ? 16 : (ch - side) / 2;
     disc.bounds = CGRectMake(0, 0, side, side);
     disc.center = CGPointMake(16 + side / 2, top + side / 2);
-    disc.layer.cornerRadius = side / 2;
+    // a rounded square tile in the classic design, a disc in the modern one
+    disc.layer.cornerRadius = [YZTheme isClassic] ? 10 : side / 2;
     icon.frame = CGRectInset(disc.bounds, 10, 10);
     tag.frame = CGRectInset(disc.bounds, 3, 0);
     CGFloat left = 16 + side + 14;
@@ -207,7 +211,7 @@ static const CGFloat YZDownloadEmptyHeight = 220;
     [YZCrash note:[NSString stringWithFormat:@"screen %@", NSStringFromClass([self class])]];
     self.tableView.backgroundColor = [YZTheme surfaceColor];
     self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
-    self.tableView.tableHeaderView = [YZTheme titleHeaderWithText:self.title width:self.tableView.bounds.size.width];
+    self.tableView.tableHeaderView = [YZTheme isClassic] ? nil : [YZTheme titleHeaderWithText:self.title width:self.tableView.bounds.size.width];
     [YZTheme styleNavigationBar:self.navigationController.navigationBar];
     [self reload];
     // the numbers of a running download change under the list

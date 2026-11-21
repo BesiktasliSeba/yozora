@@ -4,6 +4,7 @@
 #import <QuartzCore/QuartzCore.h>
 #import "YZSettings.h"
 #import "YZMotion.h"
+#import "YZClassic.h"
 #include <dlfcn.h>
 
 static UIColor *YZRGB(int r, int g, int b) {
@@ -77,10 +78,48 @@ static UIColor *YZTint(UIColor *color, BOOL dim) {
     return [UIColor colorWithRed:r green:g blue:b alpha:c[3]];
 }
 
-+ (UIColor *)toolbarColor { return YZTint(YZPick(YZRGB(0xf5, 0xf1, 0xfb), YZRGB(0x1b, 0x17, 0x28), YZRGB(0, 0, 0), YZRGB(0x2b, 0x10, 0x48)), YES); }
-+ (UIColor *)fieldColor { return YZTint(YZPick(YZRGB(0xea, 0xe4, 0xf5), YZRGB(0x2b, 0x27, 0x3e), YZRGB(28, 28, 30), YZRGB(0x3d, 0x1d, 0x66)), YES); }
-+ (UIColor *)textColor { return YZTint(YZPick(YZRGB(0x1d, 0x19, 0x2b), YZRGB(0xf0, 0xee, 0xf8), YZRGB(255, 255, 255), YZRGB(0xf6, 0xef, 0xff)), NO); }
-+ (UIColor *)subtleTextColor { return YZTint(YZPick(YZRGB(0x65, 0x5a, 0x7a), YZRGB(0xb0, 0xaa, 0xc4), YZRGB(152, 152, 157), YZRGB(0xc9, 0xb4, 0xea)), NO); }
++ (BOOL)isClassic { return [YZSettings design] == YZDesignClassic; }
+
++ (CGFloat)barOverlap:(UINavigationBar *)bar {
+    return [self isClassic] || !bar ? 0 : CGRectGetMaxY(bar.frame);
+}
+
+// the classic design keeps the greys of the old system for its grounds, lists and fields, and the accent only on bars and
+// keys. the private session keeps its purple
+static UIColor *YZGrey(UIColor *light, UIColor *dark, UIColor *black, UIColor *incognito, BOOL dim) {
+    if (YZPaletteIsPrivate())
+        return YZTint(incognito, dim);
+    switch ([YZSettings theme]) {
+    case YZThemeDark: return dark;
+    case YZThemeBlack: return black;
+    default: return light;
+    }
+}
+
+// the bar is the gradient of the accent, the flat colors that meet it (the window behind the bars, the strip under the status
+// bar) are its middle
++ (UIColor *)toolbarColor {
+    if ([self isClassic])
+        return [YZClassic barMidColor];
+    return YZTint(YZPick(YZRGB(0xf5, 0xf1, 0xfb), YZRGB(0x1b, 0x17, 0x28), YZRGB(0, 0, 0), YZRGB(0x2b, 0x10, 0x48)), YES);
+}
++ (UIColor *)fieldColor {
+    if ([self isClassic])
+        return YZGrey(YZRGB(0xff, 0xff, 0xff), YZRGB(0x38, 0x3a, 0x40), YZRGB(0x2c, 0x2c, 0x2e), YZRGB(0x3d, 0x1d, 0x66), YES);
+    return YZTint(YZPick(YZRGB(0xea, 0xe4, 0xf5), YZRGB(0x2b, 0x27, 0x3e), YZRGB(28, 28, 30), YZRGB(0x3d, 0x1d, 0x66)), YES);
+}
++ (UIColor *)textColor {
+    if ([self isClassic])
+        return YZGrey(YZRGB(0x1d, 0x1f, 0x24), YZRGB(0xf1, 0xf2, 0xf5), YZRGB(255, 255, 255), YZRGB(0xf6, 0xef, 0xff), NO);
+    return YZTint(YZPick(YZRGB(0x1d, 0x19, 0x2b), YZRGB(0xf0, 0xee, 0xf8), YZRGB(255, 255, 255), YZRGB(0xf6, 0xef, 0xff)), NO);
+}
++ (UIColor *)subtleTextColor {
+    if ([self isClassic])
+        return YZGrey(YZRGB(0x6b, 0x6f, 0x78), YZRGB(0x9b, 0x9e, 0xa8), YZRGB(152, 152, 157), YZRGB(0xc9, 0xb4, 0xea), NO);
+    return YZTint(YZPick(YZRGB(0x65, 0x5a, 0x7a), YZRGB(0xb0, 0xaa, 0xc4), YZRGB(152, 152, 157), YZRGB(0xc9, 0xb4, 0xea)), NO);
+}
++ (UIColor *)barInkColor { return [self isClassic] ? [YZClassic inkColor] : [self textColor]; }
++ (UIColor *)barSubtleInkColor { return [self isClassic] ? [YZClassic subtleInkColor] : [self subtleTextColor]; }
 // the light theme shows the chosen color as it is, the dark ones turn their lighter accent to its hue and
 // saturation to keep contrast
 + (UIColor *)accentColor {
@@ -92,10 +131,26 @@ static UIColor *YZTint(UIColor *color, BOOL dim) {
     }
     return YZTint(YZPick(YZRGB(0xa4, 0x4b, 0xbe), YZRGB(0xac, 0x62, 0xde), YZRGB(0xb9, 0x78, 0xe6), YZRGB(0xd9, 0xb8, 0xff)), NO);
 }
-+ (UIColor *)separatorColor { return YZTint(YZPick(YZRGB(0xde, 0xd8, 0xe8), YZRGB(0x3a, 0x34, 0x4c), YZRGB(44, 44, 46), YZRGB(0x4a, 0x28, 0x73)), YES); }
-+ (UIColor *)backdropColor { return YZTint(YZPick(YZRGB(0xf0, 0xea, 0xf8), YZRGB(0x11, 0x0e, 0x19), YZRGB(0, 0, 0), YZRGB(0x16, 0x07, 0x29)), YES); }
-+ (UIColor *)surfaceColor { return YZTint(YZPick(YZRGB(0xfb, 0xfa, 0xfe), YZRGB(0x15, 0x12, 0x1f), YZRGB(0, 0, 0), YZRGB(0x1f, 0x0b, 0x38)), YES); }
-+ (UIColor *)cardColor { return YZTint(YZPick(YZRGB(0xf1, 0xec, 0xf8), YZRGB(0x23, 0x1f, 0x32), YZRGB(0x1c, 0x1c, 0x1e), YZRGB(0x33, 0x16, 0x52)), YES); }
++ (UIColor *)separatorColor {
+    if ([self isClassic])
+        return YZGrey(YZRGB(0xc6, 0xc9, 0xd0), YZRGB(0x14, 0x15, 0x18), YZRGB(0x2c, 0x2c, 0x2e), YZRGB(0x4a, 0x28, 0x73), YES);
+    return YZTint(YZPick(YZRGB(0xde, 0xd8, 0xe8), YZRGB(0x3a, 0x34, 0x4c), YZRGB(44, 44, 46), YZRGB(0x4a, 0x28, 0x73)), YES);
+}
++ (UIColor *)backdropColor {
+    if ([self isClassic])
+        return YZGrey(YZRGB(0xd5, 0xd8, 0xde), YZRGB(0x10, 0x11, 0x13), YZRGB(0, 0, 0), YZRGB(0x16, 0x07, 0x29), YES);
+    return YZTint(YZPick(YZRGB(0xf0, 0xea, 0xf8), YZRGB(0x11, 0x0e, 0x19), YZRGB(0, 0, 0), YZRGB(0x16, 0x07, 0x29)), YES);
+}
++ (UIColor *)surfaceColor {
+    if ([self isClassic])
+        return YZGrey(YZRGB(0xe6, 0xe8, 0xec), YZRGB(0x1c, 0x1d, 0x21), YZRGB(0, 0, 0), YZRGB(0x1f, 0x0b, 0x38), YES);
+    return YZTint(YZPick(YZRGB(0xfb, 0xfa, 0xfe), YZRGB(0x15, 0x12, 0x1f), YZRGB(0, 0, 0), YZRGB(0x1f, 0x0b, 0x38)), YES);
+}
++ (UIColor *)cardColor {
+    if ([self isClassic])
+        return YZGrey(YZRGB(0xff, 0xff, 0xff), YZRGB(0x2b, 0x2c, 0x31), YZRGB(0x1c, 0x1c, 0x1e), YZRGB(0x33, 0x16, 0x52), YES);
+    return YZTint(YZPick(YZRGB(0xf1, 0xec, 0xf8), YZRGB(0x23, 0x1f, 0x32), YZRGB(0x1c, 0x1c, 0x1e), YZRGB(0x33, 0x16, 0x52)), YES);
+}
 + (UIColor *)errorColor { return YZRGB(0xc5, 0x2d, 0x4f); }
 // the pill behind a pressed or selected control: the accent over the surface at a fifth
 + (UIColor *)stateColor { return [[self accentColor] colorWithAlphaComponent:0.2f]; }
@@ -108,15 +163,18 @@ static BOOL YZModernStatusBar(void) {
     return [[[UIDevice currentDevice] systemVersion] floatValue] >= 7.0f;
 }
 + (UIColor *)statusStripColor {
+    // the classic bar starts at the top of the screen and the strip is the top of its gradient
+    if ([self isClassic])
+        return [YZClassic barTopColor];
     if (YZModernStatusBar())
         return [self toolbarColor];
     return YZPaletteIsPrivate() ? YZRGB(0x10, 0x04, 0x20) : [UIColor blackColor];
 }
 + (UIColor *)scrimColor { return [UIColor colorWithWhite:0 alpha:0.4f]; }
 
-+ (CGFloat)cardRadius { return 20; }
-+ (CGFloat)tileRadius { return 16; }
-+ (CGFloat)sheetRadius { return 28; }
++ (CGFloat)cardRadius { return [self isClassic] ? 10 : 20; }
++ (CGFloat)tileRadius { return [self isClassic] ? 9 : 16; }
++ (CGFloat)sheetRadius { return [self isClassic] ? 10 : 28; }
 
 + (CGFloat)textScale {
     CGFloat zoom = (CGFloat)[YZSettings textZoom] / 100;
@@ -143,6 +201,10 @@ static UIImage *YZSolidImage(UIColor *color) {
 // a flat bar of the screen color with no line below, the system gradient and glossy buttons do not follow the
 // theme
 + (void)styleNavigationBar:(UINavigationBar *)bar {
+    if ([self isClassic]) {
+        [self styleClassicNavigationBar:bar];
+        return;
+    }
     [bar setBackgroundImage:YZSolidImage([self surfaceColor]) forBarMetrics:UIBarMetricsDefault];
     // an empty image takes the hairline away, the iOS 6 headers do not declare the property
     if ([bar respondsToSelector:NSSelectorFromString(@"setShadowImage:")])
@@ -167,6 +229,11 @@ static UIImage *YZSolidImage(UIColor *color) {
 }
 
 + (void)styleTransparentNavigationBar:(UINavigationBar *)bar {
+    // the classic bar is opaque, lit and glossy, there is no content to show through it
+    if ([self isClassic]) {
+        [self styleClassicNavigationBar:bar];
+        return;
+    }
     UIGraphicsBeginImageContextWithOptions(CGSizeMake(1, 1), NO, 0);
     UIImage *clear = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
@@ -183,6 +250,32 @@ static UIImage *YZSolidImage(UIColor *color) {
         [appearance performSelector:NSSelectorFromString(@"configureWithTransparentBackground")];
         [appearance setValue:[UIColor clearColor] forKey:@"shadowColor"];
         [appearance setValue:[NSDictionary dictionaryWithObject:[self textColor] forKey:YZTextColorAttribute] forKey:@"titleTextAttributes"];
+        for (NSString *key in [NSArray arrayWithObjects:@"standardAppearance", @"scrollEdgeAppearance", @"compactAppearance", @"compactScrollEdgeAppearance", nil]) {
+            NSString *setter = [NSString stringWithFormat:@"set%@%@:", [[key substringToIndex:1] uppercaseString], [key substringFromIndex:1]];
+            if ([bar respondsToSelector:NSSelectorFromString(setter)])
+                [bar setValue:appearance forKey:key];
+        }
+    }
+}
+
+// the bar of the classic design is the picture of the app bar, with white stamped titles. ios 7 and later paint the bar from
+// an appearance, which gets the same picture
++ (void)styleClassicNavigationBar:(UINavigationBar *)bar {
+    UIImage *image = [YZClassic barImage];
+    [bar setBackgroundImage:image forBarMetrics:UIBarMetricsDefault];
+    if ([bar respondsToSelector:NSSelectorFromString(@"setShadowImage:")])
+        [bar setValue:[[[UIImage alloc] init] autorelease] forKey:@"shadowImage"];
+    bar.translucent = NO;
+    if ([bar respondsToSelector:@selector(setTitleTextAttributes:)]) {
+        bar.titleTextAttributes = [NSDictionary dictionaryWithObjectsAndKeys:[YZClassic inkColor], YZTextColorAttribute, nil];
+    }
+    Class appearanceClass = NSClassFromString(@"UINavigationBarAppearance");
+    if (appearanceClass) {
+        id appearance = [[[appearanceClass alloc] init] autorelease];
+        [appearance performSelector:NSSelectorFromString(@"configureWithOpaqueBackground")];
+        [appearance setValue:image forKey:@"backgroundImage"];
+        [appearance setValue:[UIColor clearColor] forKey:@"shadowColor"];
+        [appearance setValue:[NSDictionary dictionaryWithObject:[YZClassic inkColor] forKey:YZTextColorAttribute] forKey:@"titleTextAttributes"];
         for (NSString *key in [NSArray arrayWithObjects:@"standardAppearance", @"scrollEdgeAppearance", @"compactAppearance", @"compactScrollEdgeAppearance", nil]) {
             NSString *setter = [NSString stringWithFormat:@"set%@%@:", [[key substringToIndex:1] uppercaseString], [key substringFromIndex:1]];
             if ([bar respondsToSelector:NSSelectorFromString(setter)])
@@ -224,7 +317,11 @@ static UIImage *YZSolidImage(UIColor *color) {
     UIButton *button = [UIButton buttonWithType:UIButtonTypeCustom];
     button.titleLabel.font = bold ? [self boldSystemFontOfSize:16] : [self systemFontOfSize:16];
     [button setTitle:title forState:UIControlStateNormal];
-    [button setTitleColor:[self accentColor] forState:UIControlStateNormal];
+    [button setTitleColor:[self isClassic] ? [YZClassic inkColor] : [self accentColor] forState:UIControlStateNormal];
+    if ([self isClassic]) {
+        button.titleLabel.shadowColor = [YZClassic stampColor];
+        button.titleLabel.shadowOffset = CGSizeMake(0, -1);
+    }
     [button addTarget:target action:action forControlEvents:UIControlEventTouchUpInside];
     CGSize size = YZTextSize(title, button.titleLabel.font);
     button.frame = CGRectMake(0, 0, size.width + 20, 44);
@@ -308,6 +405,34 @@ static UIImage *YZTintedMask(CGImageRef mask, CGFloat size, UIColor *color, void
     if (image)
         [cache setObject:image forKey:key];
     return image;
+}
+
++ (UIImage *)barIcon:(YZIcon)icon size:(CGFloat)size disabled:(BOOL)disabled {
+    if ([self isClassic]) {
+        UIImage *glyph = [self icon:icon size:size color:disabled ? [UIColor colorWithWhite:1 alpha:0.35f] : [YZClassic inkColor]];
+        return disabled ? glyph : [YZClassic stampedImage:glyph];
+    }
+    return [self icon:icon size:size color:disabled ? [[self subtleTextColor] colorWithAlphaComponent:0.4f] : [self textColor]];
+}
+
++ (UIImage *)barTabsIconWithCount:(NSUInteger)count size:(CGFloat)size {
+    if ([self isClassic])
+        return [YZClassic stampedImage:[self tabsIconWithCount:count size:size color:[YZClassic inkColor]]];
+    return [self tabsIconWithCount:count size:size color:[self textColor]];
+}
+
++ (UIColor *)barHighlightProgressColor {
+    return [self isClassic] ? [UIColor colorWithWhite:1 alpha:0.92f] : [self accentColor];
+}
+
++ (UIColor *)pressedColor {
+    if ([self isClassic])
+        return YZGrey(YZRGB(0xd3, 0xd6, 0xdd), YZRGB(0x3d, 0x3f, 0x46), YZRGB(0x2c, 0x2c, 0x2e), YZRGB(0x4a, 0x28, 0x73), YES);
+    return [self fieldColor];
+}
+
++ (UIColor *)barHighlightColor {
+    return [self isClassic] ? [UIColor colorWithRed:1 green:0.84f blue:0.25f alpha:1] : [self accentColor];
 }
 
 // the tab counter is a rounded square with the number inside. the tab tray glyph has a bar under the frame and reads as a monitor

@@ -26,7 +26,7 @@
     letter.textAlignment = YZTextAlignmentCenter;
     letter.font = [YZTheme boldSystemFontOfSize:20];
     letter.textColor = [UIColor whiteColor];
-    letter.layer.cornerRadius = 14;
+    letter.layer.cornerRadius = [YZTheme isClassic] ? 7 : 14;
     letter.userInteractionEnabled = NO;
     [self.contentView addSubview:letter];
     icon = [[UIImageView alloc] initWithFrame:CGRectZero];
@@ -84,7 +84,8 @@
     // no lines between the rows: the tiles and the spacing set them apart
     self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
     self.tableView.rowHeight = 68;
-    self.tableView.tableHeaderView = [YZTheme titleHeaderWithText:self.title width:self.tableView.bounds.size.width];
+    // the classic bar carries the title, the large one below it would repeat it
+    self.tableView.tableHeaderView = [YZTheme isClassic] ? nil : [YZTheme titleHeaderWithText:self.title width:self.tableView.bounds.size.width];
     [YZTheme styleNavigationBar:self.navigationController.navigationBar];
     [self.tableView reloadData];
 }

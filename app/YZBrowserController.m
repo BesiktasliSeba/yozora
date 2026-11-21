@@ -1,5 +1,6 @@
 #import <objc/message.h>
 #import "YZBrowserController.h"
+#import "YZClassic.h"
 #import "YZSystemNotifier.h"
 #import "YZControls.h"
 #import "YZLog.h"
@@ -153,9 +154,31 @@ static UIImage *YZThumbnailFromView(UIView *view) {
     return button;
 }
 
+// the address field is a flat pill in the modern design and a white well, set into the bar, in the classic one
+- (void)styleField {
+    UIImageView *well = (UIImageView *)_field;
+    if ([YZTheme isClassic]) {
+        well.image = [YZClassic wellImageWithRadius:7];
+        well.backgroundColor = [UIColor clearColor];
+    } else {
+        well.image = nil;
+        well.backgroundColor = [YZTheme fieldColor];
+    }
+}
+
+- (void)styleCancelButton {
+    [_cancelButton setTitleColor:[YZTheme isClassic] ? [YZTheme barInkColor] : [YZTheme accentColor] forState:UIControlStateNormal];
+    if ([YZTheme isClassic]) {
+        _cancelButton.titleLabel.shadowColor = [YZClassic stampColor];
+        _cancelButton.titleLabel.shadowOffset = CGSizeMake(0, -1);
+    } else {
+        _cancelButton.titleLabel.shadowColor = nil;
+    }
+}
+
 - (void)styleBarButton:(UIButton *)button icon:(YZIcon)icon {
-    [button setImage:[YZTheme icon:icon size:24 color:[YZTheme textColor]] forState:UIControlStateNormal];
-    [button setImage:[YZTheme icon:icon size:24 color:[[YZTheme subtleTextColor] colorWithAlphaComponent:0.4f]] forState:UIControlStateDisabled];
+    [button setImage:[YZTheme barIcon:icon size:24 disabled:NO] forState:UIControlStateNormal];
+    [button setImage:[YZTheme barIcon:icon size:24 disabled:YES] forState:UIControlStateDisabled];
 }
 
 - (void)loadView {
@@ -201,8 +224,8 @@ static UIImage *YZThumbnailFromView(UIView *view) {
     [self.view addSubview:_suggestionsTable];
     _suggestions = [[NSMutableArray alloc] init];
 
-    _topBar = [[UIView alloc] initWithFrame:CGRectZero];
-    _topBar.backgroundColor = [YZTheme toolbarColor];
+    // a gradient view, lit and glossy in the classic design and the flat toolbar color in the modern one
+    _topBar = [[YZGlossBarView alloc] initWithFrame:CGRectZero];
     [self.view addSubview:_topBar];
     // the status bar text is light on every theme, so the strip under it is always black
     UIView *statusStrip = [[[UIView alloc] initWithFrame:CGRectZero] autorelease];
@@ -214,9 +237,11 @@ static UIImage *YZThumbnailFromView(UIView *view) {
     _tabStrip.hidden = YES;
     [_topBar addSubview:_tabStrip];
 
-    _field = [[UIView alloc] initWithFrame:CGRectZero];
-    _field.backgroundColor = [YZTheme fieldColor];
+    // an image view: the well of the classic design is a picture with its own corners and shadow
+    _field = [[UIImageView alloc] initWithFrame:CGRectZero];
+    _field.userInteractionEnabled = YES;
     _field.layer.cornerRadius = 20;
+    [self styleField];
     [_topBar addSubview:_field];
 
     _securityView = [[UIImageView alloc] initWithFrame:CGRectZero];
@@ -269,19 +294,19 @@ static UIImage *YZThumbnailFromView(UIView *view) {
     _cancelButton = [[YZStateButton buttonWithType:UIButtonTypeCustom] retain];
     [(YZStateButton *)_cancelButton setPillInsets:UIEdgeInsetsMake(10, 6, 10, 6)];
     [_cancelButton setTitle:YZT(@"Отмена") forState:UIControlStateNormal];
-    [_cancelButton setTitleColor:[YZTheme accentColor] forState:UIControlStateNormal];
+    [self styleCancelButton];
     _cancelButton.titleLabel.font = [YZTheme boldSystemFontOfSize:15];
     [_cancelButton addTarget:self action:@selector(cancelPressed) forControlEvents:UIControlEventTouchUpInside];
     _cancelButton.hidden = YES;
     [_topBar addSubview:_cancelButton];
 
     _progress = [[UIView alloc] initWithFrame:CGRectZero];
-    _progress.backgroundColor = [YZTheme accentColor];
+    _progress.backgroundColor = [YZTheme barHighlightProgressColor];
     _progress.hidden = YES;
     [_topBar addSubview:_progress];
 
-    _bottomBar = [[UIView alloc] initWithFrame:CGRectZero];
-    _bottomBar.backgroundColor = [YZTheme toolbarColor];
+    _bottomBar = [[YZGlossBarView alloc] initWithFrame:CGRectZero];
+    [(YZGlossBarView *)_bottomBar setDarkLineAtTop:YES];
     // the wobble lifts the bar's lower edge above the screen for a moment, a skirt of its color hides the
     // page strip
     UIView *skirt = [[[UIView alloc] initWithFrame:CGRectZero] autorelease];
@@ -309,7 +334,7 @@ static UIImage *YZThumbnailFromView(UIView *view) {
         [_tabs addObject:[[[YZTab alloc] init] autorelease]];
         [_tabsButton removeTarget:self action:@selector(tabsPressed) forControlEvents:UIControlEventTouchUpInside];
         [_tabsButton addTarget:self action:@selector(closePopup) forControlEvents:UIControlEventTouchUpInside];
-        [_tabsButton setImage:[YZTheme icon:YZIconClose size:24 color:[YZTheme textColor]] forState:UIControlStateNormal];
+        [_tabsButton setImage:[YZTheme barIcon:YZIconClose size:24 disabled:NO] forState:UIControlStateNormal];
         _tabsButton.accessibilityLabel = YZT(@"Закрыть");
     } else {
         [self restoreTabs];
@@ -1494,7 +1519,8 @@ static const CGFloat YZTabStripHeight = 44;
         [_bottomBar viewWithTag:YZBottomSkirtTag].frame = CGRectMake(0, barFrame.size.height, barFrame.size.width, 120);
     }
     _field.frame = CGRectMake(fieldLeft, toolTop + 8, MAX((CGFloat)0, width - fieldLeft - fieldRight - cancelWidth), fieldHeight);
-    _field.layer.cornerRadius = fieldHeight / 2;
+    // the classic well carries its own corners in its picture
+    _field.layer.cornerRadius = [YZTheme isClassic] ? 0 : fieldHeight / 2;
     _securityView.frame = CGRectMake(10, 0, 28, fieldHeight);
     _reloadButton.frame = CGRectMake(_field.bounds.size.width - fieldHeight - 4, 0, fieldHeight, fieldHeight);
     _translateButton.frame = CGRectMake(_field.bounds.size.width - 2 * fieldHeight - 4, 0, fieldHeight, fieldHeight);
@@ -1668,7 +1694,9 @@ static const CGFloat YZTabStripHeight = 44;
     if (forced || bookmarked != _shownBookmarked || blankChanged) {
         _shownBookmarked = bookmarked;
         UIImage *star = [YZTheme icon:(bookmarked ? YZIconStarFilled : YZIconStar) size:24
-                                color:bookmarked ? [YZTheme accentColor] : [YZTheme textColor]];
+                                color:bookmarked ? [YZTheme barHighlightColor] : [YZTheme barInkColor]];
+        if ([YZTheme isClassic])
+            star = [YZClassic stampedImage:star];
         [_starButton setImage:star forState:UIControlStateNormal];
         [self setBarButton:_starButton enabled:!blank];
     }
@@ -1676,8 +1704,8 @@ static const CGFloat YZTabStripHeight = 44;
     if (forced || (int)[_tabs count] != _shownTabCount) {
         BOOL changed = _shownTabCount > 0 && (int)[_tabs count] != _shownTabCount;
         _shownTabCount = (int)[_tabs count];
-        [_tabsButton setImage:_popupMode ? [YZTheme icon:YZIconClose size:24 color:[YZTheme textColor]]
-                                       : [YZTheme tabsIconWithCount:[_tabs count] size:24 color:[YZTheme textColor]]
+        [_tabsButton setImage:_popupMode ? [YZTheme barIcon:YZIconClose size:24 disabled:NO]
+                                       : [YZTheme barTabsIconWithCount:[_tabs count] size:24]
                        forState:UIControlStateNormal];
         if (changed && !_popupMode)
             [YZTheme animateFeedbackOfView:_tabsButton.imageView];
@@ -2279,17 +2307,17 @@ static const CGFloat YZTabStripHeight = 44;
         [self performSelector:NSSelectorFromString(@"setNeedsStatusBarAppearanceUpdate")];
     self.view.window.backgroundColor = [YZTheme toolbarColor];
     self.view.backgroundColor = [YZTheme surfaceColor];
-    _topBar.backgroundColor = [YZTheme toolbarColor];
+    [(YZGlossBarView *)_topBar applyTheme];
     [_findBar applyTheme];
     [_tabStrip applyTheme];
     [_tabStripSignature release];
     _tabStripSignature = nil;
     [self refreshTabStrip];
     [_topBar viewWithTag:2].backgroundColor = [YZTheme statusStripColor];
-    _bottomBar.backgroundColor = [YZTheme toolbarColor];
+    [(YZGlossBarView *)_bottomBar applyTheme];
     [_bottomBar viewWithTag:YZBottomSkirtTag].backgroundColor = [YZTheme toolbarColor];
-    _field.backgroundColor = [YZTheme fieldColor];
-    _progress.backgroundColor = [YZTheme accentColor];
+    [self styleField];
+    _progress.backgroundColor = [YZTheme barHighlightProgressColor];
     _banner.backgroundColor = [YZTheme cardColor];
     _banner.textColor = [YZTheme textColor];
     _input.textColor = [YZTheme textColor];
@@ -2297,7 +2325,7 @@ static const CGFloat YZTabStripHeight = 44;
     _input.accessibilityLabel = YZT(@"Адрес страницы");
     _input.keyboardAppearance = [YZTheme isDark] ? UIKeyboardAppearanceAlert : UIKeyboardAppearanceDefault;
     [_cancelButton setTitle:YZT(@"Отмена") forState:UIControlStateNormal];
-    [_cancelButton setTitleColor:[YZTheme accentColor] forState:UIControlStateNormal];
+    [self styleCancelButton];
     NSArray *buttons = [NSArray arrayWithObjects:_backButton, _forwardButton, _starButton, _tabsButton, _menuButton, nil];
     NSArray *labels = [NSArray arrayWithObjects:@"Назад", @"Вперёд", @"Закладка", @"Вкладки", @"Меню", nil];
     for (NSUInteger i = 0; i < [buttons count]; ++i) {
@@ -2312,6 +2340,8 @@ static const CGFloat YZTabStripHeight = 44;
     [_home applyTheme];
     [_errorPage applyTheme];
     [_tabsView applyTheme];
+    // the field and the bars take their corners and colors from the design in the next layout
+    [self.view setNeedsLayout];
     [self updateChromeForced:YES];
 }
 
@@ -2516,7 +2546,7 @@ static const CGFloat YZTabStripHeight = 44;
         _downloadLine = [[UIView alloc] initWithFrame:CGRectZero];
         _downloadLine.hidden = YES;
     }
-    _downloadLine.backgroundColor = [YZTheme accentColor];
+    _downloadLine.backgroundColor = [YZTheme barHighlightProgressColor];
     // a download of an unknown size has no share to show: a short stub says that something runs
     _downloadShare = total > 0 ? (CGFloat)received / (CGFloat)total : 0.04f;
     [self layoutDownloadLine];

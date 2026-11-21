@@ -6,6 +6,8 @@
 @interface YZSheet : UIView <UIGestureRecognizerDelegate> {
     UIView *_panel;
     UIView *_panelBack;
+    // the lit plate of the classic design, in place of the picture of the modern panel
+    UIView *_panelPlate;
     CGFloat _headerHeight;
     UIView *_content;
     UILabel *_titleLabel;

@@ -1,4 +1,5 @@
 #import "YZSheets.h"
+#import "YZClassic.h"
 #import "YZCompat.h"
 #import "YZColorPicker.h"
 #import "YZControls.h"
@@ -64,6 +65,8 @@ static UIImage *YZPanelImage(UIColor *color, BOOL allCorners) {
     _panelBack.opaque = NO;
     _panelBack.backgroundColor = [UIColor clearColor];
     [_panel addSubview:_panelBack];
+    _panelPlate = [[YZPlateView alloc] initWithFrame:CGRectZero];
+    [_panel insertSubview:_panelPlate belowSubview:_panelBack];
     // a drag down on the head of the panel, the handle and the title, takes the sheet away
     UIPanGestureRecognizer *drag = [[[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(dragPanel:)] autorelease];
     drag.delegate = self;
@@ -79,6 +82,7 @@ static UIImage *YZPanelImage(UIColor *color, BOOL allCorners) {
 - (void)dealloc {
     [_panel release];
     [_panelBack release];
+    [_panelPlate release];
     [_content release];
     [_titleLabel release];
     [_doneButton release];
@@ -144,7 +148,18 @@ static UIImage *YZPanelImage(UIColor *color, BOOL allCorners) {
     _panel.center = CGPointMake(floorf((width - panelWidth) / 2) + panelWidth / 2, height - panelHeight + panelHeight / 2);
     // a column on an ipad floats with all four corners rounded, a sheet on a phone is cut at the top only
     _panelBack.frame = _panel.bounds;
-    [YZTheme stretchImage:YZPanelImage([YZTheme cardColor], panelWidth < width) caps:[YZTheme sheetRadius] onView:_panelBack];
+    BOOL classic = [YZTheme isClassic];
+    _panelPlate.hidden = !classic;
+    _panelBack.hidden = classic;
+    if (classic) {
+        // a sheet on a phone is cut at the foot of the screen: the plate runs past the edges, so only its top corners and outline show
+        BOOL floating = panelWidth < width;
+        CGFloat bleed = floating ? 0 : 3;
+        _panelPlate.frame = CGRectMake(-bleed, 0, panelWidth + 2 * bleed, panelHeight + (floating ? 0 : 24));
+        [(YZPlateView *)_panelPlate applyTheme];
+    } else {
+        [YZTheme stretchImage:YZPanelImage([YZTheme cardColor], panelWidth < width) caps:[YZTheme sheetRadius] onView:_panelBack];
+    }
     _headerHeight = header;
     [_panel viewWithTag:7].frame = CGRectMake((panelWidth - 32) / 2, 10, 32, 4);
     if (_titleLabel) {

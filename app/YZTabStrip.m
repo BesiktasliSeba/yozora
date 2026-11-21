@@ -83,12 +83,16 @@ static const CGFloat YZAddWidth = 48;
 }
 
 - (void)applyTheme {
+    BOOL classic = [YZTheme isClassic];
     self.backgroundColor = [YZTheme toolbarColor];
-    [_add setImage:[YZTheme icon:YZIconPlus size:24 color:[YZTheme textColor]] forState:UIControlStateNormal];
+    [_add setImage:[YZTheme barIcon:YZIconPlus size:24 disabled:NO] forState:UIControlStateNormal];
     for (YZTabChip *chip in _chips) {
-        chip.backgroundColor = chip->selected ? [YZTheme cardColor] : [UIColor clearColor];
-        chip->title.textColor = chip->selected ? [YZTheme textColor] : [YZTheme subtleTextColor];
-        [chip->close setImage:[YZTheme icon:YZIconClose size:16 color:[YZTheme subtleTextColor]] forState:UIControlStateNormal];
+        // the classic chip is a lit tab: the chosen one pale, the others sunk into the bar
+        chip.layer.cornerRadius = classic ? 7 : 14;
+        chip.backgroundColor = chip->selected ? [YZTheme cardColor] : (classic ? [UIColor colorWithWhite:0 alpha:0.22f] : [UIColor clearColor]);
+        UIColor *rest = classic ? [YZTheme barSubtleInkColor] : [YZTheme subtleTextColor];
+        chip->title.textColor = chip->selected ? [YZTheme textColor] : (classic ? [YZTheme barInkColor] : rest);
+        [chip->close setImage:[YZTheme icon:YZIconClose size:16 color:chip->selected ? [YZTheme subtleTextColor] : rest] forState:UIControlStateNormal];
     }
 }
 

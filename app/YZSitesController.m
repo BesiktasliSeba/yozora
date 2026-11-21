@@ -1,4 +1,5 @@
 #import "YZSitesController.h"
+#import "YZClassic.h"
 #import "YZCompat.h"
 #import "YZCrash.h"
 #import "YZDialog.h"
@@ -93,8 +94,7 @@ static NSString *const YZSitesRowIdentifier = @"yozora.sites.row";
     _card.backgroundColor = [YZTheme cardColor];
     _titleLabel.textColor = [YZTheme textColor];
     _subtitleLabel.textColor = [YZTheme subtleTextColor];
-    _clear.backgroundColor = [YZTheme stateColor];
-    [_clear setImage:[YZTheme icon:YZIconDelete size:22 color:[YZTheme accentColor]] forState:UIControlStateNormal];
+    [YZClassic styleGlyphKey:_clear icon:YZIconDelete size:22 modernRadius:22];
     [_kinds applyTheme];
     [self.view setNeedsLayout];
 }
@@ -130,7 +130,7 @@ static NSString *const YZSitesRowIdentifier = @"yozora.sites.row";
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
     CGFloat width = self.view.bounds.size.width, height = self.view.bounds.size.height;
-    CGFloat top = CGRectGetMaxY(self.navigationController.navigationBar.frame);
+    CGFloat top = [YZTheme barOverlap:self.navigationController.navigationBar];
     YZInstallBarTitle(self, YZT(@"Разрешения сайтов"), self, @selector(back));
     [_fill placeInView:self.view controller:self];
     CGFloat side = 12;

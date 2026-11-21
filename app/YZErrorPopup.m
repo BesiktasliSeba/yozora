@@ -1,4 +1,5 @@
 #import "YZErrorPopup.h"
+#import "YZClassic.h"
 #import "YZCompat.h"
 #import "YZMotion.h"
 #import "YZStrings.h"
@@ -23,9 +24,10 @@ static const CGFloat YZPopupButtonHeight = 44;
         return nil;
     self.backgroundColor = [YZTheme scrimColor];
     self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    _card = [[UIView alloc] initWithFrame:CGRectZero];
-    _card.backgroundColor = [YZTheme surfaceColor];
-    _card.layer.cornerRadius = [YZTheme sheetRadius];
+    _card = [[YZPlateView alloc] initWithFrame:CGRectZero];
+    [(YZPlateView *)_card setSurfaceInModern:YES];
+    [(YZPlateView *)_card setSheetCornersInModern:YES];
+    [(YZPlateView *)_card applyTheme];
     _card.layer.shadowColor = [UIColor blackColor].CGColor;
     _card.layer.shadowOpacity = 0.3f;
     _card.layer.shadowRadius = 18;
@@ -51,10 +53,9 @@ static const CGFloat YZPopupButtonHeight = 44;
     [_card addSubview:_message];
     _button = [[UIButton buttonWithType:UIButtonTypeCustom] retain];
     _button.titleLabel.font = [YZTheme boldSystemFontOfSize:16];
-    _button.backgroundColor = [YZTheme accentColor];
-    _button.layer.cornerRadius = YZPopupButtonHeight / 2;
     [_button setTitle:YZT(@"Понятно") forState:UIControlStateNormal];
     [_button setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+    [YZClassic styleKey:_button color:[YZTheme isClassic] ? [YZClassic barMidColor] : [YZTheme accentColor] radius:8 modernRadius:YZPopupButtonHeight / 2];
     [_button addTarget:self action:@selector(dismiss) forControlEvents:UIControlEventTouchUpInside];
     YZMotionAttachBounce(_button, 0.04f);
     [_card addSubview:_button];
@@ -121,7 +122,7 @@ static const CGFloat YZPopupButtonHeight = 44;
     CGAffineTransform held = _card.transform;
     _card.transform = CGAffineTransformIdentity;
     _card.frame = CGRectMake(floor((self.bounds.size.width - width) / 2), MAX((CGFloat)0, floor((self.bounds.size.height - y) / 2)), width, y);
-    _card.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:_card.bounds cornerRadius:[YZTheme sheetRadius]].CGPath;
+    _card.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:_card.bounds cornerRadius:[YZTheme isClassic] ? [YZTheme cardRadius] : [YZTheme sheetRadius]].CGPath;
     _card.transform = held;
 }
 

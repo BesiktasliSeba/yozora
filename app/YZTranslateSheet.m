@@ -1,4 +1,5 @@
 #import "YZTranslateSheet.h"
+#import "YZClassic.h"
 #import "YZCompat.h"
 #import "YZControls.h"
 #import "YZMotion.h"
@@ -141,8 +142,7 @@ static NSString *YZNameOf(NSString *code) {
     [_content addSubview:_swap];
     _primary = [[UIButton buttonWithType:UIButtonTypeCustom] retain];
     _primary.titleLabel.font = [YZTheme boldSystemFontOfSize:16];
-    _primary.layer.cornerRadius = 24;
-    _primary.backgroundColor = [YZTheme accentColor];
+    [YZClassic styleKey:_primary color:[YZTheme isClassic] ? [YZClassic barMidColor] : [YZTheme accentColor] radius:10 modernRadius:24];
     [_primary setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
     [_primary addTarget:self action:@selector(primaryPressed) forControlEvents:UIControlEventTouchUpInside];
     YZMotionAttachBounce(_primary, 0.04f);

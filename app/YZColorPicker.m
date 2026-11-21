@@ -107,7 +107,7 @@ static UIColor *YZColorFrom(float hue, float saturation, float value) {
     if (!self)
         return nil;
     _card = [[UIView alloc] initWithFrame:CGRectZero];
-    _card.layer.cornerRadius = 24;
+    _card.layer.cornerRadius = [YZTheme isClassic] ? 10 : 24;
     [self addSubview:_card];
     _hex = [[UILabel alloc] initWithFrame:CGRectZero];
     _hex.font = [YZTheme boldSystemFontOfSize:22];

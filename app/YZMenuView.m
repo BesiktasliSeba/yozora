@@ -1,5 +1,6 @@
 #import "YZMenuView.h"
 #import "YZControls.h"
+#import "YZClassic.h"
 #import "YZMotion.h"
 #import "YZTheme.h"
 #import <QuartzCore/QuartzCore.h>
@@ -9,7 +10,6 @@
 static const CGFloat YZMenuRowHeight = 52;
 static const CGFloat YZMenuGlyph = 26;
 static const CGFloat YZMenuPadding = 8;
-static const CGFloat YZMenuRadius = 20;
 
 @interface YZMenuButton : YZStateButton {
     YZMenuItem _item;
@@ -79,10 +79,8 @@ static const CGFloat YZMenuRadius = 20;
     _panel.layer.shadowOpacity = 0.3f;
     _panel.layer.shadowRadius = 14;
     _panel.layer.shadowOffset = CGSizeMake(0, 5);
-    _panel.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:_panel.bounds cornerRadius:YZMenuRadius].CGPath;
-    UIView *card = [[[UIView alloc] initWithFrame:_panel.bounds] autorelease];
-    card.backgroundColor = [YZTheme cardColor];
-    card.layer.cornerRadius = YZMenuRadius;
+    _panel.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:_panel.bounds cornerRadius:[YZTheme cardRadius]].CGPath;
+    UIView *card = [[[YZPlateView alloc] initWithFrame:_panel.bounds] autorelease];
     card.layer.masksToBounds = YES;
     [_panel addSubview:card];
     UIScrollView *list = [[[YZScrollView alloc] initWithFrame:CGRectMake(0, 0, panelWidth, listHeight)] autorelease];

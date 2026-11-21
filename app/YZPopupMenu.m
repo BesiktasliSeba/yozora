@@ -1,6 +1,7 @@
 #import "YZPopupMenu.h"
 #import "YZCompat.h"
 #import "YZControls.h"
+#import "YZClassic.h"
 #import "YZMotion.h"
 #import "YZTheme.h"
 #import <QuartzCore/QuartzCore.h>
@@ -8,7 +9,6 @@
 static const CGFloat YZPopupRowHeight = 52;
 static const CGFloat YZPopupGlyph = 24;
 static const CGFloat YZPopupPadding = 8;
-static const CGFloat YZPopupRadius = 20;
 static const CGFloat YZPopupMargin = 8;
 static const CGFloat YZPopupWidth = 304;
 
@@ -81,10 +81,8 @@ static const CGFloat YZPopupWidth = 304;
     _panel.layer.shadowOpacity = 0.3f;
     _panel.layer.shadowRadius = 14;
     _panel.layer.shadowOffset = CGSizeMake(0, 5);
-    _panel.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:_panel.bounds cornerRadius:YZPopupRadius].CGPath;
-    UIView *card = [[[UIView alloc] initWithFrame:_panel.bounds] autorelease];
-    card.backgroundColor = [YZTheme cardColor];
-    card.layer.cornerRadius = YZPopupRadius;
+    _panel.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:_panel.bounds cornerRadius:[YZTheme cardRadius]].CGPath;
+    UIView *card = [[[YZPlateView alloc] initWithFrame:_panel.bounds] autorelease];
     card.layer.masksToBounds = YES;
     [_panel addSubview:card];
     UIScrollView *list = [[[YZScrollView alloc] initWithFrame:card.bounds] autorelease];

@@ -12,7 +12,7 @@
 #define EDITOR_HEIGHT 444.0
 #define MARGIN 16.0
 #define CARD_HEIGHT 112.0
-#define CARD_RADIUS 30.0
+#define CARD_RADIUS ([YZTheme isClassic] ? 10.0 : 30.0)
 #define TRACK_HEIGHT 28.0
 #define THUMB_SIDE 38.0
 #define SLIDER_ROW 40.0

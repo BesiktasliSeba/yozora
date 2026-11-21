@@ -95,7 +95,7 @@ ldflags = ["-nostartfiles", "${CRT_V7}"]
 files = [
   "app/app_main.m", "app/YZBrowserController.m", "app/YZPageView.m", "app/YZSceneView.m", "app/YZTheme.m",
   "app/YZMotion.m", "app/YZControls.m", "app/YZFavicons.m", "app/YZStore.m", "app/YZTab.m", "app/YZHomeView.m",
-  "app/YZErrorPage.m", "app/YZTabsView.m", "app/YZMenuView.m", "app/YZPopupMenu.m", "app/YZAppIcon.m", "app/YZListController.m", "app/YZDownloadsController.m",
+  "app/YZErrorPage.m", "app/YZTabsView.m", "app/YZMenuView.m", "app/YZPopupMenu.m", "app/YZAppIcon.m", "app/YZClassic.m", "app/YZListController.m", "app/YZDownloadsController.m",
   "app/YZSettings.m", "app/YZSettingsController.m", "app/YZStrings.m", "app/YZLocation.m", "app/YZVideoController.m",
   "app/YZAccentEditor.m", "app/YZWaveSeekBar.m", "app/YZPlayerViews.m", "app/YZStreamProxy.m", "app/YZMediaPlayer.m",
   "app/YZFindBar.m", "app/YZSheets.m", "app/YZDialog.m", "app/YZErrorPopup.m", "app/YZShape.m", "app/YZLog.m",
@@ -125,7 +125,7 @@ ldflags = ["-Wl,-sdk_version,${SDK_V64_VERSION}"]
 files = [
   "app/app_main.m", "app/YZBrowserController.m", "app/YZPageView.m", "app/YZSceneView.m", "app/YZTheme.m",
   "app/YZMotion.m", "app/YZControls.m", "app/YZFavicons.m", "app/YZStore.m", "app/YZTab.m", "app/YZHomeView.m",
-  "app/YZErrorPage.m", "app/YZTabsView.m", "app/YZMenuView.m", "app/YZPopupMenu.m", "app/YZAppIcon.m", "app/YZListController.m", "app/YZDownloadsController.m",
+  "app/YZErrorPage.m", "app/YZTabsView.m", "app/YZMenuView.m", "app/YZPopupMenu.m", "app/YZAppIcon.m", "app/YZClassic.m", "app/YZListController.m", "app/YZDownloadsController.m",
   "app/YZSettings.m", "app/YZSettingsController.m", "app/YZStrings.m", "app/YZLocation.m", "app/YZVideoController.m",
   "app/YZAccentEditor.m", "app/YZWaveSeekBar.m", "app/YZPlayerViews.m", "app/YZStreamProxy.m", "app/YZMediaPlayer.m",
   "app/YZFindBar.m", "app/YZSheets.m", "app/YZDialog.m", "app/YZErrorPopup.m", "app/YZShape.m", "app/YZLog.m",
@@ -157,7 +157,7 @@ ldflags = ["-Wl,-sdk_version,${SDK_V64_VERSION}"]
 files = [
   "app/app_main.m", "app/YZBrowserController.m", "app/YZPageView.m", "app/YZSceneView.m", "app/YZTheme.m",
   "app/YZMotion.m", "app/YZControls.m", "app/YZFavicons.m", "app/YZStore.m", "app/YZTab.m", "app/YZHomeView.m",
-  "app/YZErrorPage.m", "app/YZTabsView.m", "app/YZMenuView.m", "app/YZPopupMenu.m", "app/YZAppIcon.m", "app/YZListController.m", "app/YZDownloadsController.m",
+  "app/YZErrorPage.m", "app/YZTabsView.m", "app/YZMenuView.m", "app/YZPopupMenu.m", "app/YZAppIcon.m", "app/YZClassic.m", "app/YZListController.m", "app/YZDownloadsController.m",
   "app/YZSettings.m", "app/YZSettingsController.m", "app/YZStrings.m", "app/YZLocation.m", "app/YZVideoController.m",
   "app/YZAccentEditor.m", "app/YZWaveSeekBar.m", "app/YZPlayerViews.m", "app/YZStreamProxy.m", "app/YZMediaPlayer.m",
   "app/YZFindBar.m", "app/YZSheets.m", "app/YZDialog.m", "app/YZErrorPopup.m", "app/YZShape.m", "app/YZLog.m",

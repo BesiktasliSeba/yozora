@@ -1,4 +1,5 @@
 #import "YZErrorPage.h"
+#import "YZClassic.h"
 #import "YZCompat.h"
 #import "YZStrings.h"
 #import "YZTheme.h"
@@ -60,8 +61,9 @@
         case YOZORA_PAGE_ERROR_INTERRUPTED: _detail.text = YZT(@"Соединение было прервано. Проверьте подключение и попробуйте ещё раз."); break;
         default: _detail.text = YZT(@"Не удалось загрузить страницу. Попробуйте ещё раз."); break;
     }
-    _retry.backgroundColor = [YZTheme accentColor];
-    [_retry setTitleColor:[YZTheme surfaceColor] forState:UIControlStateNormal];
+    [YZClassic styleKey:_retry color:[YZTheme isClassic] ? [YZClassic barMidColor] : [YZTheme accentColor] radius:9 modernRadius:22];
+    if (![YZTheme isClassic])
+        [_retry setTitleColor:[YZTheme surfaceColor] forState:UIControlStateNormal];
     [_retry setTitle:YZT(@"Повторить") forState:UIControlStateNormal];
     [self setNeedsLayout];
 }

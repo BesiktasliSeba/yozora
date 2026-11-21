@@ -1,4 +1,5 @@
 #import <UIKit/UIKit.h>
+#import "YZClassic.h"
 #import "YZTranslation.h"
 #import "YZWaveSeekBar.h"
 
@@ -18,7 +19,7 @@
 /* the translation card at the bottom of the page: offers a language pair, shows a progress wave while texts
    are sent, says the page is translated and gives the original back, or says why it could not. four states on
    one card, they change with a crossfade and a wobble */
-@interface YZTranslateBar : UIView {
+@interface YZTranslateBar : YZPlateView {
     UIView *_disc;
     UIImageView *_glyph;
     UILabel *_title;
