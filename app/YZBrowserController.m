@@ -125,6 +125,9 @@ static UIImage *YZThumbnailFromView(UIView *view) {
 - (void)setIncognito:(BOOL)incognito;
 - (void)wobbleChrome;
 - (void)styleBarButton:(UIButton *)button icon:(YZIcon)icon;
+- (void)styleField;
+- (void)presentPanel:(UINavigationController *)navigation;
+- (void)styleCancelButton;
 - (void)restoreTabs;
 - (void)openSiteData;
 - (void)openHTTPCache;
@@ -2239,11 +2242,19 @@ static const CGFloat YZTabStripHeight = 44;
     [self dismissMenu];
 }
 
+// the lists, the downloads and the settings stand as a card in the middle of an ipad, a column of 540 points. full width
+// rows over a screen of 1024 points are a line the eye cannot follow. a phone has them over the whole screen
+- (void)presentPanel:(UINavigationController *)navigation {
+    if ([YZTheme isPad])
+        navigation.modalPresentationStyle = UIModalPresentationFormSheet;
+    [self presentViewController:navigation animated:YES completion:nil];
+}
+
 - (void)presentList:(YZListKind)kind {
     YZListController *list = [[YZListController alloc] initWithStore:_store kind:kind];
     list.listDelegate = self;
     UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:list];
-    [self presentViewController:navigation animated:YES completion:nil];
+    [self presentPanel:navigation];
     [navigation release];
     [list release];
 }
@@ -2269,7 +2280,7 @@ static const CGFloat YZTabStripHeight = 44;
         YZDownloadsController *downloads = [[YZDownloadsController alloc] init];
         downloads.downloadsDelegate = self;
         UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:downloads];
-        [self presentViewController:navigation animated:YES completion:nil];
+        [self presentPanel:navigation];
         [navigation release];
         [downloads release];
         break;
@@ -2350,7 +2361,7 @@ static const CGFloat YZTabStripHeight = 44;
     settings.settingsDelegate = self;
     UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:settings];
     navigation.view.backgroundColor = [YZTheme surfaceColor];
-    [self presentViewController:navigation animated:YES completion:nil];
+    [self presentPanel:navigation];
     [navigation release];
     return settings;
 }

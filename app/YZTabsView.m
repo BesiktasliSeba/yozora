@@ -351,7 +351,8 @@ static void YZPlaceView(UIView *view, CGRect frame) {
     _scroll.frame = CGRectMake(0, scrollTop, width, height - scrollTop);
     _scroll.contentInset = UIEdgeInsetsMake(0, 0, fabClearance + _edgeInsets.bottom, 0);
     YZPlaceView(_newTab, CGRectMake(width - _edgeInsets.right - 16 - YZFabSize, height - _edgeInsets.bottom - 16 - YZFabSize, YZFabSize, YZFabSize));
-    NSUInteger columns = width > 400 ? 3 : 2;
+    // an ipad shows more and smaller cards: three columns of 320 points would be pictures the size of a phone
+    NSUInteger columns = [YZTheme isPad] ? MIN((NSUInteger)5, MAX((NSUInteger)3, (NSUInteger)(width / 180))) : (width > 400 ? 3 : 2);
     CGFloat cardWidth = (width - YZCardGap * (columns + 1)) / columns;
     CGFloat thumbnailHeight = cardWidth * 1.2f;
     CGFloat cardHeight = YZCardTitleHeight + thumbnailHeight;

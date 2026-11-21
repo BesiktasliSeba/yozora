@@ -52,6 +52,8 @@ the core keeps it (`yozora_core_set_desktop`): the user agent of safari on a mac
 
 all four orientations. a window of 700 points or more shows the tabs as a strip above one toolbar (back, forward, address, bookmark, tabs, menu), the bottom bar is gone and the menu hangs from the toolbar. a narrower window (slide over, half of a split view) keeps the phone layout. split view and slide over need ios 9 and a launch storyboard.
 
+the settings, the lists and the downloads are presented as a form sheet of 540 points, not full width. the tab tray shows three to five columns by its width, the sheets of page controls are a column of 560 points.
+
 ## start
 
 the system shows a violet launch screen, then `YZSplashController` (the same violet, the sticker that wobbles in and the name) while the browser, the core and the tabs are made on the next turn of the run loop, and the splash fades into the browser. a link that starts the app waits for the browser.
