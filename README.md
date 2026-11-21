@@ -127,6 +127,10 @@ outputs `build/ipa/Yozora-armv7.ipa` and `build/ipa/Yozora-arm64.ipa`, signed, a
 - [limits](docs/limits.md): every bound in the code, and what is not done
 - [debug](docs/debug.md): switches, tools, logs
 
+## contributing
+
+[CONTRIBUTORS.md](CONTRIBUTORS.md): the tree, the build, how to put the engine into your own app, the rules for a change.
+
 ## license
 
 yozora is free software under the GNU General Public License version 3, see `LICENSE`. sources that it builds from and bundles keep their own licenses. app fonts: Roboto, see `app/LICENSE-Roboto.txt`. interface icons: Material Symbols, Apache 2.0, see `app/LICENSE-MaterialSymbols.txt`. root bundle: curl.se `cacert.pem`. emoji: not committed, see `app/NOTICE-Emoji.txt`.
