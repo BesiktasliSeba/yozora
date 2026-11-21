@@ -40,5 +40,3 @@ with a `CompileError`: simd, threads and atomics (so no shared memory), exceptio
 - `tests/test_core_wasm.py` runs one script of about 130 checks under v8 and in a page of `yozora-render`, every printed line must be the same
 - `tests/test_core_wasm_stop.py` stops a loop that never returns
 - modules are assembled by `tests/wasm_builder.py`
-
-nothing of this has run on an armv7 phone.
