@@ -104,6 +104,8 @@ static UIImage *YZThumbnailFromView(UIView *view) {
 - (void)showHome;
 - (void)trackScrollForBars;
 - (void)setBottomBarShown:(BOOL)shown animated:(BOOL)animated;
+- (void)givePageRoomBack;
+- (void)moveTopBarAway:(BOOL)away animated:(BOOL)animated;
 - (YZTranslation *)currentTranslation;
 - (void)updateTranslationAnimated:(BOOL)animated;
 - (void)presentTranslateSheet;
@@ -262,6 +264,7 @@ static UIImage *YZThumbnailFromView(UIView *view) {
     [self.view addSubview:_translateBar];
     _bottomBarShown = YES;
     _pageReservesBar = YES;
+    _pageReservesTop = YES;
 
     _cancelButton = [[YZStateButton buttonWithType:UIButtonTypeCustom] retain];
     [(YZStateButton *)_cancelButton setPillInsets:UIEdgeInsetsMake(10, 6, 10, 6)];
@@ -1253,9 +1256,19 @@ static void YZOpenInOtherApp(NSURL *url, BOOL universalOnly, void (^done)(BOOL o
         // the bar covers the strip until the core paints a frame of the grown size, unpainted it showed as a
         // white band
         _pageReservesBar = NO;
+        BOOL takesTop = [YZSettings hideBarsOnScroll] && _pageReservesTop && _core;
+        if (takesTop) {
+            // the page grows upward by the address bar, so it scrolls up by as much and the rows stay where
+            // they are on the screen
+            yozora_core_scroll(_core, -(int)[self barHeight]);
+            [_pageView syncScrollOffset];
+            _pageReservesTop = NO;
+        }
         [self layoutChrome];
         if (!animated) {
             _bottomBar.transform = gone;
+            if (takesTop)
+                [self moveTopBarAway:YES animated:NO];
             return;
         }
         _barLeaving = YES;
@@ -1266,22 +1279,56 @@ static void YZOpenInOtherApp(NSURL *url, BOOL universalOnly, void (^done)(BOOL o
     // the bar comes back over the page with a wobble, and the page gives the room up when it is there
     YZMotionAnimateView(_bottomBar, CGAffineTransformIdentity, 1, YOZORA_MOTION_WOBBLE, 0, ^(BOOL finished) {
         (void)finished;
-        if (_bottomBarShown && !_pageReservesBar) {
-            _pageReservesBar = YES;
-            [self layoutChrome];
+        if (_bottomBarShown && (!_pageReservesBar || !_pageReservesTop)) {
+            [self givePageRoomBack];
         }
     });
+    if (!_pageReservesTop)
+        [self moveTopBarAway:NO animated:animated];
     if (!animated) {
         _bottomBar.transform = CGAffineTransformIdentity;
-        _pageReservesBar = YES;
-        [self layoutChrome];
+        [self givePageRoomBack];
     }
+}
+
+// the bars are back over the page and the page starts under the address bar again. from the top of the page
+// nothing scrolls, further down the rows stay where they are
+- (void)givePageRoomBack {
+    _pageReservesBar = YES;
+    if (!_pageReservesTop) {
+        _pageReservesTop = YES;
+        if (_core && yozora_core_scroll_y(_core) > 8) {
+            yozora_core_scroll(_core, (int)[self barHeight]);
+            [_pageView syncScrollOffset];
+        }
+    }
+    [self layoutChrome];
+}
+
+// the address bar leaves upward and the status strip stays where it is, the field slides under the strip
+- (void)moveTopBarAway:(BOOL)away animated:(BOOL)animated {
+    CGFloat shift = [self barHeight];
+    UIView *strip = [_topBar viewWithTag:2];
+    CGAffineTransform bar = away ? CGAffineTransformMakeTranslation(0, -shift) : CGAffineTransformIdentity;
+    // the same curve moves both, so the strip does not move on the screen
+    CGAffineTransform kept = away ? CGAffineTransformMakeTranslation(0, shift) : CGAffineTransformIdentity;
+    [_topBar bringSubviewToFront:strip];
+    if (!animated) {
+        _topBar.transform = bar;
+        strip.transform = kept;
+        return;
+    }
+    yozora_motion_curve curve = away ? YOZORA_MOTION_DISMISS : YOZORA_MOTION_POPUP_ENTER;
+    YZMotionAnimateView(_topBar, bar, 1, curve, 0, nil);
+    YZMotionAnimateView(strip, kept, 1, curve, 0, nil);
 }
 
 - (void)slideBottomBarAway {
     _barLeaving = NO;
     CGFloat away = [self barHeight] + [self chromeInsets].bottom + 6;
     YZMotionAnimateView(_bottomBar, CGAffineTransformMakeTranslation(0, away), 1, YOZORA_MOTION_DISMISS, 0, nil);
+    if (!_pageReservesTop)
+        [self moveTopBarAway:YES animated:YES];
 }
 
 // the first layer is as tall as the layout, page height over zoom (a page at 50 percent has a layer twice the
@@ -1399,8 +1446,12 @@ static const CGFloat YZTabStripHeight = 44;
     BOOL wide = [self isWide];
     CGFloat strip = wide ? YZTabStripHeight : 0;
     CGFloat toolTop = top + strip;
-    _topBar.frame = CGRectMake(0, 0, width, toolTop + bar);
-    [_topBar viewWithTag:2].frame = CGRectMake(0, 0, width, top);
+    // bounds and center, a frame set under the leaving transform lands in the wrong place
+    _topBar.bounds = CGRectMake(0, 0, width, toolTop + bar);
+    _topBar.center = CGPointMake(width / 2, (toolTop + bar) / 2);
+    UIView *statusStrip = [_topBar viewWithTag:2];
+    statusStrip.bounds = CGRectMake(0, 0, width, top);
+    statusStrip.center = CGPointMake(width / 2, top / 2);
     _tabStrip.hidden = !wide;
     _tabStrip.frame = CGRectMake(insets.left, top, inner, strip);
     // the buttons live in the bottom bar of a phone and in the toolbar of a wide screen
@@ -1455,7 +1506,8 @@ static const CGFloat YZTabStripHeight = 44;
     // the keyboard of a page field covers the bottom bar and the page ends above it
     CGFloat reserved = wide ? bottom : (_pageReservesBar ? bar + bottom : 0);
     CGFloat covered = (_pageEditing || [self findBarOpen]) ? MAX(reserved, _keyboardHeight) : reserved;
-    CGFloat pageTop = toolTop + bar;
+    // with the address bar gone the page starts under the status strip, which stays
+    CGFloat pageTop = (_pageReservesTop || wide) ? toolTop + bar : top;
     CGRect page = CGRectMake(0, pageTop, width, MAX((CGFloat)0, height - pageTop - covered));
     _home.frame = page;
     _errorPage.frame = page;

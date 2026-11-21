@@ -73,6 +73,8 @@
     // the bottom bar leaves while the page is read down and returns on the way up, the page grows before it
     // leaves and shrinks after it arrives
     BOOL _bottomBarShown;
+    // the page starts under the address bar. false while the bar has left with the hide on scroll setting
+    BOOL _pageReservesTop;
     BOOL _pageReservesBar;
     BOOL _barLeaving;
     CFTimeInterval _barLeaveDeadline;

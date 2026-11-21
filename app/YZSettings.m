@@ -16,6 +16,7 @@ static NSString *const YZJavascriptKey = @"YZJavascript";
 static NSString *const YZBlockThirdPartyCookiesKey = @"YZBlockThirdPartyCookies";
 static NSString *const YZTextZoomKey = @"YZTextZoom";
 static NSString *const YZReduceMotionKey = @"YZReduceMotion";
+static NSString *const YZHideBarsKey = @"YZHideBarsOnScroll";
 static NSString *const YZWebFontsKey = @"YZWebFonts";
 static NSString *const YZTranslateTargetKey = @"YZTranslateTarget";
 static NSString *const YZTranslateNeverKey = @"YZTranslateNever";
@@ -131,6 +132,11 @@ static YZLanguage YZDeviceLanguage(void) {
     return [self boolForKey:YZReduceMotionKey defaultValue:NO];
 }
 + (void)setReduceMotion:(BOOL)enabled { [self storeBool:enabled forKey:YZReduceMotionKey]; }
+
+// the bottom bar always leaves on a long scroll down, this adds the address bar to it. off until asked for: a
+// page that grows under the finger is not what every person wants
++ (BOOL)hideBarsOnScroll { return [self boolForKey:YZHideBarsKey defaultValue:NO]; }
++ (void)setHideBarsOnScroll:(BOOL)enabled { [self storeBool:enabled forKey:YZHideBarsKey]; }
 
 + (BOOL)webFonts { return [self boolForKey:YZWebFontsKey defaultValue:YES]; }
 + (void)setWebFonts:(BOOL)enabled { [self storeBool:enabled forKey:YZWebFontsKey]; }
