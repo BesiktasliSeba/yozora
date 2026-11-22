@@ -102,14 +102,19 @@ static YZLanguage YZDeviceLanguage(void) {
 }
 + (void)setLanguage:(YZLanguage)language { [self storeInteger:language forKey:YZLanguageKey]; }
 
-// an unset choice is the classic design on ios 10 and older, where the system itself draws lit and glossy surfaces.
+// the classic design is the system look of ios 5 to 7 and nothing else: a later system draws bars and controls flat, so
+// there it is never offered and a stored classic choice is ignored. an unset choice is the modern design everywhere.
 // kept in memory because every color of the interface asks for it
 static NSInteger YZDesignCurrent = -1;
 
++ (BOOL)classicDesignAvailable {
+    return [[[UIDevice currentDevice] systemVersion] floatValue] < 8.0f;
+}
+
 + (YZDesign)design {
     if (YZDesignCurrent < 0) {
-        NSInteger fallback = [[[UIDevice currentDevice] systemVersion] floatValue] < 11.0f ? YZDesignClassic : YZDesignModern;
-        YZDesignCurrent = [self integerForKey:YZDesignKey defaultValue:fallback] == YZDesignClassic ? YZDesignClassic : YZDesignModern;
+        BOOL classic = [self classicDesignAvailable] && [self integerForKey:YZDesignKey defaultValue:YZDesignModern] == YZDesignClassic;
+        YZDesignCurrent = classic ? YZDesignClassic : YZDesignModern;
     }
     return (YZDesign)YZDesignCurrent;
 }

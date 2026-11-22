@@ -1041,10 +1041,19 @@ static NSArray *YZEngineTints(void) {
 
 #pragma mark content
 
+// the design row exists where the classic design does: ios 5 to 7
+- (NSArray *)generalSection:(NSNumber *(^)(YZRow))row {
+    NSMutableArray *section = [NSMutableArray arrayWithObjects:YZT(@"Основные"), row(YZRowLanguage), row(YZRowTheme), nil];
+    if ([YZSettings classicDesignAvailable])
+        [section addObject:row(YZRowDesign)];
+    [section addObjectsFromArray:[NSArray arrayWithObjects:row(YZRowAccent), row(YZRowPrivateAccent), row(YZRowMascot), row(YZRowMascotGlow), row(YZRowSearchEngine), row(YZRowTabsLayout), row(YZRowTextSize), row(YZRowAppIcons), nil]];
+    return section;
+}
+
 - (NSArray *)buildSections {
     NSNumber *(^row)(YZRow) = ^(YZRow kind) { return [NSNumber numberWithInt:kind]; };
     return [NSArray arrayWithObjects:
-        [NSArray arrayWithObjects:YZT(@"Основные"), row(YZRowLanguage), row(YZRowTheme), row(YZRowDesign), row(YZRowAccent), row(YZRowPrivateAccent), row(YZRowMascot), row(YZRowSearchEngine), row(YZRowTextSize), row(YZRowAppIcons), nil],
+        [self generalSection:row],
         [NSArray arrayWithObjects:YZT(@"Приватность и безопасность"), row(YZRowBlockTrackers), row(YZRowAdblockRules), row(YZRowSitePermissions), row(YZRowBlockThirdPartyCookies),
          row(YZRowSaveHistory), row(YZRowClearHistory), row(YZRowClearSiteData), nil],
         [NSArray arrayWithObjects:YZT(@"Страницы"), row(YZRowJavascript), row(YZRowEconomy), row(YZRowCrispScrolling), row(YZRowReduceMotion), row(YZRowHideBars), row(YZRowWebFonts), nil],

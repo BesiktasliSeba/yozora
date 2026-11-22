@@ -15,8 +15,8 @@ typedef enum {
     YZMascotFox
 } YZMascot;
 
-/* the drawing of the interface: Material flat cards and pills, or the lit glossy surfaces of ios 5 and 6 that the
-   system draws itself. ios 10 and older start with the classic one */
+/* the drawing of the interface: Material flat cards and pills, or the bars and controls the system of ios 5 to 7
+   draws itself. every system starts with the modern one */
 typedef enum {
     YZDesignModern,
     YZDesignClassic
@@ -35,6 +35,8 @@ extern NSString *const YZSettingsDidChangeNotification;
 @interface YZSettings : NSObject
 + (YZLanguage)language;
 + (void)setLanguage:(YZLanguage)language;
+/* the classic design exists on ios 5 to 7 only */
++ (BOOL)classicDesignAvailable;
 + (YZDesign)design;
 + (void)setDesign:(YZDesign)design;
 + (YZMascot)mascot;
