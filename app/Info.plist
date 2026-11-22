@@ -68,7 +68,7 @@
     <key>UIPrerenderedIcon</key><true/>
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
     <key>CFBundleVersion</key><string>1</string>
-    <key>CFBundleShortVersionString</key><string>1.2.0-stable</string>
+    <key>CFBundleShortVersionString</key><string>1.3.0-stable</string>
     <key>MinimumOSVersion</key><string>5.0</string>
     <key>LSRequiresIPhoneOS</key><true/>
     <!-- the log screen only: pages never see this font, the core catalog reads app/fonts -->
