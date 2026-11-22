@@ -40,7 +40,7 @@
 - (void)showError:(yozora_page_error)error address:(NSString *)address reason:(NSString *)reason {
     _error = error;
     _address.text = address;
-    _reason.text = reason;
+    _reason.text = YZTCore(reason);
     [self applyTheme];
     [self setContentOffset:CGPointZero animated:NO];
 }

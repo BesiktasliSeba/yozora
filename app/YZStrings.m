@@ -302,6 +302,13 @@ static NSDictionary *YZEnglish(void) {
         @"Sign in request not understood", @"Запрос входа не понят",
         @"a modern web browser for older hardware", @"Современный браузер для старого железа",
         @"classic safari look on the outside, all-new on the inside", @"Классический вид Safari снаружи, всё новое внутри",
+        @"The address is too long", @"Адрес слишком длинный",
+        @"The file download has started", @"Загрузка файла началась",
+        @"The cache is already open", @"Кэш уже открыт",
+        @"Could not start the navigation", @"Не удалось начать переход",
+        @"Could not open the cache", @"Не удалось открыть кэш",
+        @"Too many open windows", @"Слишком много открытых окон",
+        @"This file could not be downloaded", @"Этот файл не удалось загрузить",
         @"Mascot glow", @"Свечение маскота",
         nil];
     return table;
@@ -608,6 +615,13 @@ static NSDictionary *YZJapanese(void) {
         @"JITはアプリの再起動後に有効になります", @"JIT включится после перезапуска",
         @"古いハードウェアで使える現代的なウェブブラウザ", @"Современный браузер для старого железа",
         @"外側はクラシックなSafari、内側はすべて新しい", @"Классический вид Safari снаружи, всё новое внутри",
+        @"アドレスが長すぎます", @"Адрес слишком длинный",
+        @"ファイルのダウンロードを開始しました", @"Загрузка файла началась",
+        @"キャッシュはすでに開かれています", @"Кэш уже открыт",
+        @"ナビゲーションを開始できませんでした", @"Не удалось начать переход",
+        @"キャッシュを開けませんでした", @"Не удалось открыть кэш",
+        @"開いているウィンドウが多すぎます", @"Слишком много открытых окон",
+        @"このファイルをダウンロードできませんでした", @"Этот файл не удалось загрузить",
         @"マスコットの発光", @"Свечение маскота",
         nil];
     return table;
@@ -623,4 +637,18 @@ NSString *YZT(NSString *russian) {
     }
     NSString *translated = [table objectForKey:russian];
     return translated ? translated : russian;
+}
+
+NSString *YZTCore(NSString *text) {
+    if (![text length])
+        return text;
+    NSString *whole = YZT(text);
+    if (![whole isEqualToString:text])
+        return whole;
+    NSRange colon = [text rangeOfString:@": "];
+    if (colon.location == NSNotFound)
+        return text;
+    NSString *head = [text substringToIndex:colon.location];
+    NSString *translated = YZT(head);
+    return [translated isEqualToString:head] ? text : [translated stringByAppendingString:[text substringFromIndex:colon.location]];
 }

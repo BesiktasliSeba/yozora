@@ -520,7 +520,7 @@ static UIImage *YZThumbnailFromView(UIView *view) {
     }
     if (!_core) {
         NSLog(@"yozora: core initialization failed: %s", error);
-        [self showError:[NSString stringWithUTF8String:error]];
+        [self showError:YZTCore([NSString stringWithUTF8String:error])];
         return NO;
     }
     _pageView.core = _core;
@@ -766,7 +766,7 @@ static UIImage *YZThumbnailFromView(UIView *view) {
     [self closeFindBar];
     char error[256] = {0};
     if (!yozora_core_load(_core, [url UTF8String], error, sizeof(error))) {
-        [self showError:[NSString stringWithUTF8String:error]];
+        [self showError:YZTCore([NSString stringWithUTF8String:error])];
         return;
     }
     [self currentTab].url = url;
