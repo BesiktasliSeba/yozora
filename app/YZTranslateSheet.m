@@ -12,6 +12,9 @@
 static const CGFloat YZFieldHeight = 60;
 static const CGFloat YZRowHeight = 52;
 
+// the button that starts the translation: a full width bar in the modern design, a key of the size of a key in the classic one
+static CGFloat YZPrimaryHeight(void) { return [YZTheme isClassic] ? 38 : 48; }
+
 static NSString *YZNameOf(NSString *code) {
     int index = yozora_tr_language_find([code UTF8String]);
     return index < 0 ? @"" : [NSString stringWithUTF8String:yozora_tr_language_name((size_t)index)];
@@ -136,18 +139,23 @@ static NSString *YZNameOf(NSString *code) {
     [_content addSubview:_targetField];
     _swap = [[YZStateButton buttonWithType:UIButtonTypeCustom] retain];
     [(YZStateButton *)_swap setPillSize:CGSizeMake(40, 40)];
-    [_swap setImage:[YZTheme icon:YZIconSwap size:22 color:[YZTheme accentColor]] forState:UIControlStateNormal];
+    if ([YZTheme isClassic]) {
+        [YZClassic styleKey:_swap color:[YZClassic barMidColor] radius:8 modernRadius:20];
+        [_swap setImage:[YZClassic stampedImage:[YZTheme icon:YZIconSwap size:22 color:[UIColor whiteColor]]] forState:UIControlStateNormal];
+    } else {
+        [_swap setImage:[YZTheme icon:YZIconSwap size:22 color:[YZTheme accentColor]] forState:UIControlStateNormal];
+    }
     [_swap addTarget:self action:@selector(swapPressed) forControlEvents:UIControlEventTouchUpInside];
     YZMotionAttachBounce(_swap, 0.1f);
     [_content addSubview:_swap];
     _primary = [[UIButton buttonWithType:UIButtonTypeCustom] retain];
-    _primary.titleLabel.font = [YZTheme boldSystemFontOfSize:16];
+    _primary.titleLabel.font = [YZTheme isClassic] ? [UIFont boldSystemFontOfSize:15] : [YZTheme boldSystemFontOfSize:16];
     [YZClassic styleKey:_primary color:[YZTheme isClassic] ? [YZClassic barMidColor] : [YZTheme accentColor] radius:10 modernRadius:24];
     [_primary setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
     [_primary addTarget:self action:@selector(primaryPressed) forControlEvents:UIControlEventTouchUpInside];
     YZMotionAttachBounce(_primary, 0.04f);
     [_content addSubview:_primary];
-    CGFloat height = 2 * YZFieldHeight + 12 + 16 + 48;
+    CGFloat height = 2 * YZFieldHeight + 12 + 16 + YZPrimaryHeight();
     if ([self hasDetectedLanguage]) {
         _alwaysLabel = [[self toggleLabel] retain];
         _neverLabel = [[self toggleLabel] retain];
@@ -179,11 +187,13 @@ static NSString *YZNameOf(NSString *code) {
     CGFloat side = 16;
     CGFloat inner = MAX((CGFloat)0, width - 2 * side);
     CGFloat y = 4;
-    _sourceField.frame = CGRectMake(side, y, inner, YZFieldHeight);
+    // the fields leave a column at the right for the swap key, which stands in the middle of the two
+    CGFloat swapColumn = 52;
+    CGFloat fieldWidth = MAX((CGFloat)0, inner - swapColumn);
+    _sourceField.frame = CGRectMake(side, y, fieldWidth, YZFieldHeight);
     y += YZFieldHeight + 12;
-    _targetField.frame = CGRectMake(side, y, inner, YZFieldHeight);
-    // the swap button sits on the line between the two fields, at the right
-    _swap.frame = CGRectMake(width - side - 64, YZFieldHeight + 4 + 6 - 14 + 6, 40, 40);
+    _targetField.frame = CGRectMake(side, y, fieldWidth, YZFieldHeight);
+    _swap.frame = CGRectMake(width - side - 40, 4 + (2 * YZFieldHeight + 12 - 40) / 2, 40, 40);
     for (UIControl *field in [NSArray arrayWithObjects:_sourceField, _targetField, nil]) {
         UILabel *name = field == _sourceField ? _sourceName : _targetName;
         name.frame = CGRectMake(18, 28, MAX((CGFloat)0, field.bounds.size.width - 60), 24);
@@ -191,14 +201,19 @@ static NSString *YZNameOf(NSString *code) {
         [field viewWithTag:1].frame = CGRectMake(18, 9, MAX((CGFloat)0, field.bounds.size.width - 60), 16);
     }
     y += YZFieldHeight + 16;
-    _primary.frame = CGRectMake(side, y, inner, 48);
-    y += 48 + 16;
+    // the classic key is as wide as its words need, in the middle
+    CGFloat primaryWidth = [YZTheme isClassic] ? MIN(inner, MAX((CGFloat)150, YZTextSize([_primary titleForState:UIControlStateNormal], _primary.titleLabel.font).width + 48)) : inner;
+    _primary.frame = CGRectMake(side + floor((inner - primaryWidth) / 2), y, primaryWidth, YZPrimaryHeight());
+    y += YZPrimaryHeight() + 16;
     if (_alwaysLabel) {
-        _alwaysLabel.frame = CGRectMake(side + 4, y, MAX((CGFloat)0, inner - 72), YZRowHeight);
-        _alwaysToggle.frame = CGRectMake(width - side - 52, y + (YZRowHeight - 32) / 2, 52, 32);
+        // the switch of the system is wider than the Material one: the label keeps what is left and the switch stays on the screen
+        CGSize toggle = [YZToggle controlSize];
+        CGFloat labelWidth = MAX((CGFloat)0, inner - toggle.width - 20);
+        _alwaysLabel.frame = CGRectMake(side + 4, y, labelWidth, YZRowHeight);
+        _alwaysToggle.frame = CGRectMake(width - side - toggle.width, y + (YZRowHeight - toggle.height) / 2, toggle.width, toggle.height);
         y += YZRowHeight;
-        _neverLabel.frame = CGRectMake(side + 4, y, MAX((CGFloat)0, inner - 72), YZRowHeight);
-        _neverToggle.frame = CGRectMake(width - side - 52, y + (YZRowHeight - 32) / 2, 52, 32);
+        _neverLabel.frame = CGRectMake(side + 4, y, labelWidth, YZRowHeight);
+        _neverToggle.frame = CGRectMake(width - side - toggle.width, y + (YZRowHeight - toggle.height) / 2, toggle.width, toggle.height);
         y += YZRowHeight;
     }
     // the height the sheet asked for: the content scrolls only when the sheet had to be made shorter than that
@@ -210,6 +225,8 @@ static NSString *YZNameOf(NSString *code) {
     NSString *detected = [self hasDetectedLanguage] ? YZNameOf(_translation.source) : nil;
     _sourceName.text = _source ? YZNameOf(_source) : (detected ? [NSString stringWithFormat:@"%@ · %@", YZT(@"Определить"), detected] : YZT(@"Определить автоматически"));
     _targetName.text = YZNameOf(_target);
+    YZShrinkToFit(_sourceName);
+    YZShrinkToFit(_targetName);
     BOOL same = _translation.phase == YZTranslationDone && [_target isEqualToString:_translation.target]
         && (_source ? [_source isEqualToString:_translation.source] : YES);
     [_primary setTitle:same ? YZT(@"Показать оригинал") : YZT(@"Перевести") forState:UIControlStateNormal];

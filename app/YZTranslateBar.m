@@ -10,6 +10,8 @@
 static const CGFloat YZBarHeight = 68;
 static const CGFloat YZBarGlyph = 40;
 static const CGFloat YZBarButton = 36;
+// the classic key is as small as a key of a bar: the words beside it get the room
+static const CGFloat YZClassicKeyHeight = 28;
 
 static NSString *YZLanguageNamed(NSString *code) {
     int index = yozora_tr_language_find([code UTF8String]);
@@ -99,6 +101,12 @@ static NSString *YZLanguageNamed(NSString *code) {
         _disc.backgroundColor = [YZTheme stateColor];
         _glyph.image = [YZTheme icon:YZIconTranslate size:22 color:[YZTheme accentColor]];
     }
+    _title.font = [YZTheme isClassic] ? [UIFont boldSystemFontOfSize:14] : [YZTheme boldSystemFontOfSize:15];
+    // a long title or pair of languages shrinks a little before it is cut
+    YZShrinkToFit(_title);
+    _subtitle.font = [YZTheme isClassic] ? [UIFont systemFontOfSize:12] : [YZTheme systemFontOfSize:13];
+    YZShrinkToFit(_subtitle);
+    _primary.titleLabel.font = [YZTheme isClassic] ? [UIFont boldSystemFontOfSize:12] : [YZTheme boldSystemFontOfSize:14];
     _title.textColor = [YZTheme textColor];
     _subtitle.textColor = [YZTheme subtleTextColor];
     _wave.playedColor = [YZTheme accentColor];
@@ -113,14 +121,19 @@ static NSString *YZLanguageNamed(NSString *code) {
     [super layoutSubviews];
     CGFloat width = self.bounds.size.width, height = self.bounds.size.height;
     _body.frame = self.bounds;
-    _disc.frame = CGRectMake(14, (height - YZBarGlyph) / 2, YZBarGlyph, YZBarGlyph);
+    CGFloat discSide = [YZTheme isClassic] ? 34 : YZBarGlyph;
+    _disc.frame = CGRectMake(14, (height - discSide) / 2, discSide, discSide);
     _glyph.frame = _disc.bounds;
     _close.frame = CGRectMake(width - YZBarButton - 10, (height - YZBarButton) / 2, YZBarButton, YZBarButton);
     CGFloat right = _close.frame.origin.x - 6;
     CGSize title = _primary.hidden ? CGSizeZero : YZTextSize([_primary titleForState:UIControlStateNormal], _primary.titleLabel.font);
     CGFloat primaryWidth = _primary.hidden ? 0 : MIN(MAX(title.width + 28, (CGFloat)84), (CGFloat)150);
-    _primary.frame = CGRectMake(right - primaryWidth, (height - YZBarButton) / 2, primaryWidth, YZBarButton);
-    CGFloat textLeft = 14 + YZBarGlyph + 12;
+    if ([YZTheme isClassic] && !_primary.hidden)
+        primaryWidth = MIN(MAX(title.width + 20, (CGFloat)60), (CGFloat)96);
+    CGFloat primaryHeight = [YZTheme isClassic] ? YZClassicKeyHeight : YZBarButton;
+    _primary.frame = CGRectMake(right - primaryWidth, (height - primaryHeight) / 2, primaryWidth, primaryHeight);
+    CGFloat glyphSide = [YZTheme isClassic] ? 34 : YZBarGlyph;
+    CGFloat textLeft = 14 + glyphSide + 10;
     CGFloat textRight = (_primary.hidden ? right : _primary.frame.origin.x) - 8;
     CGFloat textWidth = MAX((CGFloat)0, textRight - textLeft);
     _title.frame = CGRectMake(textLeft, 13, textWidth, 20);
@@ -153,7 +166,8 @@ static NSString *YZLanguageNamed(NSString *code) {
     NSString *title = nil, *subtitle = nil, *button = nil;
     switch (phase) {
     case YZTranslationOffered:
-        title = YZT(@"Перевести эту страницу?");
+        // the classic bar has little room beside its key: the question is only the verb, as the key says it too
+        title = [YZTheme isClassic] ? YZT(@"Перевести") : YZT(@"Перевести эту страницу?");
         subtitle = translation.source ? pair : YZLanguageNamed(translation.target);
         button = YZT(@"Перевести");
         break;

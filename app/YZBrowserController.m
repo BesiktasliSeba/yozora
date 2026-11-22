@@ -1080,7 +1080,9 @@ static void YZOpenInOtherApp(NSURL *url, BOOL universalOnly, void (^done)(BOOL o
             YZMotionAnimateEnter(_translateButton, CGAffineTransformMakeScale(0.4f, 0.4f), 0, YOZORA_MOTION_WOBBLE, 0);
     }
     BOOL active = phase == YZTranslationWorking || phase == YZTranslationDone;
-    [_translateButton setImage:[YZTheme icon:YZIconTranslate size:22 color:active ? [YZTheme accentColor] : [YZTheme subtleTextColor]] forState:UIControlStateNormal];
+    // the classic field has one color of ink for its keys, the reload key's; the modern one lights the key while the page is translated
+    UIColor *translateInk = active && ![YZTheme isClassic] ? [YZTheme fieldAccentColor] : [YZTheme fieldHintColor];
+    [_translateButton setImage:[YZTheme icon:YZIconTranslate size:22 color:translateInk] forState:UIControlStateNormal];
     // the glyph breathes while the texts are sent
     if (phase == YZTranslationWorking && ![_translateButton.layer animationForKey:@"breath"]) {
         CABasicAnimation *breath = [CABasicAnimation animationWithKeyPath:@"transform.scale"];
@@ -1518,10 +1520,20 @@ static const CGFloat YZTabStripHeight = 44;
     // the classic well carries its own corners in its picture
     _field.layer.cornerRadius = [YZTheme isClassic] ? 0 : fieldHeight / 2;
     _securityView.frame = CGRectMake(10, 0, 28, fieldHeight);
-    _reloadButton.frame = CGRectMake(_field.bounds.size.width - fieldHeight - 4, 0, fieldHeight, fieldHeight);
-    _translateButton.frame = CGRectMake(_field.bounds.size.width - 2 * fieldHeight - 4, 0, fieldHeight, fieldHeight);
-    CGFloat inputLeft = 40, inputRight = _editing ? 14 : fieldHeight + 4 + (_translateButton.hidden ? 0 : fieldHeight);
-    _input.frame = CGRectMake(inputLeft, 0, _field.bounds.size.width - inputLeft - inputRight, fieldHeight);
+    // the classic field is a pill with a round end: the keys in it are a little smaller and stand off the end
+    BOOL classicField = [YZTheme isClassic];
+    CGFloat key = classicField ? fieldHeight - 6 : fieldHeight;
+    CGFloat endPad = classicField ? 8 : 4;
+    CGFloat keyTop = (fieldHeight - key) / 2;
+    _reloadButton.frame = CGRectMake(_field.bounds.size.width - key - endPad, keyTop, key, key);
+    _translateButton.frame = CGRectMake(CGRectGetMinX(_reloadButton.frame) - key - 2, keyTop, key, key);
+    CGFloat inputLeft = 40, inputRight = _editing ? 14 : (_field.bounds.size.width - CGRectGetMinX(_reloadButton.frame)) + (_translateButton.hidden ? 0 : key + 2);
+    if (!_editing) {
+        // the address is centered in the field, so it keeps the same room on both sides and does not move when the translate key comes
+        inputLeft = MAX(inputLeft, inputRight);
+        inputRight = inputLeft;
+    }
+    _input.frame = CGRectMake(inputLeft, 0, MAX((CGFloat)0, _field.bounds.size.width - inputLeft - inputRight), fieldHeight);
     _cancelButton.frame = CGRectMake(width - insets.right - 84, toolTop, 84, bar);
     _progress.frame = CGRectMake(0, toolTop + bar - 3, width * (_shownProgress / 100.0f), 3);
     [self layoutDownloadLine];
@@ -1668,6 +1680,8 @@ static const CGFloat YZTabStripHeight = 44;
         _shownState = state;
         _shownBlank = blank;
         _shownSecure = secure;
+        // the key of the translation belongs to a page: the start page has none, whatever was offered before
+        [self updateTranslationAnimated:NO];
         BOOL loading = state == YOZORA_LOAD_LOADING;
         [_reloadButton setImage:[YZTheme icon:(loading ? YZIconStop : YZIconReload) size:20 color:[YZTheme fieldHintColor]]
                        forState:UIControlStateNormal];
