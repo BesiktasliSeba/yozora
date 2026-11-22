@@ -18,12 +18,14 @@
 @interface YZScrollView : UIScrollView
 @end
 
-/* two segments in one pill, the chosen one is marked by a pill that wobbles over to it. the segments are a title and a glyph */
+/* two segments in one pill, the chosen one is marked by a pill that wobbles over to it. the segments are a title and a glyph.
+   the classic design shows the segmented control of the system instead and uses the titles only */
 @interface YZSegmentedPill : UIControl {
     NSArray *_titles;
     NSArray *_icons;
     NSMutableArray *_buttons;
     UIView *_indicator;
+    UISegmentedControl *_system;
     NSInteger _selected;
 }
 @property(nonatomic, assign) NSInteger selectedSegment;
@@ -39,9 +41,13 @@
 @interface YZToggle : UIControl {
     UIView *_track;
     UIView *_thumb;
+    // the classic design shows the switch of the system and the two views above stay hidden
+    UISwitch *_system;
     BOOL _on;
 }
 @property(nonatomic, assign, getter=isOn) BOOL on;
+/* the size the switch has in the chosen design: the system switch of ios 5 to 7 in the classic one */
++ (CGSize)controlSize;
 - (void)setOn:(BOOL)on animated:(BOOL)animated;
 /* the colors of the chosen theme */
 - (void)applyTheme;

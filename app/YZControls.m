@@ -89,6 +89,13 @@ static const CGFloat YZSegmentHeight = 36;
     _indicator = [[UIView alloc] initWithFrame:CGRectZero];
     _indicator.userInteractionEnabled = NO;
     [self addSubview:_indicator];
+    // built once and shown only by the classic design
+    _system = [[UISegmentedControl alloc] initWithItems:_titles];
+    // only the bar style of ios 5 and 6 takes the tint for its chosen segment, the plain one is always blue. ios 7 has one style
+    if ([_system respondsToSelector:NSSelectorFromString(@"setSegmentedControlStyle:")])
+        [_system setValue:[NSNumber numberWithInt:2] forKey:@"segmentedControlStyle"];
+    [_system addTarget:self action:@selector(systemSegmentChanged:) forControlEvents:UIControlEventValueChanged];
+    [self addSubview:_system];
     for (NSUInteger i = 0; i < [_titles count]; ++i) {
         UIButton *button = [UIButton buttonWithType:UIButtonTypeCustom];
         button.tag = (NSInteger)i;
@@ -110,6 +117,8 @@ static const CGFloat YZSegmentHeight = 36;
         return;
     _selected = index;
     [self applyTheme];
+    if ([YZTheme isClassic])
+        return;
     UIButton *chosen = [_buttons objectAtIndex:(NSUInteger)index];
     CGRect target = chosen.frame;
     if (animated && self.window && target.size.width > 0) {
@@ -134,23 +143,30 @@ static const CGFloat YZSegmentHeight = 36;
 
 - (void)applyTheme {
     BOOL classic = [YZTheme isClassic];
+    // the system control draws itself, the pill and its buttons are for the modern design
+    _system.hidden = !classic;
+    _indicator.hidden = classic;
+    for (UIButton *button in _buttons)
+        button.hidden = classic;
     if (classic) {
-        // a segmented control of the old system: a sunk grey well and a lit glossy key of the accent under the chosen segment
-        self.backgroundColor = [YZTheme pressedColor];
-        self.layer.borderWidth = 1;
-        self.layer.borderColor = [[UIColor colorWithWhite:0 alpha:0.45f] CGColor];
-        _indicator.backgroundColor = [UIColor clearColor];
-        [YZTheme stretchImage:[YZClassic keyImageWithColor:[YZClassic barMidColor] radius:7 pressed:NO] caps:7 onView:_indicator];
-    } else {
-        self.backgroundColor = [YZTheme fieldColor];
+        self.backgroundColor = [UIColor clearColor];
         self.layer.borderWidth = 0;
-        _indicator.layer.contents = nil;
-        _indicator.backgroundColor = [YZTheme stateColor];
+        self.layer.cornerRadius = 0;
+        for (NSUInteger i = 0; i < [_titles count] && i < [_system numberOfSegments]; ++i)
+            [_system setTitle:[_titles objectAtIndex:i] forSegmentAtIndex:i];
+        _system.selectedSegmentIndex = _selected;
+        // ios 7 tints the whole control, ios 5 and 6 the chosen segment, both take the accent of the bars
+        _system.tintColor = [YZClassic barMidColor];
+        return;
     }
+    self.backgroundColor = [YZTheme fieldColor];
+    self.layer.borderWidth = 0;
+    _indicator.layer.contents = nil;
+    _indicator.backgroundColor = [YZTheme stateColor];
     for (NSUInteger i = 0; i < [_buttons count]; ++i) {
         UIButton *button = [_buttons objectAtIndex:i];
         BOOL chosen = (NSInteger)i == _selected;
-        UIColor *color = chosen ? (classic ? [UIColor whiteColor] : [YZTheme accentColor]) : [YZTheme subtleTextColor];
+        UIColor *color = chosen ? [YZTheme accentColor] : [YZTheme subtleTextColor];
         [button setTitle:[_titles objectAtIndex:i] forState:UIControlStateNormal];
         [button setTitleColor:color forState:UIControlStateNormal];
         // a segment without a glyph is only its title
@@ -159,6 +175,14 @@ static const CGFloat YZSegmentHeight = 36;
         button.titleEdgeInsets = glyph ? UIEdgeInsetsMake(0, 6, 0, 0) : UIEdgeInsetsZero;
         button.accessibilityTraits = chosen ? (UIAccessibilityTraitButton | UIAccessibilityTraitSelected) : UIAccessibilityTraitButton;
     }
+}
+
+- (void)systemSegmentChanged:(UISegmentedControl *)control {
+    NSInteger index = control.selectedSegmentIndex;
+    if (index == _selected || index < 0)
+        return;
+    _selected = index;
+    [self sendActionsForControlEvents:UIControlEventValueChanged];
 }
 
 - (void)segmentPressed:(UIButton *)button {
@@ -172,12 +196,15 @@ static const CGFloat YZSegmentHeight = 36;
 - (void)layoutSubviews {
     [super layoutSubviews];
     CGRect bounds = self.bounds;
+    // every part is placed in every design, only what the design shows is visible: a layout that returned early left the buttons of
+    // the pill without a frame
+    _system.frame = bounds;
     CGFloat each = [_buttons count] ? bounds.size.width / [_buttons count] : 0;
     for (NSUInteger i = 0; i < [_buttons count]; ++i)
         [[_buttons objectAtIndex:i] setFrame:CGRectMake(each * i, 0, each, bounds.size.height)];
-    BOOL classicShape = [YZTheme isClassic];
-    self.layer.cornerRadius = classicShape ? 8 : bounds.size.height / 2;
-    _indicator.layer.cornerRadius = classicShape ? 7 : bounds.size.height / 2;
+    BOOL classic = [YZTheme isClassic];
+    self.layer.cornerRadius = classic ? 0 : bounds.size.height / 2;
+    _indicator.layer.cornerRadius = bounds.size.height / 2;
     if (![[_indicator.layer animationKeys] count] && _selected < (NSInteger)[_buttons count]) {
         CGRect target = [[_buttons objectAtIndex:(NSUInteger)_selected] frame];
         _indicator.bounds = CGRectMake(0, 0, target.size.width, target.size.height);
@@ -195,6 +222,7 @@ static const CGFloat YZSegmentHeight = 36;
     [_icons release];
     [_buttons release];
     [_indicator release];
+    [_system release];
     [super dealloc];
 }
 @end
@@ -205,6 +233,10 @@ static const CGFloat YZToggleThumb = 24;
 
 @implementation YZToggle
 @synthesize on = _on;
+
++ (CGSize)controlSize {
+    return [YZTheme isClassic] ? CGSizeMake(79, 27) : CGSizeMake(YZToggleWidth, YZToggleHeight);
+}
 
 - (id)initWithFrame:(CGRect)frame {
     (void)frame;
@@ -219,6 +251,9 @@ static const CGFloat YZToggleThumb = 24;
     _thumb.userInteractionEnabled = NO;
     _thumb.layer.cornerRadius = YZToggleThumb / 2;
     [self addSubview:_thumb];
+    _system = [[UISwitch alloc] initWithFrame:CGRectZero];
+    [_system addTarget:self action:@selector(systemChanged) forControlEvents:UIControlEventValueChanged];
+    [self addSubview:_system];
     self.isAccessibilityElement = YES;
     self.accessibilityTraits = UIAccessibilityTraitButton;
     [self addTarget:self action:@selector(tapped) forControlEvents:UIControlEventTouchUpInside];
@@ -228,36 +263,32 @@ static const CGFloat YZToggleThumb = 24;
 
 - (CGSize)sizeThatFits:(CGSize)size {
     (void)size;
-    return CGSizeMake(YZToggleWidth, YZToggleHeight);
+    return [YZToggle controlSize];
+}
+
+// the system switch takes its own touches, so the control itself takes none while it shows
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    _system.frame = CGRectMake(0, 0, 79, 27);
 }
 
 // the thumb is placed on the left and moved by its transform: small when off, full size and 20 points to the right when on
 - (CGAffineTransform)thumbTransform {
-    // the classic knob keeps its size when the switch is off
-    if ([YZTheme isClassic])
-        return _on ? CGAffineTransformMakeTranslation(YZToggleWidth - YZToggleHeight, 0) : CGAffineTransformIdentity;
     return _on ? CGAffineTransformMakeTranslation(YZToggleWidth - YZToggleHeight, 0) : CGAffineTransformMakeScale(0.667f, 0.667f);
 }
 
-// the colors of the track and the knob for the state: flat in the modern design, a lit gradient with an outline and a shadow in the classic one
+// the colors of the track and the knob for the state. the classic design shows the system switch instead
 - (void)paintParts {
     YZGradientView *track = (YZGradientView *)_track, *thumb = (YZGradientView *)_thumb;
-    if ([YZTheme isClassic]) {
-        if (_on)
-            [track setTop:[YZClassic barBottomColor] bottom:[YZClassic barTopColor]];
-        else
-            [track setTop:[UIColor colorWithWhite:0.72f alpha:1] bottom:[UIColor colorWithWhite:0.95f alpha:1]];
-        track.layer.cornerRadius = YZToggleHeight / 2;
-        track.layer.borderWidth = 1;
-        track.layer.borderColor = [[UIColor colorWithWhite:0 alpha:0.5f] CGColor];
-        [thumb setTop:[UIColor colorWithWhite:1 alpha:1] bottom:[UIColor colorWithWhite:0.82f alpha:1]];
-        thumb.layer.cornerRadius = YZToggleThumb / 2;
-        thumb.layer.borderWidth = 1;
-        thumb.layer.borderColor = [[UIColor colorWithWhite:0 alpha:0.45f] CGColor];
-        thumb.layer.shadowColor = [[UIColor blackColor] CGColor];
-        thumb.layer.shadowOpacity = 0.35f;
-        thumb.layer.shadowRadius = 1.5f;
-        thumb.layer.shadowOffset = CGSizeMake(0, 1);
+    BOOL classic = [YZTheme isClassic];
+    _track.hidden = classic;
+    _thumb.hidden = classic;
+    _system.hidden = !classic;
+    if (classic) {
+        // ios 5 and 6 tint the lit track, ios 7 tints it as well through onTintColor
+        if ([_system respondsToSelector:@selector(setOnTintColor:)])
+            _system.onTintColor = [YZClassic barMidColor];
+        _system.on = _on;
         return;
     }
     UIColor *trackColor = _on ? [YZTheme accentColor] : [YZTheme fieldColor];
@@ -292,8 +323,12 @@ static const CGFloat YZToggleThumb = 24;
     }
     _on = on;
     self.accessibilityValue = on ? @"1" : @"0";
+    if ([YZTheme isClassic]) {
+        [_system setOn:on animated:animated && self.window != nil];
+        return;
+    }
     if (animated && self.window) {
-        YZMotionAnimateView(_thumb, [self thumbTransform], 1, [YZTheme isClassic] ? YOZORA_MOTION_ENTER : YOZORA_MOTION_WOBBLE, 0, nil);
+        YZMotionAnimateView(_thumb, [self thumbTransform], 1, YOZORA_MOTION_WOBBLE, 0, nil);
         [UIView animateWithDuration:0.2 animations:^{ [self paintParts]; }];
     } else {
         [self applyTheme];
@@ -301,13 +336,23 @@ static const CGFloat YZToggleThumb = 24;
 }
 
 - (void)tapped {
+    // a tap on the system switch is its own event, the control sees it as well and must not turn it back
+    if ([YZTheme isClassic])
+        return;
     [self setOn:!_on animated:YES];
+    [self sendActionsForControlEvents:UIControlEventValueChanged];
+}
+
+- (void)systemChanged {
+    _on = _system.on;
+    self.accessibilityValue = _on ? @"1" : @"0";
     [self sendActionsForControlEvents:UIControlEventValueChanged];
 }
 
 - (void)dealloc {
     [_track release];
     [_thumb release];
+    [_system release];
     [super dealloc];
 }
 @end

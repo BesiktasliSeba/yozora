@@ -64,6 +64,27 @@ static CAAnimationGroup *YZMotionGroup(CGAffineTransform from, CGAffineTransform
 void YZMotionAnimateView(UIView *view, CGAffineTransform transform, CGFloat alpha, yozora_motion_curve curve, NSTimeInterval delay,
                          void (^completion)(BOOL finished)) {
     CALayer *layer = view.layer;
+    // the classic design uses the animation of the system and none of the sampled curves: ios 5 to 7 move a view
+    // with one ease in out
+    if ([YZTheme isClassic]) {
+        [layer removeAnimationForKey:YZMotionKey];
+        [layer removeAnimationForKey:YZEnterKey];
+        if (!view.window || ![YZTheme animationsEnabled]) {
+            view.transform = transform;
+            view.alpha = alpha;
+            if (completion)
+                completion(YES);
+            return;
+        }
+        [UIView animateWithDuration:0.3 delay:delay options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseInOut animations:^{
+            view.transform = transform;
+            view.alpha = alpha;
+        } completion:^(BOOL finished) {
+            if (completion)
+                completion(finished);
+        }];
+        return;
+    }
     // a view that leaves while its way in plays starts from where it is seen, the model value is already the
     // end of the way in, so starting from it made a sheet closed early jump to its place first. the way in is
     // dropped so it cannot play under the new motion
@@ -96,7 +117,8 @@ void YZMotionAnimateView(UIView *view, CGAffineTransform transform, CGFloat alph
 void YZMotionAnimateEnter(UIView *view, CGAffineTransform from, CGFloat fromAlpha, yozora_motion_curve curve, NSTimeInterval delay) {
     CALayer *layer = view.layer;
     [layer removeAnimationForKey:YZEnterKey];
-    if (!(view.window || view.superview) || ![YZTheme animationsEnabled])
+    // the classic design has no sampled way in, the view just stands where the caller put it
+    if ([YZTheme isClassic] || !(view.window || view.superview) || ![YZTheme animationsEnabled])
         return;
     CAAnimationGroup *group = YZMotionGroup(from, view.transform, fromAlpha, view.alpha, curve);
     if (delay > 0) {
@@ -107,7 +129,8 @@ void YZMotionAnimateEnter(UIView *view, CGAffineTransform from, CGFloat fromAlph
 }
 
 UIView *YZMotionBeginReveal(UIView *host) {
-    if (!host.window || ![YZTheme animationsEnabled] || host.bounds.size.width < 1 || host.bounds.size.height < 1)
+    // the circle that opens from the switch is not an animation of ios 5 to 7
+    if ([YZTheme isClassic] || !host.window || ![YZTheme animationsEnabled] || host.bounds.size.width < 1 || host.bounds.size.height < 1)
         return nil;
     UIGraphicsBeginImageContextWithOptions(host.bounds.size, YES, 0);
     CGContextRef context = UIGraphicsGetCurrentContext();
@@ -189,7 +212,8 @@ static CGFloat YZBounceShownScale(CALayer *layer) {
 }
 
 - (BOOL)animates:(UIControl *)control {
-    return control.window && [YZTheme animationsEnabled];
+    // a system button only lights while pressed, it does not shrink or spring
+    return control.window && [YZTheme animationsEnabled] && ![YZTheme isClassic];
 }
 
 - (void)press:(UIControl *)control {

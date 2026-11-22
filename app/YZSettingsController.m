@@ -179,7 +179,7 @@ static CGFloat YZMeasureHeight(NSString *text, UIFont *font, CGFloat width) {
 // take their room
 static CGFloat YZRowTextWidth(CGFloat tableWidth, BOOL disc, BOOL toggle, BOOL accessory) {
     CGFloat left = disc ? 16 + 40 + 14 : 16;
-    CGFloat right = toggle ? 16 + 52 + 12 : (accessory ? 12 + 24 + 4 : 16);
+    CGFloat right = toggle ? 16 + [YZToggle controlSize].width + 12 : (accessory ? 12 + 24 + 4 : 16);
     return MAX((CGFloat)0, tableWidth - 32 - left - right);
 }
 
@@ -302,8 +302,10 @@ static CGFloat YZRowHeight(NSString *title, NSString *detail, CGFloat tableWidth
         icon.frame = bareMark ? disc.bounds : CGRectInset(disc.bounds, 8, 8);
         ball.frame = CGRectInset(disc.bounds, 6, 6);
     }
-    if ([self showsSwitch])
-        toggle.frame = CGRectMake(cw - 16 - 52, (ch - 32) / 2, 52, 32);
+    if ([self showsSwitch]) {
+        CGSize size = [YZToggle controlSize];
+        toggle.frame = CGRectMake(cw - 16 - size.width, (ch - size.height) / 2, size.width, size.height);
+    }
     if (accessory.image)
         accessory.frame = CGRectMake(cw - 12 - 24, (ch - 24) / 2, 24, 24);
     CGFloat textWidth = YZRowTextWidth(width, withDisc, [self showsSwitch], accessory.image != nil);
