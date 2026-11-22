@@ -209,7 +209,7 @@ static const CGFloat YZDownloadEmptyHeight = 220;
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
     [YZCrash note:[NSString stringWithFormat:@"screen %@", NSStringFromClass([self class])]];
-    self.tableView.backgroundColor = [YZTheme surfaceColor];
+    self.tableView.backgroundColor = [YZTheme screenColor];
     self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
     self.tableView.tableHeaderView = [YZTheme isClassic] ? nil : [YZTheme titleHeaderWithText:self.title width:self.tableView.bounds.size.width];
     [YZTheme styleNavigationBar:self.navigationController.navigationBar];

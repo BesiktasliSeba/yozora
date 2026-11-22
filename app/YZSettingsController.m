@@ -65,10 +65,10 @@ static void YZStyleTable(UITableViewController *controller) {
         ground.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         controller.tableView.backgroundView = ground;
     }
-    ground.backgroundColor = [YZTheme surfaceColor];
+    ground.backgroundColor = [YZTheme screenColor];
     controller.tableView.opaque = YES;
-    controller.tableView.backgroundColor = [YZTheme surfaceColor];
-    controller.view.backgroundColor = [YZTheme surfaceColor];
+    controller.tableView.backgroundColor = [YZTheme screenColor];
+    controller.view.backgroundColor = [YZTheme screenColor];
     YZPaintBehindScreens(controller.navigationController);
     controller.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
     // the bar is clear on every settings screen and each has its own fill behind it, a shared bar fill showed
@@ -748,7 +748,7 @@ static UIColor *YZMixColors(UIColor *first, UIColor *second, CGFloat t) {
 
 // the colors of the screen come from the accent that was just taken
 - (void)restyle {
-    self.view.backgroundColor = [YZTheme surfaceColor];
+    self.view.backgroundColor = [YZTheme screenColor];
     {
         // the whole ground is one gradient: the accent mixed into the private ground at the top, the private
         // ground in the middle, darker below. it runs under the clear status strip and bar so no part is a
@@ -2136,7 +2136,7 @@ static NSArray *YZEngineLogos(void) {
 }
 
 - (void)restyle {
-    self.view.backgroundColor = [YZTheme surfaceColor];
+    self.view.backgroundColor = [YZTheme screenColor];
     _scroll.backgroundColor = [UIColor clearColor];
     YZPaintBehindScreens(self.navigationController);
     [YZTheme styleTransparentNavigationBar:self.navigationController.navigationBar];

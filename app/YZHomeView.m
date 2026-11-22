@@ -87,7 +87,7 @@ static const CGFloat YZTileSide = 16;
     self = [super initWithFrame:frame];
     if (!self)
         return nil;
-    self.backgroundColor = [YZTheme surfaceColor];
+    self.backgroundColor = [YZTheme isClassic] ? [YZTheme linenColor] : [YZTheme surfaceColor];
     _contentDirty = YES;
     self.alwaysBounceVertical = YES;
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(iconLoaded:) name:YZFaviconDidLoadNotification object:nil];
@@ -112,7 +112,7 @@ static const CGFloat YZTileSide = 16;
 }
 
 - (void)applyTheme {
-    self.backgroundColor = [YZTheme surfaceColor];
+    self.backgroundColor = [YZTheme isClassic] ? [YZTheme linenColor] : [YZTheme surfaceColor];
     // the mascot is a setting like the theme, and the picture is only made when the brand is first laid out
     _brandImage.image = [YZTheme mascotImage:@"hero"];
     _contentDirty = YES;

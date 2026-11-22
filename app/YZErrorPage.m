@@ -46,7 +46,7 @@
 }
 
 - (void)applyTheme {
-    self.backgroundColor = [YZTheme surfaceColor];
+    self.backgroundColor = [YZTheme screenColor];
     _picture.image = [YZTheme mascotImage:@"error"];
     _heading.textColor = [YZTheme textColor];
     _detail.textColor = [YZTheme textColor];

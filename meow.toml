@@ -373,6 +373,22 @@ from = "app/icons/fox-error@3x.png"
 to = "fox-error@3x.png"
 
 [[ipa.ipa-armv7.file]]
+from = "app/textures/linen-light.png"
+to = "linen-light.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/textures/linen-light@2x.png"
+to = "linen-light@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/textures/linen-dark.png"
+to = "linen-dark.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/textures/linen-dark@2x.png"
+to = "linen-dark@2x.png"
+
+[[ipa.ipa-armv7.file]]
 from = "app/icons/fox-hero.png"
 to = "fox-hero.png"
 
@@ -951,6 +967,22 @@ from = "app/icons/fox-error@3x.png"
 to = "fox-error@3x.png"
 
 [[ipa.ipa-arm64.file]]
+from = "app/textures/linen-light.png"
+to = "linen-light.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/textures/linen-light@2x.png"
+to = "linen-light@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/textures/linen-dark.png"
+to = "linen-dark.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/textures/linen-dark@2x.png"
+to = "linen-dark@2x.png"
+
+[[ipa.ipa-arm64.file]]
 from = "app/icons/fox-hero.png"
 to = "fox-hero.png"
 
@@ -1527,6 +1559,22 @@ to = "fox-error@2x.png"
 [[ipa.ipa.file]]
 from = "app/icons/fox-error@3x.png"
 to = "fox-error@3x.png"
+
+[[ipa.ipa.file]]
+from = "app/textures/linen-light.png"
+to = "linen-light.png"
+
+[[ipa.ipa.file]]
+from = "app/textures/linen-light@2x.png"
+to = "linen-light@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/textures/linen-dark.png"
+to = "linen-dark.png"
+
+[[ipa.ipa.file]]
+from = "app/textures/linen-dark@2x.png"
+to = "linen-dark@2x.png"
 
 [[ipa.ipa.file]]
 from = "app/icons/fox-hero.png"

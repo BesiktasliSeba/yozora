@@ -67,7 +67,7 @@ static UIFont *YZAdblockFont(CGFloat size) {
 }
 
 - (void)restyle {
-    self.view.backgroundColor = [YZTheme surfaceColor];
+    self.view.backgroundColor = [YZTheme screenColor];
     YZPaintBehindScreens(self.navigationController);
     [YZTheme styleTransparentNavigationBar:self.navigationController.navigationBar];
     if (!_fill)

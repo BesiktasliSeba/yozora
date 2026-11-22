@@ -57,6 +57,11 @@ typedef enum {
 @interface YZTheme : NSObject
 /* the classic design is on: lit glossy surfaces, an accent colored bar, small corners */
 + (BOOL)isClassic;
+/* the ground of the start page in the classic design: white linen on the light theme, black linen on the dark ones, a
+   tile that repeats. the modern design keeps the flat surface color */
++ (UIColor *)linenColor;
+/* the ground of a screen with nothing on it but rows or a note: linen in the classic design, the surface color in the modern one */
++ (UIColor *)screenColor;
 /* the text and the hint in the address field and the find field: the classic field is pale on every theme, so its ink is dark there */
 + (UIColor *)fieldInkColor;
 + (UIColor *)fieldHintColor;

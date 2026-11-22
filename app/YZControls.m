@@ -422,7 +422,7 @@ static const CGFloat YZToggleThumb = 24;
 void YZPaintBehindScreens(UINavigationController *navigation) {
     if (!navigation)
         return;
-    UIColor *ground = [YZTheme surfaceColor];
+    UIColor *ground = [YZTheme screenColor];
     navigation.view.backgroundColor = ground;
     for (UIView *view in navigation.view.subviews) {
         if ([view isKindOfClass:[UINavigationBar class]] || [view isKindOfClass:[UIToolbar class]])

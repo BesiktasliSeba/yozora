@@ -80,7 +80,7 @@
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
     [YZCrash note:[NSString stringWithFormat:@"screen %@", NSStringFromClass([self class])]];
-    self.tableView.backgroundColor = [YZTheme surfaceColor];
+    self.tableView.backgroundColor = [YZTheme screenColor];
     // no lines between the rows: the tiles and the spacing set them apart
     self.tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
     self.tableView.rowHeight = 68;

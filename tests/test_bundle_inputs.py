@@ -1,6 +1,6 @@
 """every flat resource of the app folders is listed in the ipa tables of meow.toml
 
-meow puts a tree under a name and never at the root of the bundle, so the icons, the interface glyphs and the launch
+meow puts a tree under a name and never at the root of the bundle, so the icons, the interface glyphs, the textures and the launch
 images are files of the ipa. a file added to those folders and left out of meow.toml would ship in no package
 """
 
@@ -17,7 +17,7 @@ def main():
     failures = []
     for name, ipa in config["ipa"].items():
         listed = {entry["from"] for entry in ipa.get("file", [])}
-        for folder in ("app/icons", "app/icons/ui", "app/launch"):
+        for folder in ("app/icons", "app/icons/ui", "app/launch", "app/textures"):
             for path in sorted((ROOT / folder).iterdir()):
                 relative = path.relative_to(ROOT).as_posix()
                 if path.is_file() and relative not in SKIPPED and relative not in listed:

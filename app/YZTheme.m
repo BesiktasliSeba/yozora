@@ -97,6 +97,16 @@ static UIColor *YZTint(UIColor *color, BOOL dim) {
     return [self isDark] ? [UIColor colorWithWhite:0.66f alpha:1] : [UIColor colorWithWhite:0.42f alpha:1];
 }
 
++ (UIColor *)screenColor {
+    return [self isClassic] ? [self linenColor] : [self surfaceColor];
+}
+
++ (UIColor *)linenColor {
+    UIImage *tile = [UIImage imageNamed:[self isDark] ? @"linen-dark" : @"linen-light"];
+    // a missing tile would leave the page without a ground, the flat color takes its place
+    return tile ? [UIColor colorWithPatternImage:tile] : [self surfaceColor];
+}
+
 + (CGFloat)barOverlap:(UINavigationBar *)bar {
     return [self isClassic] || !bar ? 0 : CGRectGetMaxY(bar.frame);
 }
