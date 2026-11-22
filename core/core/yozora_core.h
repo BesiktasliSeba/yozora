@@ -165,6 +165,12 @@ yozora_input_kind yozora_core_input_kind(yozora_core *core);
 /* typed text as utf-8, a line feed is the return key. returns 0 when nothing is focused for editing */
 int yozora_core_insert_text(yozora_core *core, const char *text);
 int yozora_core_delete_backward(yozora_core *core);
+/* the text an input method is composing, utf-8 (the kana of Japanese before they are converted): the page shows it underlined in
+   the field, `caret_start` and `caret_end` are utf-16 units inside it. an empty text ends the composition with nothing in the field.
+   returns 0 when nothing is focused for editing */
+int yozora_core_set_composition(yozora_core *core, const char *text, int caret_start, int caret_end);
+/* ends the composition: `text` replaces what was composed, NULL keeps the composed text as it stands */
+int yozora_core_confirm_composition(yozora_core *core, const char *text);
 /* scrolls the caret into the visible part of the page, for after the keyboard has covered the bottom */
 void yozora_core_reveal_input(yozora_core *core);
 yozora_load_state yozora_core_state(yozora_core *core);

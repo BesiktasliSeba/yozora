@@ -5,7 +5,7 @@
 @protocol YZPageViewDelegate;
 @class YZSceneView;
 
-@interface YZPageView : UIView <UIKeyInput> {
+@interface YZPageView : UIView <UITextInput> {
     yozora_core *_core;
     id<YZPageViewDelegate> _delegate;
     float _flingVelocity;
@@ -44,6 +44,12 @@
     // where the menu of the selection stands, which is where the share sheet of an ipad points
     CGRect _selectionTarget;
     UIMenuItem *_shareItem;
+    // the text an input method is composing (the kana of Japanese before they turn into kanji) and where its caret is inside it
+    NSString *_marked;
+    NSInteger _markedCaretStart;
+    NSInteger _markedCaretEnd;
+    id<UITextInputDelegate> _inputDelegate;
+    id<UITextInputTokenizer> _tokenizer;
 }
 @property(nonatomic, assign) yozora_core *core;
 @property(nonatomic, assign) id<YZPageViewDelegate> delegate;

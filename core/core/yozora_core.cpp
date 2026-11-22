@@ -16,6 +16,8 @@
 #include "CurlSSLHandle.h"
 #include "CommonVM.h"
 #include "Document.h"
+#include "CharacterRange.h"
+#include "CompositionHighlight.h"
 #include "Editor.h"
 #include "Element.h"
 #include "FocusController.h"
@@ -2172,6 +2174,54 @@ extern "C" int yozora_core_delete_backward(yozora_core* core)
         yozora_key_for_backspace(&info);
         send_key(*frame, PlatformEvent::Type::RawKeyDown, String(), "Backspace"_s, info);
         send_key(*frame, PlatformEvent::Type::KeyUp, String(), "Backspace"_s, info);
+        core->rendering = true;
+    });
+    return 1;
+}
+
+// an input method composes text before it is final: Japanese kana become kanji when the person picks a candidate. the editor keeps
+// the composed text in the field as an underlined run, and replaces it with the final text when the composition is confirmed
+extern "C" int yozora_core_set_composition(yozora_core* core, const char* text, int caret_start, int caret_end)
+{
+    if (!core || !text || yozora_core_input_kind(core) == YOZORA_INPUT_NONE)
+        return 0;
+    std::string copy(text);
+    unsigned start = caret_start < 0 ? 0 : static_cast<unsigned>(caret_start);
+    unsigned end = caret_end < caret_start ? start : static_cast<unsigned>(caret_end);
+    YozoraCoreThread::post([core, copy, start, end] {
+        if (compute_input_kind(*core) == YOZORA_INPUT_NONE)
+            return;
+        RefPtr frame = core->page->focusController().focusedOrMainFrame();
+        String composed = String::fromUTF8(copy.c_str());
+        if (composed.isEmpty()) {
+            frame->editor().cancelComposition();
+        } else {
+            Vector<CompositionUnderline> underlines;
+            underlines.append(CompositionUnderline(0, composed.length(), CompositionUnderlineColor::TextColor, Color::black, false));
+            unsigned length = composed.length();
+            Vector<CompositionHighlight> highlights;
+            HashMap<String, Vector<CharacterRange>> annotations;
+            frame->editor().setComposition(composed, underlines, highlights, annotations, std::min(start, length), std::min(end, length));
+        }
+        core->rendering = true;
+    });
+    return 1;
+}
+
+extern "C" int yozora_core_confirm_composition(yozora_core* core, const char* text)
+{
+    if (!core || yozora_core_input_kind(core) == YOZORA_INPUT_NONE)
+        return 0;
+    bool replace = text != nullptr;
+    std::string copy(text ? text : "");
+    YozoraCoreThread::post([core, copy, replace] {
+        if (compute_input_kind(*core) == YOZORA_INPUT_NONE)
+            return;
+        RefPtr frame = core->page->focusController().focusedOrMainFrame();
+        if (replace)
+            frame->editor().confirmComposition(String::fromUTF8(copy.c_str()));
+        else
+            frame->editor().confirmComposition();
         core->rendering = true;
     });
     return 1;

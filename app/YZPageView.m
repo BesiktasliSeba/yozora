@@ -66,6 +66,49 @@ static const float YZFlingStartVelocity = 60.0f;
 }
 @end
 
+// the keyboard talks about the text it edits through positions and ranges. the page is not mirrored here: the only text this view
+// knows is what is being composed, so a position is an offset into that and nothing else
+@interface YZTextPosition : UITextPosition {
+@public
+    NSInteger offset;
+}
++ (YZTextPosition *)positionAt:(NSInteger)offset;
+@end
+@implementation YZTextPosition
++ (YZTextPosition *)positionAt:(NSInteger)offset {
+    YZTextPosition *position = [[[YZTextPosition alloc] init] autorelease];
+    position->offset = MAX((NSInteger)0, offset);
+    return position;
+}
+@end
+
+@interface YZTextRange : UITextRange {
+    YZTextPosition *_start;
+    YZTextPosition *_end;
+}
++ (YZTextRange *)rangeFrom:(NSInteger)start to:(NSInteger)end;
+@end
+@implementation YZTextRange
++ (YZTextRange *)rangeFrom:(NSInteger)start to:(NSInteger)end {
+    YZTextRange *range = [[[YZTextRange alloc] init] autorelease];
+    range->_start = [[YZTextPosition positionAt:MIN(start, end)] retain];
+    range->_end = [[YZTextPosition positionAt:MAX(start, end)] retain];
+    return range;
+}
+- (void)dealloc {
+    [_start release];
+    [_end release];
+    [super dealloc];
+}
+- (UITextPosition *)start { return _start; }
+- (UITextPosition *)end { return _end; }
+- (BOOL)isEmpty { return _start->offset == _end->offset; }
+@end
+
+static NSInteger YZOffsetOf(UITextPosition *position) {
+    return [position isKindOfClass:[YZTextPosition class]] ? ((YZTextPosition *)position)->offset : 0;
+}
+
 @implementation YZPageView
 @synthesize selectionHidden = _selectionHidden;
 @synthesize core = _core;
@@ -116,6 +159,8 @@ static const float YZFlingStartVelocity = 60.0f;
     [_menuTarget release];
     [_shareItem release];
     [_sceneView release];
+    [_marked release];
+    [(id)_tokenizer release];
     [_zoomHost release];
     [_mediaLayers release];
     [super dealloc];
@@ -552,6 +597,7 @@ static const float YZFlingStartVelocity = 60.0f;
     BOOL editing = [self isFirstResponder];
     if (kind == YOZORA_INPUT_NONE) {
         _inputKind = kind;
+        [self endComposition];
         if (editing)
             [self resignFirstResponder];
         return;
@@ -728,15 +774,169 @@ static const float YZFlingStartVelocity = 60.0f;
     return YES;
 }
 
+// what the page takes of the composition ends here: the composed text is final, or the field forgets it
+- (void)endComposition {
+    [_marked release];
+    _marked = nil;
+    _markedCaretStart = 0;
+    _markedCaretEnd = 0;
+}
+
 - (void)insertText:(NSString *)text {
-    if (_core && [text length])
-        yozora_core_insert_text(_core, [text UTF8String]);
+    if (!_core || ![text length])
+        return;
+    // the final text of a composition replaces what was composed
+    if ([_marked length]) {
+        [self endComposition];
+        yozora_core_confirm_composition(_core, [text UTF8String]);
+        return;
+    }
+    yozora_core_insert_text(_core, [text UTF8String]);
 }
 
 - (void)deleteBackward {
-    if (_core)
-        yozora_core_delete_backward(_core);
+    if (!_core)
+        return;
+    if ([_marked length]) {
+        // the keyboard shortens its composition itself with setMarkedText; if it asks for a backspace the last composed character goes
+        NSString *shorter = [_marked substringToIndex:[_marked length] - 1];
+        [self setMarkedText:shorter selectedRange:NSMakeRange([shorter length], 0)];
+        return;
+    }
+    yozora_core_delete_backward(_core);
 }
+
+#pragma mark input methods
+
+// Japanese, Chinese and Korean keyboards compose text before it is final and need a text input to do it: with a plain key input
+// the kana keys of the Japanese keyboard had nowhere to put the text and nothing could be typed
+- (void)setMarkedText:(NSString *)text selectedRange:(NSRange)selected {
+    if (!text)
+        text = @"";
+    NSString *composed = [text copy];
+    [_marked release];
+    _marked = composed;
+    NSInteger length = (NSInteger)[composed length];
+    _markedCaretStart = MIN((NSInteger)selected.location, length);
+    _markedCaretEnd = MIN((NSInteger)(selected.location + selected.length), length);
+    if (!length) {
+        [self endComposition];
+        if (_core)
+            yozora_core_set_composition(_core, "", 0, 0);
+        return;
+    }
+    if (_core)
+        yozora_core_set_composition(_core, [composed UTF8String], (int)_markedCaretStart, (int)_markedCaretEnd);
+}
+
+- (void)unmarkText {
+    if (![_marked length])
+        return;
+    [self endComposition];
+    if (_core)
+        yozora_core_confirm_composition(_core, NULL);
+}
+
+- (UITextRange *)markedTextRange {
+    return [_marked length] ? [YZTextRange rangeFrom:0 to:(NSInteger)[_marked length]] : nil;
+}
+
+- (NSDictionary *)markedTextStyle { return nil; }
+- (void)setMarkedTextStyle:(NSDictionary *)style { (void)style; }
+
+- (UITextRange *)selectedTextRange {
+    return [YZTextRange rangeFrom:_markedCaretStart to:_markedCaretEnd];
+}
+- (void)setSelectedTextRange:(UITextRange *)range {
+    // the caret of the page is the page's: only a move inside a composition is kept
+    if ([_marked length] && range) {
+        _markedCaretStart = MIN(YZOffsetOf(range.start), (NSInteger)[_marked length]);
+        _markedCaretEnd = MIN(YZOffsetOf(range.end), (NSInteger)[_marked length]);
+    }
+}
+
+- (NSString *)textInRange:(UITextRange *)range {
+    NSString *text = _marked ? _marked : @"";
+    NSInteger start = MIN(YZOffsetOf(range.start), (NSInteger)[text length]);
+    NSInteger end = MIN(YZOffsetOf(range.end), (NSInteger)[text length]);
+    return end > start ? [text substringWithRange:NSMakeRange((NSUInteger)start, (NSUInteger)(end - start))] : @"";
+}
+
+- (void)replaceRange:(UITextRange *)range withText:(NSString *)text {
+    (void)range;
+    [self insertText:text];
+}
+
+- (UITextPosition *)beginningOfDocument { return [YZTextPosition positionAt:0]; }
+- (UITextPosition *)endOfDocument { return [YZTextPosition positionAt:(NSInteger)[_marked length]]; }
+
+- (UITextRange *)textRangeFromPosition:(UITextPosition *)from toPosition:(UITextPosition *)to {
+    return [YZTextRange rangeFrom:YZOffsetOf(from) to:YZOffsetOf(to)];
+}
+
+- (UITextPosition *)positionFromPosition:(UITextPosition *)position offset:(NSInteger)offset {
+    NSInteger moved = YZOffsetOf(position) + offset;
+    if (moved < 0 || moved > (NSInteger)[_marked length])
+        return nil;
+    return [YZTextPosition positionAt:moved];
+}
+
+- (UITextPosition *)positionFromPosition:(UITextPosition *)position inDirection:(UITextLayoutDirection)direction offset:(NSInteger)offset {
+    BOOL back = direction == UITextLayoutDirectionLeft || direction == UITextLayoutDirectionUp;
+    return [self positionFromPosition:position offset:back ? -offset : offset];
+}
+
+- (NSComparisonResult)comparePosition:(UITextPosition *)position toPosition:(UITextPosition *)other {
+    NSInteger a = YZOffsetOf(position), b = YZOffsetOf(other);
+    return a < b ? NSOrderedAscending : (a > b ? NSOrderedDescending : NSOrderedSame);
+}
+
+- (NSInteger)offsetFromPosition:(UITextPosition *)from toPosition:(UITextPosition *)to {
+    return YZOffsetOf(to) - YZOffsetOf(from);
+}
+
+- (id<UITextInputDelegate>)inputDelegate { return _inputDelegate; }
+- (void)setInputDelegate:(id<UITextInputDelegate>)delegate { _inputDelegate = delegate; }
+
+- (id<UITextInputTokenizer>)tokenizer {
+    if (!_tokenizer)
+        _tokenizer = [[UITextInputStringTokenizer alloc] initWithTextInput:self];
+    return _tokenizer;
+}
+
+- (UITextPosition *)positionWithinRange:(UITextRange *)range farthestInDirection:(UITextLayoutDirection)direction {
+    BOOL back = direction == UITextLayoutDirectionLeft || direction == UITextLayoutDirectionUp;
+    return back ? range.start : range.end;
+}
+
+- (UITextRange *)characterRangeByExtendingPosition:(UITextPosition *)position inDirection:(UITextLayoutDirection)direction {
+    NSInteger at = YZOffsetOf(position);
+    BOOL back = direction == UITextLayoutDirectionLeft || direction == UITextLayoutDirectionUp;
+    return back ? [YZTextRange rangeFrom:0 to:at] : [YZTextRange rangeFrom:at to:(NSInteger)[_marked length]];
+}
+
+- (UITextWritingDirection)baseWritingDirectionForPosition:(UITextPosition *)position inDirection:(UITextStorageDirection)direction {
+    (void)position; (void)direction;
+    return UITextWritingDirectionNatural;
+}
+- (void)setBaseWritingDirection:(UITextWritingDirection)direction forRange:(UITextRange *)range { (void)direction; (void)range; }
+
+// the keyboard puts its candidate list at the caret: the page does not tell where its caret is, so the middle of the view stands for it
+- (CGRect)firstRectForRange:(UITextRange *)range {
+    (void)range;
+    return CGRectMake(CGRectGetMidX(self.bounds), CGRectGetMidY(self.bounds), 2, 20);
+}
+- (CGRect)caretRectForPosition:(UITextPosition *)position {
+    (void)position;
+    return CGRectMake(CGRectGetMidX(self.bounds), CGRectGetMidY(self.bounds), 2, 20);
+}
+- (NSArray *)selectionRectsForRange:(UITextRange *)range { (void)range; return [NSArray array]; }
+- (UITextPosition *)closestPositionToPoint:(CGPoint)point { (void)point; return [self endOfDocument]; }
+- (UITextPosition *)closestPositionToPoint:(CGPoint)point withinRange:(UITextRange *)range { (void)point; return range.end; }
+- (UITextRange *)characterRangeAtPoint:(CGPoint)point { (void)point; return [YZTextRange rangeFrom:0 to:(NSInteger)[_marked length]]; }
+
+// no spell check of the system either: it would compose English words behind the page's back
+- (UITextSpellCheckingType)spellCheckingType { return UITextSpellCheckingTypeNo; }
 
 - (UIKeyboardType)keyboardType {
     switch (_inputKind) {
