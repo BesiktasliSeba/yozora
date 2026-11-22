@@ -206,6 +206,9 @@ static CGFloat YZRowHeight(NSString *title, NSString *detail, CGFloat tableWidth
     YZMorphView *ball;
     // the color of the card at rest: the card color, or the tint of a chosen option
     UIColor *restColor;
+    // the colors of the texts while a pressed row of the classic design is filled with the accent and its texts are white
+    UIColor *savedTitleColor;
+    UIColor *savedDetailColor;
     YZPosition position;
     BOOL withDisc;
     // the mark fills the disc's place without a disc: a flag or a preview in a Material shape
@@ -284,6 +287,26 @@ static CGFloat YZRowHeight(NSString *title, NSString *detail, CGFloat tableWidth
     [super setHighlighted:highlighted animated:animated];
     // a row with a switch changes by its switch, so only the other rows light up and bounce their glyph
     BOOL pressed = highlighted && ![self showsSwitch];
+    if ([YZTheme isClassic]) {
+        // the row of ios 5 and 6 fills with the color of the selection while it is held, its texts turn white: the accent of the bars
+        if (pressed && !savedTitleColor) {
+            savedTitleColor = [title.textColor retain];
+            savedDetailColor = [detail.textColor retain];
+            title.textColor = [UIColor whiteColor];
+            detail.textColor = [UIColor colorWithWhite:1 alpha:0.8f];
+        } else if (!pressed && savedTitleColor) {
+            title.textColor = savedTitleColor;
+            detail.textColor = savedDetailColor;
+            [savedTitleColor release];
+            [savedDetailColor release];
+            savedTitleColor = nil;
+            savedDetailColor = nil;
+        }
+        [self showCardColor:pressed ? [YZClassic barMidColor] : (restColor ? restColor : [YZTheme cardColor])];
+        if (pressed)
+            [YZTheme animateFeedbackOfView:disc];
+        return;
+    }
     [self showCardColor:pressed ? [YZTheme pressedColor] : (restColor ? restColor : [YZTheme cardColor])];
     if (pressed)
         [YZTheme animateFeedbackOfView:disc];
@@ -328,6 +351,8 @@ static CGFloat YZRowHeight(NSString *title, NSString *detail, CGFloat tableWidth
     [accessory release];
     [toggle release];
     [restColor release];
+    [savedTitleColor release];
+    [savedDetailColor release];
     [super dealloc];
 }
 @end
@@ -339,6 +364,10 @@ static void YZConfigureCell(YZSettingsCell *cell, NSString *title, NSString *det
     cell->position = position;
     cell->withDisc = hasGlyph || picture;
     cell->bareMark = bare && picture;
+    [cell->savedTitleColor release];
+    [cell->savedDetailColor release];
+    cell->savedTitleColor = nil;
+    cell->savedDetailColor = nil;
     [cell->restColor release];
     cell->restColor = [(plate ? plate : [YZTheme cardColor]) retain];
     [cell showCardColor:cell->restColor];
@@ -1977,7 +2006,7 @@ static NSArray *YZEngineLogos(void) {
     UIColor *plate = nil;
     if (path.row == _selected) {
         id tint = path.row < (NSInteger)[_tints count] ? [_tints objectAtIndex:path.row] : nil;
-        plate = YZMixColors([YZTheme cardColor], [tint isKindOfClass:[UIColor class]] ? tint : [YZTheme accentColor], [YZTheme isDark] ? 0.38f : 0.3f);
+        plate = YZMixColors([YZTheme cardColor], [tint isKindOfClass:[UIColor class]] ? tint : [YZTheme accentColor], [YZTheme isClassic] ? 0.45f : ([YZTheme isDark] ? 0.38f : 0.3f));
     }
     UIImage *mark = [self markAt:path.row];
     YZConfigureCell(cell, [_titles objectAtIndex:path.row], [self detailAt:path.row], YZIconCheck, mark, NO, _bareMarks, NO,
