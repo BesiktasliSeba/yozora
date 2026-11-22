@@ -362,6 +362,14 @@ static CGFloat YZRowHeight(NSString *title, NSString *detail, CGFloat tableWidth
 
 // fills a cell: texts, theme colors, glyph or mark, place in the group. plate is the color of a chosen
 // option, nil for a row at rest. a bare mark has no disc
+// what a logo or a picture stands on: white on the light theme, dark on the dark and black ones, so the disc behind the mark of a search engine
+// is not a white spot in a dark list
+static UIColor *YZMarkGround(void) {
+    if (![YZTheme isDark])
+        return [UIColor whiteColor];
+    return [UIColor colorWithWhite:[YZSettings theme] == YZThemeBlack ? 0.06f : 0.14f alpha:1];
+}
+
 static void YZConfigureCell(YZSettingsCell *cell, NSString *title, NSString *detail, YZIcon glyph, UIImage *picture, BOOL hasGlyph, BOOL bare,
                             BOOL destructive, YZPosition position, UIColor *plate, BOOL chevron) {
     cell->position = position;
@@ -376,7 +384,7 @@ static void YZConfigureCell(YZSettingsCell *cell, NSString *title, NSString *det
     [cell showCardColor:cell->restColor];
     cell->disc.layer.cornerRadius = cell->bareMark ? 0 : 20;
     cell->disc.backgroundColor = cell->bareMark ? [UIColor clearColor]
-        : (picture ? [UIColor whiteColor] : (destructive ? [[YZTheme errorColor] colorWithAlphaComponent:0.16f] : [YZTheme stateColor]));
+        : (picture ? YZMarkGround() : (destructive ? [[YZTheme errorColor] colorWithAlphaComponent:0.16f] : [YZTheme stateColor]));
     cell->disc.layer.borderWidth = (picture && !cell->bareMark) ? 1 : 0;
     cell->disc.layer.borderColor = [[YZTheme separatorColor] CGColor];
     cell->icon.image = picture ? picture : (hasGlyph ? [YZTheme icon:glyph size:24 color:destructive ? [YZTheme errorColor] : [YZTheme accentColor]] : nil);
