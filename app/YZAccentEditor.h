@@ -1,9 +1,10 @@
 #import <QuartzCore/QuartzCore.h>
 #import <UIKit/UIKit.h>
+#import "YZTintControl.h"
 
 /* the accent editor: hue, saturation and brightness tracks, hex digits, ready colors. value changed fires
    while editing, touch up inside when done, which is when the app takes the color */
-@interface YZAccentEditor : UIControl <UITextFieldDelegate> {
+@interface YZAccentEditor : UIControl <UITextFieldDelegate, YZTintControl> {
     float _hue;
     float _saturation;
     float _brightness;

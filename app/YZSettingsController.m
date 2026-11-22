@@ -3,6 +3,7 @@
 #import <objc/message.h>
 #import "YZCompat.h"
 #import "YZAccentEditor.h"
+#import "YZTintPicker.h"
 #import "YZMascotPreview.h"
 #import "YZAppIcon.h"
 #import "YZClassic.h"
@@ -683,7 +684,7 @@ static UIColor *YZMixColors(UIColor *first, UIColor *second, CGFloat t) {
 // go, a chip picked or the digits finished, and the app follows through the changed block
 @interface YZAccentController : UIViewController {
     UIScrollView *_scroll;
-    YZAccentEditor *_editor;
+    UIControl<YZTintControl> *_editor;
     UIButton *_reset;
     // the name of the screen, set in the bar next to the back arrow
     NSString *_heading;
@@ -738,7 +739,8 @@ static UIColor *YZMixColors(UIColor *first, UIColor *second, CGFloat t) {
     // ios 5 and 6: the view reaches under the bar (later systems do it for a clear bar by themselves)
     if ([self respondsToSelector:NSSelectorFromString(@"setWantsFullScreenLayout:")])
         [self setValue:[NSNumber numberWithBool:YES] forKey:@"wantsFullScreenLayout"];
-    _editor = [[YZAccentEditor alloc] initWithFrame:CGRectZero];
+    // the classic design has its own picker: a square of colors with discs of metal. a design chosen later shows at the next visit of this screen
+    _editor = [YZTheme isClassic] ? (UIControl<YZTintControl> *)[[YZTintPicker alloc] initWithFrame:CGRectZero] : (UIControl<YZTintControl> *)[[YZAccentEditor alloc] initWithFrame:CGRectZero];
     // both accent screens look the same: gradient ground, clear bar, gradient card, the morphing ball. the
     // private one adds its palette and its own stored color
     _editor.morphing = YES;
@@ -777,12 +779,23 @@ static UIColor *YZMixColors(UIColor *first, UIColor *second, CGFloat t) {
                         (id)YZMixColors(base, accent, [YZTheme isDark] ? 0.45f : 0.28f).CGColor, (id)YZMixColors(base, accent, 0.16f).CGColor, (id)bottom.CGColor, nil];
         _glow.locations = [NSArray arrayWithObjects:[NSNumber numberWithFloat:0], [NSNumber numberWithFloat:0.3f], [NSNumber numberWithFloat:0.65f], [NSNumber numberWithFloat:1], nil];
         _glow.frame = self.view.bounds;
+        // the classic screen is the grouped ground of the system under the bar of the system, without the accent gradient
+        _glow.hidden = [YZTheme isClassic];
+        if ([YZTheme isClassic])
+            self.view.backgroundColor = [YZTheme screenColor];
         YZPaintBehindScreens(self.navigationController);
         _scroll.backgroundColor = [UIColor clearColor];
         [YZTheme styleTransparentNavigationBar:self.navigationController.navigationBar];
     }
-    _reset.backgroundColor = [YZTheme cardColor];
-    [_reset setTitleColor:[YZTheme accentColor] forState:UIControlStateNormal];
+    if ([YZTheme isClassic]) {
+        [YZClassic styleKey:_reset color:[YZClassic barMidColor] radius:9 modernRadius:24];
+    } else {
+        [_reset setBackgroundImage:nil forState:UIControlStateNormal];
+        [_reset setBackgroundImage:nil forState:UIControlStateHighlighted];
+        _reset.layer.cornerRadius = 24;
+        _reset.backgroundColor = [YZTheme cardColor];
+        [_reset setTitleColor:[YZTheme accentColor] forState:UIControlStateNormal];
+    }
     [_editor applyTheme];
 }
 
