@@ -254,7 +254,11 @@ static NSInteger YZOffsetOf(UITextPosition *position) {
     for (NSNumber *key in [_mediaLayers allKeys]) {
         if (![present containsObject:key]) {
             CALayer *layer = [_mediaLayers objectForKey:key];
-            [layer removeFromSuperlayer];
+            // the layer of the player on the full screen belongs to that player's view since it was presented, which put the layer in its
+            // stage when it loaded: taking it off its superlayer here pulled the picture out of the full screen the frame after it came up.
+            // the page only forgets it, and takes it back through the loop above when the full screen is left
+            if (fullscreenID == 0 || [key unsignedIntValue] != fullscreenID)
+                [layer removeFromSuperlayer];
             [_mediaLayers removeObjectForKey:key];
         }
     }
