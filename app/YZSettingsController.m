@@ -1712,7 +1712,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowDesign:
         choice.heading = YZT(@"Оформление");
         choice.titles = [NSArray arrayWithObjects:YZT(@"Современное"), YZT(@"Классическое"), nil];
-        choice.details = [NSArray arrayWithObjects:YZT(@"Плоские карточки Material"), YZT(@"Объёмные панели с бликами, как в iOS 5 и 6"), nil];
+        choice.details = [NSArray arrayWithObjects:YZT(@"Современный браузер для старого железа"), YZT(@"Классический вид Safari снаружи, всё новое внутри"), nil];
         choice.pictures = nil;
         choice.tints = nil;
         choice.bareMarks = NO;

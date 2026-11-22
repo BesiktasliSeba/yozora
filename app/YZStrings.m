@@ -273,8 +273,6 @@ static NSDictionary *YZEnglish(void) {
         @"Design", @"Оформление",
         @"Modern", @"Современное",
         @"Classic", @"Классическое",
-        @"Flat Material cards", @"Плоские карточки Material",
-        @"Lit panels with gloss, as in iOS 5 and 6", @"Объёмные панели с бликами, как в iOS 5 и 6",
         @"Sharp scrolling", @"Чёткость при прокрутке",
         @"Pages stay sharp while moving, a slow phone may show blank strips", @"Страницы не размываются на ходу, на медленном телефоне возможны пустые полосы",
         @"The page fills the screen, the address comes back at the top of the page", @"Страница занимает весь экран, адрес возвращается наверху страницы",
@@ -295,6 +293,8 @@ static NSDictionary *YZEnglish(void) {
         @"Sign in request: it does not say what ends it", @"Запрос входа: не сказано, чем он заканчивается",
         @"Sign in request: wrong end condition", @"Запрос входа: неверное условие окончания",
         @"Sign in request not understood", @"Запрос входа не понят",
+        @"a modern web browser for older hardware", @"Современный браузер для старого железа",
+        @"classic safari look on the outside, all-new on the inside", @"Классический вид Safari снаружи, всё новое внутри",
         nil];
     return table;
 }
@@ -571,8 +571,6 @@ static NSDictionary *YZJapanese(void) {
         @"デザイン", @"Оформление",
         @"モダン", @"Современное",
         @"クラシック", @"Классическое",
-        @"フラットなマテリアルのカード", @"Плоские карточки Material",
-        @"iOS 5・6 のような光沢のあるパネル", @"Объёмные панели с бликами, как в iOS 5 и 6",
         @"スクロール中も鮮明に", @"Чёткость при прокрутке",
         @"動かしている間もページが鮮明なままです。処理の遅い端末では空白の帯が出ることがあります", @"Страницы не размываются на ходу, на медленном телефоне возможны пустые полосы",
         @"ページが画面いっぱいに広がり、ページの先頭に戻るとアドレスが現れます", @"Страница занимает весь экран, адрес возвращается наверху страницы",
@@ -593,6 +591,8 @@ static NSDictionary *YZJapanese(void) {
         @"有効にしない", @"Не включать",
         @"有効にする", @"Включить",
         @"JITはアプリの再起動後に有効になります", @"JIT включится после перезапуска",
+        @"古いハードウェアで使える現代的なウェブブラウザ", @"Современный браузер для старого железа",
+        @"外側はクラシックなSafari、内側はすべて新しい", @"Классический вид Safari снаружи, всё новое внутри",
         nil];
     return table;
 }
