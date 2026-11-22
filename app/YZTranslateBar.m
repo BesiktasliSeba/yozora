@@ -90,9 +90,10 @@ static NSString *YZLanguageNamed(NSString *code) {
         // the glyph stands on a lit rounded tile of the accent, as in the rows of the settings
         _disc.backgroundColor = [UIColor clearColor];
         _disc.layer.cornerRadius = 8;
-        [YZTheme stretchImage:[YZClassic keyImageWithColor:[YZClassic barMidColor] radius:8 pressed:NO] caps:8 onView:_disc];
+        [YZClassic lightView:_disc color:[YZClassic barMidColor] radius:8];
         _glyph.image = [YZClassic stampedImage:[YZTheme icon:YZIconTranslate size:22 color:[UIColor whiteColor]]];
     } else {
+        [YZClassic unlightView:_disc];
         _disc.layer.contents = nil;
         _disc.layer.cornerRadius = YZBarGlyph / 2;
         _disc.backgroundColor = [YZTheme stateColor];

@@ -355,9 +355,10 @@ static void YZConfigureCell(YZSettingsCell *cell, NSString *title, NSString *det
         cell->disc.layer.cornerRadius = radius;
         cell->disc.backgroundColor = [UIColor clearColor];
         cell->disc.layer.borderWidth = 0;
-        [YZTheme stretchImage:[YZClassic keyImageWithColor:tile radius:radius pressed:NO] caps:radius onView:cell->disc];
+        [YZClassic lightView:cell->disc color:tile radius:radius];
         cell->icon.image = [YZClassic stampedImage:[YZTheme icon:glyph size:24 color:[UIColor whiteColor]]];
     } else {
+        [YZClassic unlightView:cell->disc];
         cell->disc.layer.contents = nil;
     }
     cell->ball.hidden = YES;
@@ -1624,9 +1625,17 @@ static NSArray *YZEngineLogos(void) {
         cell->disc.layer.borderWidth = 1;
         cell->disc.layer.borderColor = [[[YZTheme accentColor] colorWithAlphaComponent:0.5f] CGColor];
         cell->icon.hidden = YES;
-        YZMorphView *ball = [cell morphBall];
-        ball.hidden = NO;
-        ball.color = [YZTheme accentColor];
+        if ([YZTheme isClassic]) {
+            // the old system has no animated Material shapes: the accent is a lit chip of its color
+            cell->disc.backgroundColor = [UIColor clearColor];
+            cell->disc.layer.borderColor = [[UIColor colorWithWhite:0 alpha:0.45f] CGColor];
+            cell->disc.layer.cornerRadius = 9;
+            [YZClassic lightView:cell->disc color:[YZTheme accentColor] radius:9];
+        } else {
+            YZMorphView *ball = [cell morphBall];
+            ball.hidden = NO;
+            ball.color = [YZTheme accentColor];
+        }
     }
     if (kind == YZRowPrivateAccent) {
         // the private accent is a ball of its color that morphs, on a disc of the private ground
@@ -1640,9 +1649,18 @@ static NSArray *YZEngineLogos(void) {
         cell->disc.layer.borderColor = [[[YZTheme accentColor] colorWithAlphaComponent:0.5f] CGColor];
         [YZTheme setPrivatePalettePreview:NO];
         cell->icon.hidden = YES;
-        YZMorphView *ball = [cell morphBall];
-        ball.hidden = NO;
-        ball.color = [UIColor colorWithRed:r green:g blue:b alpha:1];
+        if ([YZTheme isClassic]) {
+            // the chip is lit in the private accent: the lit surface the cell gave every glyph row is tinted with the accent of the normal
+            // session, so it is made again with the color of this row
+            cell->disc.backgroundColor = [UIColor clearColor];
+            cell->disc.layer.borderColor = [[UIColor colorWithWhite:0 alpha:0.45f] CGColor];
+            cell->disc.layer.cornerRadius = 9;
+            [YZClassic lightView:cell->disc color:[UIColor colorWithRed:r green:g blue:b alpha:1] radius:9];
+        } else {
+            YZMorphView *ball = [cell morphBall];
+            ball.hidden = NO;
+            ball.color = [UIColor colorWithRed:r green:g blue:b alpha:1];
+        }
     }
     cell->toggle.hidden = !toggle;
     if (toggle) {

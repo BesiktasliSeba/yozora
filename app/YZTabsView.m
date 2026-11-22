@@ -232,10 +232,14 @@ static void YZPlaceView(UIView *view, CGRect frame) {
         // a glossy key with a white plus stamped on it
         _newTab.layer.cornerRadius = 0;
         _newTab.backgroundColor = [UIColor clearColor];
-        [_newTab setBackgroundImage:[YZClassic keyImageWithColor:[YZClassic barMidColor] radius:10 pressed:NO] forState:UIControlStateNormal];
-        [_newTab setBackgroundImage:[YZClassic keyImageWithColor:[YZClassic barMidColor] radius:10 pressed:YES] forState:UIControlStateHighlighted];
+        [_newTab setBackgroundImage:nil forState:UIControlStateNormal];
+        [_newTab setBackgroundImage:nil forState:UIControlStateHighlighted];
+        [YZClassic lightView:_newTab color:[YZClassic barMidColor] radius:10];
+        _newTab.showsTouchWhenHighlighted = YES;
         [_newTab setImage:[YZClassic stampedImage:[YZTheme icon:YZIconPlus size:26 color:[UIColor whiteColor]]] forState:UIControlStateNormal];
     } else {
+        [YZClassic unlightView:_newTab];
+        _newTab.showsTouchWhenHighlighted = NO;
         _newTab.layer.cornerRadius = 18;
         [_newTab setBackgroundImage:nil forState:UIControlStateNormal];
         [_newTab setBackgroundImage:nil forState:UIControlStateHighlighted];

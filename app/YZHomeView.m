@@ -18,10 +18,11 @@ static const CGFloat YZTileSide = 16;
 
 @interface YZTileButton : UIButton {
 @public
+    // the square under the letter or the icon: the classic design lights it, the label under it stays on the page
+    UIView *square;
     UILabel *letter;
     UIImageView *icon;
     UILabel *caption;
-    CAGradientLayer *gloss;
 @private
     NSString *_target;
 }
@@ -33,6 +34,9 @@ static const CGFloat YZTileSide = 16;
     self = [super initWithFrame:frame];
     if (!self)
         return nil;
+    square = [[UIView alloc] initWithFrame:CGRectMake(0, 0, YZTileSize, YZTileSize)];
+    square.userInteractionEnabled = NO;
+    [self addSubview:square];
     letter = [[UILabel alloc] initWithFrame:CGRectMake(0, 0, YZTileSize, YZTileSize)];
     letter.textAlignment = YZTextAlignmentCenter;
     letter.font = [YZTheme boldSystemFontOfSize:28];
@@ -43,13 +47,6 @@ static const CGFloat YZTileSide = 16;
     letter.layer.masksToBounds = YES;
     letter.userInteractionEnabled = NO;
     [self addSubview:letter];
-    // the classic tile is lit like an icon of the old home screen: a gloss over its upper half, above the icon of the site too
-    gloss = [[CAGradientLayer alloc] init];
-    gloss.frame = CGRectMake(0, 0, YZTileSize, YZTileSize / 2);
-    gloss.colors = [NSArray arrayWithObjects:(id)[[YZClassic glossTopColor] CGColor], (id)[[YZClassic glossBottomColor] CGColor], nil];
-    gloss.startPoint = CGPointMake(0.5f, 0);
-    gloss.endPoint = CGPointMake(0.5f, 1);
-    gloss.hidden = YES;
     // the icon of the site stands on a white tile, the way the shortcuts of Firefox do
     icon = [[UIImageView alloc] initWithFrame:CGRectMake(10, 10, YZTileSize - 20, YZTileSize - 20)];
     icon.contentMode = UIViewContentModeScaleAspectFit;
@@ -57,7 +54,6 @@ static const CGFloat YZTileSide = 16;
     icon.layer.minificationFilter = kCAFilterTrilinear;
     icon.userInteractionEnabled = NO;
     [self addSubview:icon];
-    [self.layer addSublayer:gloss];
     caption = [[UILabel alloc] initWithFrame:CGRectMake((YZTileSize - (YZTileCell - 6)) / 2, YZTileSize + 4, YZTileCell - 6, YZTileLabelHeight - 4)];
     caption.numberOfLines = 2;
     caption.lineBreakMode = YZLineBreakTailTruncation;
@@ -75,10 +71,10 @@ static const CGFloat YZTileSide = 16;
         [YZTheme animateFeedbackOfView:self];
 }
 - (void)dealloc {
+    [square release];
     [letter release];
     [icon release];
     [caption release];
-    [gloss release];
     [_target release];
     [super dealloc];
 }
@@ -175,13 +171,24 @@ static const CGFloat YZTileSide = 16;
     tile->icon.image = icon;
     tile->icon.hidden = !icon;
     tile->letter.text = icon ? nil : [[name substringToIndex:MIN((NSUInteger)1, [name length])] uppercaseString];
-    tile->letter.backgroundColor = icon ? [YZFavicons tileColorForIcon:icon] : [YZTheme tileColorForHost:name];
+    UIColor *tileColor = icon ? [YZFavicons tileColorForIcon:icon] : [YZTheme tileColorForHost:name];
     BOOL classic = [YZTheme isClassic];
     tile->letter.layer.cornerRadius = [YZTheme tileRadius];
-    tile->letter.layer.borderWidth = (icon || classic) ? 1 : 0;
-    tile->letter.layer.borderColor = [(classic ? [UIColor colorWithWhite:0 alpha:0.4f] : [YZTheme separatorColor]) CGColor];
-    tile->gloss.hidden = !classic;
-    tile->gloss.cornerRadius = [YZTheme tileRadius];
+    if (classic) {
+        // the tile is lit like an icon of the old home screen: a toolbar of the system tinted with the color lies under the letter or the icon
+        tile->letter.backgroundColor = [UIColor clearColor];
+        tile->letter.layer.borderWidth = 0;
+        [YZClassic lightView:tile->square color:tileColor radius:[YZTheme tileRadius]];
+        tile->square.layer.borderWidth = 1;
+        tile->square.layer.borderColor = [[UIColor colorWithWhite:0 alpha:0.4f] CGColor];
+        tile->square.layer.cornerRadius = [YZTheme tileRadius];
+    } else {
+        [YZClassic unlightView:tile->square];
+        tile->square.layer.borderWidth = 0;
+        tile->letter.backgroundColor = tileColor;
+        tile->letter.layer.borderWidth = icon ? 1 : 0;
+        tile->letter.layer.borderColor = [[YZTheme separatorColor] CGColor];
+    }
     tile->caption.text = [record.title length] ? record.title : name;
     tile->caption.textColor = [YZTheme subtleTextColor];
 }
