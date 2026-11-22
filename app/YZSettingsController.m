@@ -896,7 +896,8 @@ static void YZSetSectionCollapsed(NSInteger section, BOOL collapsed) {
 // the marks of the choice screens are drawn here and clipped to a Material shape of YZShape, as the avatar of exteria is
 static void YZBeginMark(CGFloat side, UIBezierPath **shape, YZShape kind) {
     UIGraphicsBeginImageContextWithOptions(CGSizeMake(side, side), NO, 0);
-    *shape = YZShapePath(kind, side);
+    // the old system has no Material shapes: a mark is a rounded square, the shape of an icon of its home screen
+    *shape = [YZTheme isClassic] ? [UIBezierPath bezierPathWithRoundedRect:CGRectMake(0, 0, side, side) cornerRadius:side * 0.22f] : YZShapePath(kind, side);
     CGContextSaveGState(UIGraphicsGetCurrentContext());
     [*shape addClip];
 }
@@ -948,7 +949,12 @@ static UIImage *YZFlagMark(YZLanguage language, CGFloat side) {
         CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
         const CGFloat colors[8] = { 0.835f, 0.0f, 0.2f, 1.0f, 0.737f, 0.0f, 0.176f, 1.0f };
         CGGradientRef gradient = CGGradientCreateWithColorComponents(space, colors, NULL, 2);
-        CGContextDrawLinearGradient(ctx, gradient, disc.origin, CGPointMake(CGRectGetMaxX(disc), CGRectGetMaxY(disc)), 0);
+        if ([YZTheme isClassic]) {
+            // a plain red disc, as the flag is
+            [YZHex(0xBC002D) setFill];
+            CGContextFillRect(ctx, disc);
+        } else
+            CGContextDrawLinearGradient(ctx, gradient, disc.origin, CGPointMake(CGRectGetMaxX(disc), CGRectGetMaxY(disc)), 0);
         CGGradientRelease(gradient);
         CGColorSpaceRelease(space);
         CGContextRestoreGState(ctx);
@@ -999,6 +1005,14 @@ static UIImage *YZThemeMark(YZThemeKind kind, UIColor *accent, CGFloat side) {
     YZBeginMark(side, &shape, YZShapeSunny);
     [ground setFill];
     CGContextFillRect(UIGraphicsGetCurrentContext(), CGRectMake(0, 0, side, side));
+    if ([YZTheme isClassic]) {
+        // simpler: the ground, a card on it and one line of text, no accent dot
+        [card setFill];
+        [[UIBezierPath bezierPathWithRoundedRect:CGRectMake(side * 0.18f, side * 0.3f, side * 0.64f, side * 0.4f) cornerRadius:side * 0.08f] fill];
+        [lines setFill];
+        [[UIBezierPath bezierPathWithRoundedRect:CGRectMake(side * 0.3f, side * 0.46f, side * 0.4f, side * 0.07f) cornerRadius:side * 0.035f] fill];
+        return YZEndMark(shape);
+    }
     [accent setFill];
     [[UIBezierPath bezierPathWithOvalInRect:CGRectMake(side * 0.5f - side * 0.09f, side * 0.18f, side * 0.18f, side * 0.18f)] fill];
     [card setFill];
