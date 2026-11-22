@@ -25,8 +25,8 @@ static const NSTimeInterval YZFindDelay = 0.25;
     self = [super initWithFrame:frame];
     if (!self)
         return nil;
-    // an image view: the classic field is a well with its own corners
-    _field = [[UIImageView alloc] initWithFrame:CGRectZero];
+    // the rounded text field of the system in the classic design
+    _field = [[YZWellView alloc] initWithFrame:CGRectZero];
     _field.userInteractionEnabled = YES;
     [self addSubview:_field];
     _input = [[UITextField alloc] initWithFrame:CGRectZero];
@@ -66,17 +66,10 @@ static const NSTimeInterval YZFindDelay = 0.25;
 
 - (void)applyTheme {
     [super applyTheme];
-    UIImageView *well = (UIImageView *)_field;
-    if ([YZTheme isClassic]) {
-        well.image = [YZClassic wellImageWithRadius:7];
-        well.backgroundColor = [UIColor clearColor];
-    } else {
-        well.image = nil;
-        well.backgroundColor = [YZTheme fieldColor];
-    }
-    _input.textColor = [YZTheme textColor];
+    [(YZWellView *)_field applyTheme];
+    _input.textColor = [YZTheme fieldInkColor];
     _input.keyboardAppearance = [YZTheme isDark] ? UIKeyboardAppearanceAlert : UIKeyboardAppearanceDefault;
-    YZSetPlaceholder(_input, YZT(@"Найти на странице"), [[YZTheme textColor] colorWithAlphaComponent:0.7f]);
+    YZSetPlaceholder(_input, YZT(@"Найти на странице"), [YZTheme fieldHintColor]);
     _count.textColor = [YZTheme subtleTextColor];
     [_previous setImage:[YZTheme barIcon:YZIconArrowUp size:24 disabled:NO] forState:UIControlStateNormal];
     [_next setImage:[YZTheme barIcon:YZIconArrowDown size:24 disabled:NO] forState:UIControlStateNormal];

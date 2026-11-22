@@ -84,7 +84,8 @@ static const CGFloat YZAddWidth = 48;
 
 - (void)applyTheme {
     BOOL classic = [YZTheme isClassic];
-    self.backgroundColor = [YZTheme toolbarColor];
+    // the classic strip stands on the toolbar of the system, which already draws the whole top bar: a flat fill here would be a separate band
+    self.backgroundColor = classic ? [UIColor clearColor] : [YZTheme toolbarColor];
     [_add setImage:[YZTheme barIcon:YZIconPlus size:24 disabled:NO] forState:UIControlStateNormal];
     for (YZTabChip *chip in _chips) {
         // the classic chip is a lit tab: the chosen one pale, the others sunk into the bar

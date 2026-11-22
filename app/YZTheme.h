@@ -57,6 +57,11 @@ typedef enum {
 @interface YZTheme : NSObject
 /* the classic design is on: lit glossy surfaces, an accent colored bar, small corners */
 + (BOOL)isClassic;
+/* the text and the hint in the address field and the find field: the classic field is pale on every theme, so its ink is dark there */
++ (UIColor *)fieldInkColor;
++ (UIColor *)fieldHintColor;
+/* the accent for a glyph that stands on that field */
++ (UIColor *)fieldAccentColor;
 /* how far a screen's content has to reach under its navigation bar: the bar's height over a transparent bar of the modern design, nothing under the
    opaque bar of the classic one, which the system already lays the content below */
 + (CGFloat)barOverlap:(UINavigationBar *)bar;

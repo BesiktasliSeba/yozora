@@ -80,6 +80,23 @@ static UIColor *YZTint(UIColor *color, BOOL dim) {
 
 + (BOOL)isClassic { return [YZSettings design] == YZDesignClassic; }
 
++ (UIColor *)fieldInkColor {
+    if (![self isClassic])
+        return [self textColor];
+    return [self isDark] ? [UIColor colorWithWhite:0.96f alpha:1] : [UIColor colorWithWhite:0.1f alpha:1];
+}
+
++ (UIColor *)fieldAccentColor {
+    // the classic field is pale on the light theme, where the accent of the bars reads, and charcoal on the dark ones, where the lighter accent does
+    return [self isClassic] && ![self isDark] ? [YZClassic barMidColor] : [self accentColor];
+}
+
++ (UIColor *)fieldHintColor {
+    if (![self isClassic])
+        return [[self textColor] colorWithAlphaComponent:0.7f];
+    return [self isDark] ? [UIColor colorWithWhite:0.66f alpha:1] : [UIColor colorWithWhite:0.42f alpha:1];
+}
+
 + (CGFloat)barOverlap:(UINavigationBar *)bar {
     return [self isClassic] || !bar ? 0 : CGRectGetMaxY(bar.frame);
 }
@@ -163,9 +180,9 @@ static BOOL YZModernStatusBar(void) {
     return [[[UIDevice currentDevice] systemVersion] floatValue] >= 7.0f;
 }
 + (UIColor *)statusStripColor {
-    // the classic bar starts at the top of the screen and the strip is the top of its gradient
+    // the classic bar starts at the top of the screen and its toolbar draws under the status bar, so the strip adds nothing
     if ([self isClassic])
-        return [YZClassic barTopColor];
+        return [UIColor clearColor];
     if (YZModernStatusBar())
         return [self toolbarColor];
     return YZPaletteIsPrivate() ? YZRGB(0x10, 0x04, 0x20) : [UIColor blackColor];
@@ -258,30 +275,23 @@ static UIImage *YZSolidImage(UIColor *color) {
     }
 }
 
-// the bar of the classic design is the picture of the app bar, with white stamped titles. ios 7 and later paint the bar from
-// an appearance, which gets the same picture
+// the classic bar is the navigation bar of the system with the accent as its tint: ios 5 and 6 light the gradient from tintColor,
+// ios 7 asks for barTintColor and an opaque bar
 + (void)styleClassicNavigationBar:(UINavigationBar *)bar {
-    UIImage *image = [YZClassic barImage];
-    [bar setBackgroundImage:image forBarMetrics:UIBarMetricsDefault];
+    UIColor *tint = [YZClassic barMidColor];
+    // the bar of the modern design may have set a picture and a shadow line on this very bar before
+    [bar setBackgroundImage:nil forBarMetrics:UIBarMetricsDefault];
     if ([bar respondsToSelector:NSSelectorFromString(@"setShadowImage:")])
-        [bar setValue:[[[UIImage alloc] init] autorelease] forKey:@"shadowImage"];
+        [bar setValue:nil forKey:@"shadowImage"];
+    if ([bar respondsToSelector:@selector(setBarTintColor:)]) {
+        [bar setValue:tint forKey:@"barTintColor"];
+        bar.tintColor = [YZClassic inkColor];
+    } else {
+        bar.tintColor = tint;
+    }
     bar.translucent = NO;
-    if ([bar respondsToSelector:@selector(setTitleTextAttributes:)]) {
+    if ([bar respondsToSelector:@selector(setTitleTextAttributes:)])
         bar.titleTextAttributes = [NSDictionary dictionaryWithObjectsAndKeys:[YZClassic inkColor], YZTextColorAttribute, nil];
-    }
-    Class appearanceClass = NSClassFromString(@"UINavigationBarAppearance");
-    if (appearanceClass) {
-        id appearance = [[[appearanceClass alloc] init] autorelease];
-        [appearance performSelector:NSSelectorFromString(@"configureWithOpaqueBackground")];
-        [appearance setValue:image forKey:@"backgroundImage"];
-        [appearance setValue:[UIColor clearColor] forKey:@"shadowColor"];
-        [appearance setValue:[NSDictionary dictionaryWithObject:[YZClassic inkColor] forKey:YZTextColorAttribute] forKey:@"titleTextAttributes"];
-        for (NSString *key in [NSArray arrayWithObjects:@"standardAppearance", @"scrollEdgeAppearance", @"compactAppearance", @"compactScrollEdgeAppearance", nil]) {
-            NSString *setter = [NSString stringWithFormat:@"set%@%@:", [[key substringToIndex:1] uppercaseString], [key substringFromIndex:1]];
-            if ([bar respondsToSelector:NSSelectorFromString(setter)])
-                [bar setValue:appearance forKey:key];
-        }
-    }
 }
 
 // the system blue selection is dark gray on a light theme, a pressed row takes a rounded pill of the theme a

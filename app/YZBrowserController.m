@@ -157,21 +157,15 @@ static UIImage *YZThumbnailFromView(UIView *view) {
     return button;
 }
 
-// the address field is a flat pill in the modern design and a white well, set into the bar, in the classic one
+// the address field is a flat pill in the modern design and the rounded field of the system in the classic one
 - (void)styleField {
-    UIImageView *well = (UIImageView *)_field;
-    if ([YZTheme isClassic]) {
-        well.image = [YZClassic wellImageWithRadius:7];
-        well.backgroundColor = [UIColor clearColor];
-    } else {
-        well.image = nil;
-        well.backgroundColor = [YZTheme fieldColor];
-    }
+    [(YZWellView *)_field applyTheme];
 }
 
 - (void)styleCancelButton {
     [_cancelButton setTitleColor:[YZTheme isClassic] ? [YZTheme barInkColor] : [YZTheme accentColor] forState:UIControlStateNormal];
     if ([YZTheme isClassic]) {
+        // the title of a bar button of ios 5 and 6 carries the dark stamp under its letters
         _cancelButton.titleLabel.shadowColor = [YZClassic stampColor];
         _cancelButton.titleLabel.shadowOffset = CGSizeMake(0, -1);
     } else {
@@ -227,8 +221,8 @@ static UIImage *YZThumbnailFromView(UIView *view) {
     [self.view addSubview:_suggestionsTable];
     _suggestions = [[NSMutableArray alloc] init];
 
-    // a gradient view, lit and glossy in the classic design and the flat toolbar color in the modern one
-    _topBar = [[YZGlossBarView alloc] initWithFrame:CGRectZero];
+    // the toolbar of the system in the classic design and the flat toolbar color in the modern one
+    _topBar = [[YZSystemBarView alloc] initWithFrame:CGRectZero];
     [self.view addSubview:_topBar];
     // the status bar text is light on every theme, so the strip under it is always black
     UIView *statusStrip = [[[UIView alloc] initWithFrame:CGRectZero] autorelease];
@@ -240,8 +234,8 @@ static UIImage *YZThumbnailFromView(UIView *view) {
     _tabStrip.hidden = YES;
     [_topBar addSubview:_tabStrip];
 
-    // an image view: the well of the classic design is a picture with its own corners and shadow
-    _field = [[UIImageView alloc] initWithFrame:CGRectZero];
+    // the classic design lays a rounded text field of the system under the address
+    _field = [[YZWellView alloc] initWithFrame:CGRectZero];
     _field.userInteractionEnabled = YES;
     _field.layer.cornerRadius = 20;
     [self styleField];
@@ -253,7 +247,7 @@ static UIImage *YZThumbnailFromView(UIView *view) {
 
     _input = [[UITextField alloc] initWithFrame:CGRectZero];
     _input.borderStyle = UITextBorderStyleNone;
-    YZSetPlaceholder(_input, YZT(@"Поиск или адрес"), [[YZTheme textColor] colorWithAlphaComponent:0.7f]);
+    YZSetPlaceholder(_input, YZT(@"Поиск или адрес"), [YZTheme fieldHintColor]);
     // the url keyboard has no space key, the web search keyboard (10) has it but exists from ios 7
     _input.keyboardType = [UIViewController instancesRespondToSelector:NSSelectorFromString(@"topLayoutGuide")] ? (UIKeyboardType)10 : UIKeyboardTypeDefault;
     _input.returnKeyType = UIReturnKeyGo;
@@ -261,7 +255,7 @@ static UIImage *YZThumbnailFromView(UIView *view) {
     _input.autocorrectionType = UITextAutocorrectionTypeNo;
     _input.clearButtonMode = UITextFieldViewModeWhileEditing;
     _input.font = [YZTheme systemFontOfSize:15];
-    _input.textColor = [YZTheme textColor];
+    _input.textColor = [YZTheme fieldInkColor];
     _input.keyboardAppearance = [YZTheme isDark] ? UIKeyboardAppearanceAlert : UIKeyboardAppearanceDefault;
     _input.textAlignment = YZTextAlignmentCenter;
     _input.contentVerticalAlignment = UIControlContentVerticalAlignmentCenter;
@@ -308,8 +302,7 @@ static UIImage *YZThumbnailFromView(UIView *view) {
     _progress.hidden = YES;
     [_topBar addSubview:_progress];
 
-    _bottomBar = [[YZGlossBarView alloc] initWithFrame:CGRectZero];
-    [(YZGlossBarView *)_bottomBar setDarkLineAtTop:YES];
+    _bottomBar = [[YZSystemBarView alloc] initWithFrame:CGRectZero];
     // the wobble lifts the bar's lower edge above the screen for a moment, a skirt of its color hides the
     // page strip
     UIView *skirt = [[[UIView alloc] initWithFrame:CGRectZero] autorelease];
@@ -1676,13 +1669,13 @@ static const CGFloat YZTabStripHeight = 44;
         _shownBlank = blank;
         _shownSecure = secure;
         BOOL loading = state == YOZORA_LOAD_LOADING;
-        [_reloadButton setImage:[YZTheme icon:(loading ? YZIconStop : YZIconReload) size:20 color:[YZTheme subtleTextColor]]
+        [_reloadButton setImage:[YZTheme icon:(loading ? YZIconStop : YZIconReload) size:20 color:[YZTheme fieldHintColor]]
                        forState:UIControlStateNormal];
         _reloadButton.hidden = blank || _editing;
         _reloadButton.accessibilityLabel = loading ? YZT(@"Остановить") : YZT(@"Обновить");
         // a blank private tab shows the mask of the private session where a blank tab shows the search glass
         _securityView.image = [YZTheme icon:(blank ? ([YZSettings incognito] ? YZIconIncognito : YZIconSearch) : YZIconLock) size:20
-                                      color:(secure || (blank && [YZSettings incognito])) ? [YZTheme accentColor] : [YZTheme subtleTextColor]];
+                                      color:(secure || (blank && [YZSettings incognito])) ? [YZTheme fieldAccentColor] : [YZTheme fieldHintColor]];
         _securityView.hidden = !blank && !secure;
         if (state != YOZORA_LOAD_FAILED)
             [self showBanner:nil];
@@ -2318,21 +2311,21 @@ static const CGFloat YZTabStripHeight = 44;
         [self performSelector:NSSelectorFromString(@"setNeedsStatusBarAppearanceUpdate")];
     self.view.window.backgroundColor = [YZTheme toolbarColor];
     self.view.backgroundColor = [YZTheme surfaceColor];
-    [(YZGlossBarView *)_topBar applyTheme];
+    [(YZSystemBarView *)_topBar applyTheme];
     [_findBar applyTheme];
     [_tabStrip applyTheme];
     [_tabStripSignature release];
     _tabStripSignature = nil;
     [self refreshTabStrip];
     [_topBar viewWithTag:2].backgroundColor = [YZTheme statusStripColor];
-    [(YZGlossBarView *)_bottomBar applyTheme];
+    [(YZSystemBarView *)_bottomBar applyTheme];
     [_bottomBar viewWithTag:YZBottomSkirtTag].backgroundColor = [YZTheme toolbarColor];
     [self styleField];
     _progress.backgroundColor = [YZTheme barHighlightProgressColor];
     _banner.backgroundColor = [YZTheme cardColor];
     _banner.textColor = [YZTheme textColor];
-    _input.textColor = [YZTheme textColor];
-    YZSetPlaceholder(_input, YZT(@"Поиск или адрес"), [[YZTheme textColor] colorWithAlphaComponent:0.7f]);
+    _input.textColor = [YZTheme fieldInkColor];
+    YZSetPlaceholder(_input, YZT(@"Поиск или адрес"), [YZTheme fieldHintColor]);
     _input.accessibilityLabel = YZT(@"Адрес страницы");
     _input.keyboardAppearance = [YZTheme isDark] ? UIKeyboardAppearanceAlert : UIKeyboardAppearanceDefault;
     [_cancelButton setTitle:YZT(@"Отмена") forState:UIControlStateNormal];

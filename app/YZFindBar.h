@@ -5,7 +5,7 @@
 
 /* the find bar replaces the address bar: text, the place of the match ("3/12"), previous and next, close.
    typing searches after a pause, return goes to the next match */
-@interface YZFindBar : YZGlossBarView <UITextFieldDelegate> {
+@interface YZFindBar : YZSystemBarView <UITextFieldDelegate> {
     id<YZFindBarDelegate> _delegate;
     UIView *_field;
     UITextField *_input;
