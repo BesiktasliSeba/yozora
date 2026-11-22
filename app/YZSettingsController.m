@@ -2228,9 +2228,10 @@ static NSArray *YZEngineLogos(void) {
 - (UIView *)makeHero:(CGFloat)width {
     CGFloat cardWidth = MIN((CGFloat)520, width - 32);
     UIView *host = [[[UIView alloc] initWithFrame:CGRectMake(0, 0, width, 100)] autorelease];
-    UIView *card = [[[UIView alloc] initWithFrame:CGRectZero] autorelease];
-    card.backgroundColor = [YZTheme cardColor];
-    card.layer.cornerRadius = 28;
+    // the card of the classic design is the lit plate of the system tinted for the theme, with its outline and gloss
+    YZPlateView *card = [[[YZPlateView alloc] initWithFrame:CGRectZero] autorelease];
+    card.sheetCornersInModern = YES;
+    [card applyTheme];
     [host addSubview:card];
     CGFloat inner = cardWidth - 48;
     CGFloat y = 28;
@@ -2242,24 +2243,39 @@ static NSArray *YZEngineLogos(void) {
     y += 144 + 12;
     UILabel *name = [[[UILabel alloc] initWithFrame:CGRectMake(24, y, inner, 42)] autorelease];
     name.text = @"Yozora";
-    name.font = [YZTheme boldSystemFontOfSize:32];
+    name.font = [YZTheme isClassic] ? [UIFont boldSystemFontOfSize:32] : [YZTheme boldSystemFontOfSize:32];
     name.textColor = [YZTheme textColor];
     name.textAlignment = YZTextAlignmentCenter;
     name.backgroundColor = [UIColor clearColor];
     [card addSubview:name];
     y += 46;
-    // the version in a pill of the accent
+    // the version in a pill of the accent: flat in the modern design, a lit key of the system with white stamped text in the classic one
     UILabel *version = [[[UILabel alloc] initWithFrame:CGRectZero] autorelease];
     version.text = [self versionText];
     version.font = [YZTheme boldSystemFontOfSize:13];
-    version.textColor = [YZTheme accentColor];
     version.textAlignment = YZTextAlignmentCenter;
-    version.backgroundColor = [YZTheme stateColor];
     CGFloat pill = MIN(inner, YZTextSize(version.text, version.font).width + 28);
-    version.frame = CGRectMake((cardWidth - pill) / 2, y, pill, 28);
-    version.layer.cornerRadius = 14;
-    version.clipsToBounds = YES;
-    [card addSubview:version];
+    if ([YZTheme isClassic]) {
+        UIView *chip = [[[UIView alloc] initWithFrame:CGRectMake((cardWidth - pill) / 2, y, pill, 28)] autorelease];
+        [card addSubview:chip];
+        [YZClassic lightView:chip color:[YZClassic barMidColor] radius:8];
+        chip.layer.borderWidth = 1;
+        chip.layer.borderColor = [[UIColor colorWithWhite:0 alpha:0.45f] CGColor];
+        chip.layer.cornerRadius = 8;
+        version.frame = chip.bounds;
+        version.backgroundColor = [UIColor clearColor];
+        version.textColor = [UIColor whiteColor];
+        version.shadowColor = [YZClassic stampColor];
+        version.shadowOffset = CGSizeMake(0, -1);
+        [chip addSubview:version];
+    } else {
+        version.textColor = [YZTheme accentColor];
+        version.backgroundColor = [YZTheme stateColor];
+        version.frame = CGRectMake((cardWidth - pill) / 2, y, pill, 28);
+        version.layer.cornerRadius = 14;
+        version.clipsToBounds = YES;
+        [card addSubview:version];
+    }
     y += 28 + 16;
     UILabel *text = [[[UILabel alloc] initWithFrame:CGRectZero] autorelease];
     text.text = YZT(@"Современный браузер для iOS 5 и новее на новейшем WebKit.");
