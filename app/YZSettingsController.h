@@ -30,6 +30,8 @@
 /* options for a setting with a few values. the chosen one is a plate in its own color and choosing leaves the
    screen in place so a new theme or language shows at once. a mark stands before each option when pictures
    are given, a line under the name when details are */
+@class YZMascotPreview;
+
 @interface YZChoiceController : UITableViewController {
     // the name of the screen, set in the bar next to the back arrow
     NSString *_heading;
@@ -40,6 +42,8 @@
     NSArray *_tints;
     NSInteger _selected;
     BOOL _bareMarks;
+    BOOL _mascotPreview;
+    YZMascotPreview *_preview;
     YZBarFill *_barFill;
     void (^_choose)(NSInteger index);
     void (^_refill)(YZChoiceController *screen);
@@ -53,6 +57,8 @@
 /* the marks stand without a white disc behind them: a flag or a preview in a Material shape */
 @property(nonatomic, assign) BOOL bareMarks;
 @property(nonatomic, assign) NSInteger selected;
+/* the pages of the chosen mascot stand under the list, the options are the mascots in the order of YZMascot */
+@property(nonatomic, assign) BOOL mascotPreview;
 /* called after a choice, sets the screen's texts and marks again from the settings */
 @property(nonatomic, copy) void (^refill)(YZChoiceController *screen);
 - (id)initWithTitle:(NSString *)title options:(NSArray *)titles selected:(NSInteger)selected choose:(void (^)(NSInteger index))choose;

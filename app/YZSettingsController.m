@@ -3,6 +3,7 @@
 #import <objc/message.h>
 #import "YZCompat.h"
 #import "YZAccentEditor.h"
+#import "YZMascotPreview.h"
 #import "YZAppIcon.h"
 #import "YZClassic.h"
 #import "YZControls.h"
@@ -1802,6 +1803,7 @@ static NSArray *YZEngineLogos(void) {
         choice.tints = nil;
         choice.bareMarks = YES;
         choice.selected = [YZSettings mascot];
+        choice.mascotPreview = YES;
         break;
     case YZRowSearchEngine:
         choice.heading = YZT(@"Поисковая система");
@@ -1923,6 +1925,7 @@ static NSArray *YZEngineLogos(void) {
 @synthesize tints = _tints;
 @synthesize bareMarks = _bareMarks;
 @synthesize selected = _selected;
+@synthesize mascotPreview = _mascotPreview;
 @synthesize refill = _refill;
 
 - (id)initWithTitle:(NSString *)title options:(NSArray *)titles selected:(NSInteger)selected choose:(void (^)(NSInteger index))choose {
@@ -1940,6 +1943,7 @@ static NSArray *YZEngineLogos(void) {
     [YZCrash noteLifecycle:@"dealloc" object:self];
     [_barFill removeFromSuperview];
     [_barFill release];
+    [_preview release];
     [_heading release];
     [_titles release];
     [_details release];
@@ -1958,6 +1962,21 @@ static NSArray *YZEngineLogos(void) {
     [_barFill attachToScrollView:self.tableView controller:self];
     YZInstallBarTitle(self, _heading, self, @selector(back));
     self.tableView.tableHeaderView = nil;
+    if (_mascotPreview) {
+        // the footer is set once and again only for a new width: setting it on every choice rebuilt the layout of the table under the preview
+        CGFloat width = self.tableView.bounds.size.width;
+        if (!_preview) {
+            _preview = [[YZMascotPreview alloc] initWithMascot:(YZMascot)_selected];
+            _preview.frame = CGRectMake(0, 0, width, [YZMascotPreview preferredHeight]);
+            self.tableView.tableFooterView = _preview;
+        } else if (fabs(_preview.frame.size.width - width) > 0.5) {
+            _preview.frame = CGRectMake(0, 0, width, [YZMascotPreview preferredHeight]);
+            self.tableView.tableFooterView = _preview;
+        }
+        [_preview applyTheme];
+    } else {
+        self.tableView.tableFooterView = nil;
+    }
 }
 
 - (void)viewDidLoad {
@@ -2039,6 +2058,20 @@ static NSArray *YZEngineLogos(void) {
     if (path.row == _selected)
         return;
     _selected = path.row;
+    if (_mascotPreview) {
+        // the preview and the chosen plate answer first. the app takes the new mascot on the next turn of the run loop: the pages
+        // behind this screen are styled again then, and doing that inside the touch held the fade back
+        [_preview showMascot:(YZMascot)_selected];
+        [self.tableView reloadData];
+        NSInteger chosen = path.row;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (_choose)
+                _choose(chosen);
+            if (_refill)
+                _refill(self);
+        });
+        return;
+    }
     if (_choose)
         _choose(path.row);
     if (_refill)

@@ -134,6 +134,7 @@ function(yozora_add_core)
             "${yozora_root}/app/YZLocation.m"
             "${yozora_root}/app/YZVideoController.m"
             "${yozora_root}/app/YZAccentEditor.m"
+            "${yozora_root}/app/YZMascotPreview.m"
             "${yozora_root}/app/YZWaveSeekBar.m"
             "${yozora_root}/app/YZPlayerViews.m"
             "${yozora_root}/app/YZStreamProxy.m"
