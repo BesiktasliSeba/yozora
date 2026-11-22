@@ -15,7 +15,8 @@
     UILabel *_bookmarksHeading;
     // the picture and the name at the top of the start page
     UIImageView *_brandImage;
-    UIImageView *_brandName;
+    UIImageView *_brandGlow;
+    UILabel *_brandName;
     // the page of a private tab: a glyph, a title and what the session keeps and drops
     UIView *_heroDisc;
     UIImageView *_heroIcon;

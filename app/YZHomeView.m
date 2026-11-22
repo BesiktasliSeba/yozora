@@ -247,14 +247,19 @@ static const CGFloat YZTileSide = 16;
         _brandImage = [[UIImageView alloc] initWithImage:[YZTheme mascotImage:@"hero"]];
         _brandImage.contentMode = UIViewContentModeScaleAspectFit;
         [self addSubview:_brandImage];
-        _brandName = [[UIImageView alloc] initWithFrame:CGRectZero];
-        _brandName.contentMode = UIViewContentModeScaleAspectFit;
+        // the name is a label of the system, no drawn wordmark
+        _brandName = [[UILabel alloc] initWithFrame:CGRectZero];
+        _brandName.text = @"Yozora";
+        _brandName.font = [UIFont boldSystemFontOfSize:30];
+        _brandName.textAlignment = YZTextAlignmentCenter;
+        _brandName.backgroundColor = [UIColor clearColor];
         [self addSubview:_brandName];
     }
     _brandImage.hidden = NO;
     _brandName.hidden = NO;
-    UIImage *name = [YZTheme wordmarkWithHeight:30 color:[YZTheme textColor]];
-    _brandName.image = name;
+    _brandName.textColor = [YZTheme textColor];
+    // a soft glow of the accent around the mascot: a finished picture behind it, not a shadow cast by its contour
+    _brandGlow.image = [YZTheme glowImageWithColor:[YZTheme accentColor]];
     CGFloat width = self.bounds.size.width;
     // a phone on its side has little height, the picture shrinks before the tiles are pushed off the screen
     CGFloat side = MAX((CGFloat)80, MIN((CGFloat)150, self.bounds.size.height * 0.3f));
@@ -262,9 +267,9 @@ static const CGFloat YZTileSide = 16;
     _brandImage.bounds = CGRectMake(0, 0, side, side);
     _brandImage.center = CGPointMake(width / 2, top + side / 2);
     top += side + 10;
-    _brandName.bounds = CGRectMake(0, 0, name.size.width, 30);
-    _brandName.center = CGPointMake(width / 2, top + 15);
-    return top + 30 + 28;
+    _brandName.bounds = CGRectMake(0, 0, MIN(width - 32, (CGFloat)320), 36);
+    _brandName.center = CGPointMake(width / 2, top + 18);
+    return top + 36 + 24;
 }
 
 // the private session shows its note in place of the tiles. returns whether it did
