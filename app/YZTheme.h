@@ -62,6 +62,9 @@ typedef enum {
 + (UIColor *)linenColor;
 /* the ground of a screen with nothing on it but rows or a note: linen in the classic design, the surface color in the modern one */
 + (UIColor *)screenColor;
+/* a soft round glow of the color, made once and kept: a shadow cast by the contour of a picture is drawn again by the render server whenever
+   anything near it moves, a finished picture is only composed */
++ (UIImage *)glowImageWithColor:(UIColor *)color;
 /* the text and the hint in the address field and the find field: the classic field is pale on every theme, so its ink is dark there */
 + (UIColor *)fieldInkColor;
 + (UIColor *)fieldHintColor;

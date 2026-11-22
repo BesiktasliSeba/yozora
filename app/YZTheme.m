@@ -97,6 +97,33 @@ static UIColor *YZTint(UIColor *color, BOOL dim) {
     return [self isDark] ? [UIColor colorWithWhite:0.66f alpha:1] : [UIColor colorWithWhite:0.42f alpha:1];
 }
 
++ (UIImage *)glowImageWithColor:(UIColor *)accent {
+    static UIImage *cached;
+    static NSString *cachedKey;
+    CGFloat c[4] = { 0, 0, 0, 1 };
+    [accent getRed:&c[0] green:&c[1] blue:&c[2] alpha:&c[3]];
+    NSString *key = [NSString stringWithFormat:@"%.3f:%.3f:%.3f", c[0], c[1], c[2]];
+    if (cached && [cachedKey isEqualToString:key])
+        return cached;
+    const CGFloat side = 128;
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(side, side), NO, 0);
+    CGContextRef context = UIGraphicsGetCurrentContext();
+    CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+    CGFloat colors[12] = { c[0], c[1], c[2], 0.55f, c[0], c[1], c[2], 0.22f, c[0], c[1], c[2], 0 };
+    CGFloat at[3] = { 0, 0.55f, 1 };
+    CGGradientRef gradient = CGGradientCreateWithColorComponents(space, colors, at, 3);
+    CGContextDrawRadialGradient(context, gradient, CGPointMake(side / 2, side / 2), 0, CGPointMake(side / 2, side / 2), side / 2, 0);
+    CGGradientRelease(gradient);
+    CGColorSpaceRelease(space);
+    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    [cached release];
+    [cachedKey release];
+    cached = [image retain];
+    cachedKey = [key retain];
+    return cached;
+}
+
 + (UIColor *)screenColor {
     return [self isClassic] ? [self linenColor] : [self surfaceColor];
 }

@@ -68,6 +68,9 @@ extern NSString *const YZSettingsDidChangeNotification;
 /* pages are asked for fewer animations and run them at 30 frames a second, on by default for phones under a gigabyte */
 + (BOOL)reduceMotion;
 + (BOOL)crispScrolling;
+/* the soft glow of the accent behind the mascot on the start page and in the preview of the mascots, on until it is turned off */
++ (BOOL)mascotGlow;
++ (void)setMascotGlow:(BOOL)enabled;
 + (void)setCrispScrolling:(BOOL)enabled;
 + (BOOL)hideBarsOnScroll;
 + (void)setHideBarsOnScroll:(BOOL)enabled;

@@ -22,6 +22,7 @@ static NSString *const YZMascotKey = @"YZMascot";
 static NSString *const YZTabsLayoutKey = @"YZTabsLayout";
 static NSString *const YZDesignKey = @"YZDesign";
 static NSString *const YZCrispScrollingKey = @"YZCrispScrolling";
+static NSString *const YZMascotGlowKey = @"YZMascotGlow";
 static NSString *const YZWebFontsKey = @"YZWebFonts";
 static NSString *const YZTranslateTargetKey = @"YZTranslateTarget";
 static NSString *const YZTranslateNeverKey = @"YZTranslateNever";
@@ -179,6 +180,9 @@ static NSInteger YZDesignCurrent = -1;
 // off until asked for: the half resolution tile keeps a slow phone from showing blank strips while it scrolls
 + (BOOL)crispScrolling { return [self boolForKey:YZCrispScrollingKey defaultValue:NO]; }
 + (void)setCrispScrolling:(BOOL)enabled { [self storeBool:enabled forKey:YZCrispScrollingKey]; }
+
++ (BOOL)mascotGlow { return [self boolForKey:YZMascotGlowKey defaultValue:YES]; }
++ (void)setMascotGlow:(BOOL)enabled { [self storeBool:enabled forKey:YZMascotGlowKey]; }
 
 + (BOOL)webFonts { return [self boolForKey:YZWebFontsKey defaultValue:YES]; }
 + (void)setWebFonts:(BOOL)enabled { [self storeBool:enabled forKey:YZWebFontsKey]; }

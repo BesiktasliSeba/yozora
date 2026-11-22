@@ -26,6 +26,7 @@ typedef enum {
     YZRowTheme,
     YZRowDesign,
     YZRowTabsLayout,
+    YZRowMascotGlow,
     YZRowAccent,
     YZRowPrivateAccent,
     YZRowMascot,
@@ -1406,6 +1407,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowTheme: return YZT(@"Тема");
     case YZRowDesign: return YZT(@"Оформление");
     case YZRowTabsLayout: return YZT(@"Вид вкладок");
+    case YZRowMascotGlow: return YZT(@"Свечение маскота");
     case YZRowAccent: return YZT(@"Цвет акцента");
     case YZRowPrivateAccent: return YZT(@"Акцент приватной вкладки");
     case YZRowMascot: return YZT(@"Маскот");
@@ -1485,6 +1487,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowClearSiteData: return YZIconSweep;
     case YZRowJavascript: return YZIconCode;
     case YZRowEconomy: return YZIconSpeed;
+    case YZRowMascotGlow: return YZIconBrush;
     case YZRowCrispScrolling: return YZIconImage;
     case YZRowReduceMotion: return YZIconAnimation;
     case YZRowHideBars: return YZIconArrowDown;
@@ -1503,7 +1506,7 @@ static NSArray *YZEngineLogos(void) {
 
 - (BOOL)isSwitch:(YZRow)kind {
     return kind == YZRowBlockTrackers || kind == YZRowBlockThirdPartyCookies || kind == YZRowSaveHistory
-        || kind == YZRowJavascript || kind == YZRowEconomy || kind == YZRowCrispScrolling || kind == YZRowReduceMotion || kind == YZRowHideBars || kind == YZRowWebFonts
+        || kind == YZRowJavascript || kind == YZRowEconomy || kind == YZRowCrispScrolling || kind == YZRowMascotGlow || kind == YZRowReduceMotion || kind == YZRowHideBars || kind == YZRowWebFonts
         || kind == YZRowDebug || kind == YZRowLogging || kind == YZRowZombies || kind == YZRowJit;
 }
 
@@ -1514,6 +1517,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowSaveHistory: return [YZSettings saveHistory];
     case YZRowJavascript: return [YZSettings javascript];
     case YZRowEconomy: return [YZSettings economyRaster];
+    case YZRowMascotGlow: return [YZSettings mascotGlow];
     case YZRowCrispScrolling: return [YZSettings crispScrolling];
     case YZRowReduceMotion: return [YZSettings reduceMotion];
     case YZRowHideBars: return [YZSettings hideBarsOnScroll];
@@ -1534,6 +1538,11 @@ static NSArray *YZEngineLogos(void) {
     case YZRowSaveHistory: [YZSettings setSaveHistory:on]; break;
     case YZRowJavascript: [YZSettings setJavascript:on]; break;
     case YZRowEconomy: [YZSettings setEconomyRaster:on]; break;
+    case YZRowMascotGlow:
+        [YZSettings setMascotGlow:on];
+        // the start page takes the glow away or brings it back
+        [_settingsDelegate settingsControllerDidChange:self];
+        break;
     case YZRowCrispScrolling: [YZSettings setCrispScrolling:on]; break;
     case YZRowReduceMotion: [YZSettings setReduceMotion:on]; break;
     case YZRowHideBars: [YZSettings setHideBarsOnScroll:on]; break;

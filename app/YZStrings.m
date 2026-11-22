@@ -302,6 +302,7 @@ static NSDictionary *YZEnglish(void) {
         @"Sign in request not understood", @"Запрос входа не понят",
         @"a modern web browser for older hardware", @"Современный браузер для старого железа",
         @"classic safari look on the outside, all-new on the inside", @"Классический вид Safari снаружи, всё новое внутри",
+        @"Mascot glow", @"Свечение маскота",
         nil];
     return table;
 }
@@ -607,6 +608,7 @@ static NSDictionary *YZJapanese(void) {
         @"JITはアプリの再起動後に有効になります", @"JIT включится после перезапуска",
         @"古いハードウェアで使える現代的なウェブブラウザ", @"Современный браузер для старого железа",
         @"外側はクラシックなSafari、内側はすべて新しい", @"Классический вид Safari снаружи, всё новое внутри",
+        @"マスコットの発光", @"Свечение маскота",
         nil];
     return table;
 }

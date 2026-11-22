@@ -146,6 +146,7 @@ static const CGFloat YZTileSide = 16;
     }
     if (!_brandImage.hidden && _brandImage) {
         YZMotionAnimateEnter(_brandImage, CGAffineTransformMakeScale(0.6f, 0.6f), 0, YOZORA_MOTION_WOBBLE, 0);
+        YZMotionAnimateEnter(_brandGlow, CGAffineTransformMakeScale(0.6f, 0.6f), 0, YOZORA_MOTION_WOBBLE, 0);
         [YZTheme animateEntranceOfView:_brandName offset:CGPointMake(0, 10) delay:0.05];
     }
     if (!_heroDisc.hidden) {
@@ -246,6 +247,9 @@ static const CGFloat YZTileSide = 16;
     if (!_brandImage) {
         _brandImage = [[UIImageView alloc] initWithImage:[YZTheme mascotImage:@"hero"]];
         _brandImage.contentMode = UIViewContentModeScaleAspectFit;
+        _brandGlow = [[UIImageView alloc] initWithFrame:CGRectZero];
+        _brandGlow.userInteractionEnabled = NO;
+        [self addSubview:_brandGlow];
         [self addSubview:_brandImage];
         // the name is a label of the system, no drawn wordmark
         _brandName = [[UILabel alloc] initWithFrame:CGRectZero];
@@ -256,6 +260,7 @@ static const CGFloat YZTileSide = 16;
         [self addSubview:_brandName];
     }
     _brandImage.hidden = NO;
+    _brandGlow.hidden = ![YZSettings mascotGlow];
     _brandName.hidden = NO;
     _brandName.textColor = [YZTheme textColor];
     // a soft glow of the accent around the mascot: a finished picture behind it, not a shadow cast by its contour
@@ -266,6 +271,8 @@ static const CGFloat YZTileSide = 16;
     top += 12;
     _brandImage.bounds = CGRectMake(0, 0, side, side);
     _brandImage.center = CGPointMake(width / 2, top + side / 2);
+    _brandGlow.bounds = CGRectMake(0, 0, side * 1.7f, side * 1.7f);
+    _brandGlow.center = _brandImage.center;
     top += side + 10;
     _brandName.bounds = CGRectMake(0, 0, MIN(width - 32, (CGFloat)320), 36);
     _brandName.center = CGPointMake(width / 2, top + 18);
@@ -279,6 +286,7 @@ static const CGFloat YZTileSide = 16;
     _heroTitle.hidden = !incognito;
     _heroText.hidden = !incognito;
     _brandImage.hidden = incognito;
+    _brandGlow.hidden = incognito || ![YZSettings mascotGlow];
     _brandName.hidden = incognito;
     if (!incognito)
         return NO;
@@ -365,6 +373,7 @@ static const CGFloat YZTileSide = 16;
     [_bookmarkTiles release];
     [_sitesHeading release];
     [_bookmarksHeading release];
+    [_brandGlow release];
     [_brandImage release];
     [_brandName release];
     [_heroDisc release];
