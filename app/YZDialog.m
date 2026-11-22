@@ -1,9 +1,9 @@
 #import "YZDialog.h"
-#import "YZClassic.h"
 #import "YZCompat.h"
 #import "YZMotion.h"
 #import "YZTheme.h"
 #import <QuartzCore/QuartzCore.h>
+#import <objc/message.h>
 
 static const CGFloat YZDialogMaxWidth = 320;
 static const CGFloat YZDialogSide = 24;
@@ -35,10 +35,9 @@ static const CGFloat YZDialogFieldHeight = 44;
     _secureIndex = -1;
     self.backgroundColor = [YZTheme scrimColor];
     self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    _card = [[YZPlateView alloc] initWithFrame:CGRectZero];
-    [(YZPlateView *)_card setSurfaceInModern:YES];
-    [(YZPlateView *)_card setSheetCornersInModern:YES];
-    [(YZPlateView *)_card applyTheme];
+    _card = [[UIView alloc] initWithFrame:CGRectZero];
+    _card.backgroundColor = [YZTheme surfaceColor];
+    _card.layer.cornerRadius = [YZTheme sheetRadius];
     _card.layer.shadowColor = [UIColor blackColor].CGColor;
     _card.layer.shadowOpacity = 0.3f;
     _card.layer.shadowRadius = 18;
@@ -76,6 +75,7 @@ static const CGFloat YZDialogFieldHeight = 44;
     [_placeholders release];
     [_cancelTitle release];
     [_confirmTitle release];
+    [_answerTexts release];
     [_handler release];
     [super dealloc];
 }
@@ -83,18 +83,8 @@ static const CGFloat YZDialogFieldHeight = 44;
 - (UIButton *)makeButton:(NSString *)title filled:(UIColor *)fill text:(UIColor *)text index:(NSInteger)index {
     UIButton *button = [UIButton buttonWithType:UIButtonTypeCustom];
     button.titleLabel.font = [YZTheme boldSystemFontOfSize:16];
-    if ([YZTheme isClassic]) {
-        // a glossy key lit from above, white stamped text on it. the cancel key is grey, a color the fill does not give
-        UIColor *key = index == 0 && _cancelTitle ? [UIColor colorWithRed:0.43f green:0.45f blue:0.5f alpha:1] : fill;
-        [button setBackgroundImage:[YZClassic keyImageWithColor:key radius:7 pressed:NO] forState:UIControlStateNormal];
-        [button setBackgroundImage:[YZClassic keyImageWithColor:key radius:7 pressed:YES] forState:UIControlStateHighlighted];
-        button.titleLabel.shadowColor = [YZClassic stampColor];
-        button.titleLabel.shadowOffset = CGSizeMake(0, -1);
-        text = [UIColor whiteColor];
-    } else {
-        button.backgroundColor = fill;
-        button.layer.cornerRadius = YZDialogButtonHeight / 2;
-    }
+    button.backgroundColor = fill;
+    button.layer.cornerRadius = YZDialogButtonHeight / 2;
     button.tag = index;
     [button setTitle:title forState:UIControlStateNormal];
     [button setTitleColor:text forState:UIControlStateNormal];
@@ -125,11 +115,7 @@ static const CGFloat YZDialogFieldHeight = 44;
     for (NSUInteger i = 0; i < [_placeholders count]; ++i) {
         UITextField *field = [[[UITextField alloc] initWithFrame:CGRectZero] autorelease];
         field.backgroundColor = [YZTheme fieldColor];
-        field.layer.cornerRadius = [YZTheme isClassic] ? 6 : 12;
-        if ([YZTheme isClassic]) {
-            field.layer.borderWidth = 1;
-            field.layer.borderColor = [[YZTheme separatorColor] CGColor];
-        }
+        field.layer.cornerRadius = 12;
         field.font = [YZTheme systemFontOfSize:16];
         field.textColor = [YZTheme textColor];
         field.autocapitalizationType = UITextAutocapitalizationTypeNone;
@@ -153,6 +139,8 @@ static const CGFloat YZDialogFieldHeight = 44;
     [text retain];
     [_messageText release];
     _messageText = text;
+    if (_alert)
+        ((void (*)(id, SEL, NSString *))objc_msgSend)(_alert, NSSelectorFromString(@"setMessage:"), text);
     [self setNeedsLayout];
 }
 
@@ -219,7 +207,7 @@ static const CGFloat YZDialogFieldHeight = 44;
     CGAffineTransform held = _card.transform;
     _card.transform = CGAffineTransformIdentity;
     _card.frame = CGRectMake(floor((self.bounds.size.width - width) / 2), MAX((CGFloat)8, floor((room - y) / 2)), width, y);
-    _card.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:_card.bounds cornerRadius:[YZTheme isClassic] ? [YZTheme cardRadius] : [YZTheme sheetRadius]].CGPath;
+    _card.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:_card.bounds cornerRadius:[YZTheme sheetRadius]].CGPath;
     _card.transform = held;
 }
 
@@ -245,9 +233,74 @@ static const CGFloat YZDialogFieldHeight = 44;
     }];
 }
 
+// ios 5 to 7 ask with the alert of the system. UIAlertView is called by name and selector: the sdk that builds the arm64 slice
+// marks it deprecated, and no later system runs this path
+- (void)showSystemAlert {
+    Class alertClass = NSClassFromString(@"UIAlertView");
+    SEL initializer = NSSelectorFromString(@"initWithTitle:message:delegate:cancelButtonTitle:otherButtonTitles:");
+    // the only button of a card with one is its cancel button, index 0, as the answer of the custom card has it
+    NSString *cancel = _cancelTitle ? _cancelTitle : _confirmTitle;
+    id alert = ((id (*)(id, SEL, NSString *, NSString *, id, NSString *, NSString *))objc_msgSend)([alertClass alloc], initializer, _titleText, _messageText, self, cancel, nil);
+    if (_cancelTitle)
+        ((NSInteger (*)(id, SEL, NSString *))objc_msgSend)(alert, NSSelectorFromString(@"addButtonWithTitle:"), _confirmTitle);
+    NSUInteger fields = [_placeholders count];
+    if (fields) {
+        // alert views take one field, or a name with a password. the field at secureIndex hides its text
+        NSInteger style = fields == 1 ? (_secureIndex == 0 ? 2 : 1) : 3;
+        ((void (*)(id, SEL, NSInteger))objc_msgSend)(alert, NSSelectorFromString(@"setAlertViewStyle:"), style);
+        for (NSUInteger i = 0; i < fields && i < 2; ++i) {
+            UITextField *field = ((UITextField *(*)(id, SEL, NSInteger))objc_msgSend)(alert, NSSelectorFromString(@"textFieldAtIndex:"), (NSInteger)i);
+            field.placeholder = [_placeholders objectAtIndex:i];
+            field.autocapitalizationType = UITextAutocapitalizationTypeNone;
+            field.autocorrectionType = UITextAutocorrectionTypeNo;
+            field.secureTextEntry = (NSInteger)i == _secureIndex;
+        }
+    }
+    _alert = alert;
+    // the alert does not retain its delegate and the answer comes after the owner may have let go of the dialog
+    [self retain];
+    _shown = YES;
+    ((void (*)(id, SEL))objc_msgSend)(alert, NSSelectorFromString(@"show"));
+}
+
+- (void)alertView:(id)alert clickedButtonAtIndex:(NSInteger)index {
+    _answerIndex = index;
+    NSMutableArray *texts = [NSMutableArray array];
+    NSUInteger fields = [_placeholders count];
+    for (NSUInteger i = 0; i < fields && i < 2; ++i) {
+        UITextField *field = ((UITextField *(*)(id, SEL, NSInteger))objc_msgSend)(alert, NSSelectorFromString(@"textFieldAtIndex:"), (NSInteger)i);
+        [texts addObject:field.text ? field.text : @""];
+    }
+    [_answerTexts release];
+    _answerTexts = [texts retain];
+}
+
+// the answer is looked up when the alert has left, as the card does it: an owner that went away meanwhile called
+// dismissSilently, which dropped the handler
+- (void)alertView:(id)alert didDismissWithButtonIndex:(NSInteger)index {
+    (void)index;
+    ((void (*)(id, SEL, id))objc_msgSend)(alert, NSSelectorFromString(@"setDelegate:"), nil);
+    NSInteger answer = _answerIndex;
+    NSArray *texts = [[_answerTexts retain] autorelease];
+    [_answerTexts release];
+    _answerTexts = nil;
+    [_alert release];
+    _alert = nil;
+    _shown = NO;
+    void (^handler)(NSInteger, NSArray *) = [_handler retain];
+    if (handler && texts)
+        handler(answer, texts);
+    [handler release];
+    [self release];
+}
+
 - (void)showInView:(UIView *)host {
     if (_shown)
         return;
+    if ([YZTheme isClassic] && NSClassFromString(@"UIAlertView")) {
+        [self showSystemAlert];
+        return;
+    }
     _shown = YES;
     self.frame = host.bounds;
     [host addSubview:self];
@@ -285,6 +338,10 @@ static const CGFloat YZDialogFieldHeight = 44;
     // the handler belongs to an owner that may be gone by the time a card on its way out finishes
     [_handler release];
     _handler = nil;
+    if (_alert) {
+        ((void (*)(id, SEL, NSInteger, BOOL))objc_msgSend)(_alert, NSSelectorFromString(@"dismissWithClickedButtonIndex:animated:"), 0, NO);
+        return;
+    }
     [self leave:nil];
 }
 

@@ -10,6 +10,8 @@
     CGFloat _bottomInset;
     CGSize _hostSize;
     BOOL _closing;
+    // the classic design asks with the action sheet of the system and builds no card
+    id _sheet;
 }
 /* the distance from the bottom of the host to the lowest place the card may reach, the bottom bar and the home indicator */
 @property(nonatomic, assign) CGFloat bottomInset;

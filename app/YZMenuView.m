@@ -1,6 +1,7 @@
 #import "YZMenuView.h"
 #import "YZControls.h"
-#import "YZClassic.h"
+#import "YZStrings.h"
+#import "YZSystemSheet.h"
 #import "YZMotion.h"
 #import "YZTheme.h"
 #import <QuartzCore/QuartzCore.h>
@@ -53,6 +54,10 @@ static const CGFloat YZMenuPadding = 8;
 - (void)itemPressed:(YZMenuButton *)button { [_delegate menuView:self didSelectItem:button.item]; }
 
 - (void)showItems:(NSArray *)items titles:(NSArray *)titles icons:(NSArray *)icons {
+    [_items release];
+    _items = [items copy];
+    [_titles release];
+    _titles = [titles copy];
     [_panel removeFromSuperview];
     [_panel release];
     CGFloat width = self.bounds.size.width, height = self.bounds.size.height;
@@ -80,7 +85,9 @@ static const CGFloat YZMenuPadding = 8;
     _panel.layer.shadowRadius = 14;
     _panel.layer.shadowOffset = CGSizeMake(0, 5);
     _panel.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:_panel.bounds cornerRadius:[YZTheme cardRadius]].CGPath;
-    UIView *card = [[[YZPlateView alloc] initWithFrame:_panel.bounds] autorelease];
+    UIView *card = [[[UIView alloc] initWithFrame:_panel.bounds] autorelease];
+    card.backgroundColor = [YZTheme cardColor];
+    card.layer.cornerRadius = [YZTheme cardRadius];
     card.layer.masksToBounds = YES;
     [_panel addSubview:card];
     UIScrollView *list = [[[YZScrollView alloc] initWithFrame:CGRectMake(0, 0, panelWidth, listHeight)] autorelease];
@@ -122,7 +129,37 @@ static const CGFloat YZMenuPadding = 8;
     [self addSubview:_panel];
 }
 
+// the sheet of the system answers with the index of a button, the last one is its cancel button
+- (void)actionSheet:(id)sheet clickedButtonAtIndex:(NSInteger)index {
+    (void)sheet;
+    id shown = _sheet;
+    _sheet = nil;
+    [shown release];
+    if (index < 0 || index >= (NSInteger)[_items count])
+        [_delegate menuViewDidDismiss:self];
+    else
+        [_delegate menuView:self didSelectItem:(YZMenuItem)[[_items objectAtIndex:(NSUInteger)index] intValue]];
+}
+
+- (void)presentSystemSheet {
+    _sheet = YZSystemSheetMake(_titles, YZT(@"Отмена"), self);
+    if (!_sheet) {
+        [_delegate menuViewDidDismiss:self];
+        return;
+    }
+    // no scrim and no card: the sheet dims the screen itself
+    self.backgroundColor = [UIColor clearColor];
+    _panel.hidden = YES;
+    CGSize size = self.bounds.size;
+    CGRect from = CGRectMake(size.width - _rightInset - 1, _anchorsTop ? _topInset : size.height - _bottomInset, 1, 1);
+    YZSystemSheetShow(_sheet, self, from);
+}
+
 - (void)present {
+    if ([YZTheme isClassic]) {
+        [self presentSystemSheet];
+        return;
+    }
     UIColor *scrim = [self.backgroundColor retain];
     self.backgroundColor = [UIColor clearColor];
     [UIView animateWithDuration:[YZTheme animationsEnabled] ? 0.25 : 0 animations:^{ self.backgroundColor = scrim; } completion:^(BOOL finished) {
@@ -146,6 +183,17 @@ static const CGFloat YZMenuPadding = 8;
 }
 
 - (void)dismissWithCompletion:(void (^)(void))completion {
+    if (_sheet) {
+        id shown = _sheet;
+        _sheet = nil;
+        YZSystemSheetDismiss(shown);
+        [shown release];
+    }
+    if ([YZTheme isClassic]) {
+        if (completion)
+            completion();
+        return;
+    }
     self.userInteractionEnabled = NO;
     [UIView animateWithDuration:[YZTheme animationsEnabled] ? 0.18 : 0 animations:^{ self.backgroundColor = [UIColor clearColor]; } completion:nil];
     YZMotionAnimateView(_panel, CGAffineTransformMakeScale(0.7f, 0.7f), 0, YOZORA_MOTION_DISMISS, 0, ^(BOOL finished) {
@@ -156,6 +204,12 @@ static const CGFloat YZMenuPadding = 8;
 }
 
 - (void)dealloc {
+    if (_sheet) {
+        YZSystemSheetDismiss(_sheet);
+        [_sheet release];
+    }
+    [_items release];
+    [_titles release];
     [_panel release];
     [super dealloc];
 }

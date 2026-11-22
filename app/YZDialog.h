@@ -20,6 +20,10 @@
     CGFloat _keyboardHeight;
     BOOL _shown;
     BOOL _leaving;
+    // ios 5 to 7: the alert of the system in place of the card, and what its button answered
+    id _alert;
+    NSInteger _answerIndex;
+    NSArray *_answerTexts;
 }
 /* a card with a cancel button and a confirm button, confirm is red when destructive. cancelTitle is nil for a card with one button */
 + (YZDialog *)dialogWithTitle:(NSString *)title message:(NSString *)message cancelTitle:(NSString *)cancelTitle confirmTitle:(NSString *)confirmTitle

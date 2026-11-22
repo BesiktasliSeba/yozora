@@ -1,7 +1,8 @@
 #import "YZPopupMenu.h"
 #import "YZCompat.h"
 #import "YZControls.h"
-#import "YZClassic.h"
+#import "YZStrings.h"
+#import "YZSystemSheet.h"
 #import "YZMotion.h"
 #import "YZTheme.h"
 #import <QuartzCore/QuartzCore.h>
@@ -46,6 +47,10 @@ static const CGFloat YZPopupWidth = 304;
 }
 
 - (void)dealloc {
+    if (_sheet) {
+        YZSystemSheetDismiss(_sheet);
+        [_sheet release];
+    }
     [_titles release];
     [_icons release];
     [_handler release];
@@ -82,7 +87,9 @@ static const CGFloat YZPopupWidth = 304;
     _panel.layer.shadowRadius = 14;
     _panel.layer.shadowOffset = CGSizeMake(0, 5);
     _panel.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:_panel.bounds cornerRadius:[YZTheme cardRadius]].CGPath;
-    UIView *card = [[[YZPlateView alloc] initWithFrame:_panel.bounds] autorelease];
+    UIView *card = [[[UIView alloc] initWithFrame:_panel.bounds] autorelease];
+    card.backgroundColor = [YZTheme cardColor];
+    card.layer.cornerRadius = [YZTheme cardRadius];
     card.layer.masksToBounds = YES;
     [_panel addSubview:card];
     UIScrollView *list = [[[YZScrollView alloc] initWithFrame:card.bounds] autorelease];
@@ -115,9 +122,32 @@ static const CGFloat YZPopupWidth = 304;
     [self addSubview:_panel];
 }
 
-- (void)showInView:(UIView *)host anchor:(CGPoint)anchor {
-    if (self.superview)
+// the sheet of the system answers with the index of a button, the last one is its cancel button
+- (void)actionSheet:(id)sheet clickedButtonAtIndex:(NSInteger)index {
+    (void)sheet;
+    id shown = _sheet;
+    _sheet = nil;
+    [shown release];
+    [self leaveWithIndex:index < (NSInteger)[_titles count] ? index : -1];
+}
+
+- (void)showSystemSheetInView:(UIView *)host anchor:(CGPoint)anchor {
+    _sheet = YZSystemSheetMake(_titles, YZT(@"Отмена"), self);
+    if (!_sheet) {
+        [self leaveWithIndex:-1];
         return;
+    }
+    _hostSize = host.bounds.size;
+    YZSystemSheetShow(_sheet, host, CGRectMake(anchor.x, anchor.y, 1, 1));
+}
+
+- (void)showInView:(UIView *)host anchor:(CGPoint)anchor {
+    if (self.superview || _sheet)
+        return;
+    if ([YZTheme isClassic]) {
+        [self showSystemSheetInView:host anchor:anchor];
+        return;
+    }
     self.frame = host.bounds;
     _hostSize = host.bounds.size;
     [_panel removeFromSuperview];
@@ -156,6 +186,12 @@ static const CGFloat YZPopupWidth = 304;
     if (_closing)
         return;
     _closing = YES;
+    if (_sheet) {
+        id shown = _sheet;
+        _sheet = nil;
+        YZSystemSheetDismiss(shown);
+        [shown release];
+    }
     self.userInteractionEnabled = NO;
     void (^handler)(NSInteger) = [_handler retain];
     BOOL animated = self.superview != nil;
@@ -183,9 +219,15 @@ static const CGFloat YZPopupWidth = 304;
 - (void)dismissAnimated:(BOOL)animated {
     if (_closing)
         return;
-    if (!animated) {
+    if (!animated || _sheet) {
         // the page goes away under the menu: no animation and no answer beyond -1
         _closing = YES;
+        if (_sheet) {
+            id shown = _sheet;
+            _sheet = nil;
+            YZSystemSheetDismiss(shown);
+            [shown release];
+        }
         void (^handler)(NSInteger) = [_handler retain];
         [self retain];
         [self removeFromSuperview];

@@ -25,6 +25,10 @@ typedef enum {
     CGFloat _rightInset;
     CGFloat _topInset;
     BOOL _anchorsTop;
+    // the classic design asks with the action sheet of the system and builds no card
+    NSArray *_items;
+    NSArray *_titles;
+    id _sheet;
 }
 @property(nonatomic, assign) id<YZMenuViewDelegate> delegate;
 /* the distance from the bottom of the view to the card, which is the height of the bottom bar and the home indicator */
