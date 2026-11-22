@@ -24,6 +24,7 @@ typedef enum {
     YZRowLanguage,
     YZRowTheme,
     YZRowDesign,
+    YZRowTabsLayout,
     YZRowAccent,
     YZRowPrivateAccent,
     YZRowMascot,
@@ -1403,6 +1404,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowLanguage: return YZT(@"Язык");
     case YZRowTheme: return YZT(@"Тема");
     case YZRowDesign: return YZT(@"Оформление");
+    case YZRowTabsLayout: return YZT(@"Вид вкладок");
     case YZRowAccent: return YZT(@"Цвет акцента");
     case YZRowPrivateAccent: return YZT(@"Акцент приватной вкладки");
     case YZRowMascot: return YZT(@"Маскот");
@@ -1439,6 +1441,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowLanguage: return [self languageName];
     case YZRowTheme: return [self themeName];
     case YZRowDesign: return [self designName];
+    case YZRowTabsLayout: return [YZSettings tabsLayout] == YZTabsLayoutPages ? YZT(@"Страницы") : YZT(@"Сетка");
     case YZRowAccent: return [self accentName];
     case YZRowPrivateAccent: return [self privateAccentName];
     case YZRowMascot: return [self mascotName];
@@ -1466,6 +1469,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowLanguage: return YZIconLanguage;
     case YZRowTheme: return YZIconPalette;
     case YZRowDesign: return YZIconSwap;
+    case YZRowTabsLayout: return YZIconTabs;
     case YZRowAccent: return YZIconPalette;
     case YZRowPrivateAccent: return YZIconBrush;
     case YZRowMascot: return YZIconImage;
@@ -1781,6 +1785,15 @@ static NSArray *YZEngineLogos(void) {
         choice.bareMarks = NO;
         choice.selected = [YZSettings design];
         break;
+    case YZRowTabsLayout:
+        choice.heading = YZT(@"Вид вкладок");
+        choice.titles = [NSArray arrayWithObjects:YZT(@"Сетка"), YZT(@"Страницы"), nil];
+        choice.details = [NSArray arrayWithObjects:YZT(@"Карточки в сетке, как в Firefox"), YZT(@"Страницы, которые листают вбок, как в Safari"), nil];
+        choice.pictures = nil;
+        choice.tints = nil;
+        choice.bareMarks = NO;
+        choice.selected = [YZSettings tabsLayout];
+        break;
     case YZRowMascot:
         choice.heading = YZT(@"Маскот");
         choice.titles = [NSArray arrayWithObjects:@"Yozora-san", @"Yozora fox", nil];
@@ -1811,6 +1824,7 @@ static NSArray *YZEngineLogos(void) {
         case YZRowLanguage: [YZSettings setLanguage:(YZLanguage)index]; break;
         case YZRowTheme: [YZSettings setTheme:(YZThemeKind)index]; break;
         case YZRowDesign: [YZSettings setDesign:(YZDesign)index]; break;
+        case YZRowTabsLayout: [YZSettings setTabsLayout:(YZTabsLayout)index]; break;
         case YZRowMascot: [YZSettings setMascot:(YZMascot)index]; break;
         case YZRowSearchEngine: [YZSettings setSearchEngine:(yozora_search_engine)index]; break;
         default: break;
@@ -1835,6 +1849,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowLanguage:
     case YZRowTheme:
     case YZRowDesign:
+    case YZRowTabsLayout:
     case YZRowMascot:
     case YZRowSearchEngine:
         [self pushChoice:kind];

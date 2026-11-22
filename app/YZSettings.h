@@ -22,6 +22,12 @@ typedef enum {
     YZDesignClassic
 } YZDesign;
 
+/* how the tab tray shows the tabs: a grid of cards that scroll, as Firefox does, or pages that are paged sideways one at a time, as Safari does */
+typedef enum {
+    YZTabsLayoutGrid,
+    YZTabsLayoutPages
+} YZTabsLayout;
+
 typedef enum {
     YZThemeLight,
     YZThemeDark,
@@ -39,6 +45,9 @@ extern NSString *const YZSettingsDidChangeNotification;
 + (BOOL)classicDesignAvailable;
 + (YZDesign)design;
 + (void)setDesign:(YZDesign)design;
+/* an unset choice is the pages of Safari in the classic design and the grid of Firefox in the modern one */
++ (YZTabsLayout)tabsLayout;
++ (void)setTabsLayout:(YZTabsLayout)layout;
 + (YZMascot)mascot;
 + (void)setMascot:(YZMascot)mascot;
 + (YZThemeKind)theme;

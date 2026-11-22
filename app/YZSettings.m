@@ -19,6 +19,7 @@ static NSString *const YZTextZoomKey = @"YZTextZoom";
 static NSString *const YZReduceMotionKey = @"YZReduceMotion";
 static NSString *const YZHideBarsKey = @"YZHideBarsOnScroll";
 static NSString *const YZMascotKey = @"YZMascot";
+static NSString *const YZTabsLayoutKey = @"YZTabsLayout";
 static NSString *const YZDesignKey = @"YZDesign";
 static NSString *const YZCrispScrollingKey = @"YZCrispScrolling";
 static NSString *const YZWebFontsKey = @"YZWebFonts";
@@ -128,6 +129,12 @@ static NSInteger YZDesignCurrent = -1;
     return [self integerForKey:YZMascotKey defaultValue:YZMascotSan] == YZMascotFox ? YZMascotFox : YZMascotSan;
 }
 + (void)setMascot:(YZMascot)mascot { [self storeInteger:mascot forKey:YZMascotKey]; }
+
++ (YZTabsLayout)tabsLayout {
+    YZTabsLayout fallback = [self design] == YZDesignClassic ? YZTabsLayoutPages : YZTabsLayoutGrid;
+    return [self integerForKey:YZTabsLayoutKey defaultValue:fallback] == YZTabsLayoutPages ? YZTabsLayoutPages : YZTabsLayoutGrid;
+}
++ (void)setTabsLayout:(YZTabsLayout)layout { [self storeInteger:layout forKey:YZTabsLayoutKey]; }
 
 + (YZThemeKind)theme {
     NSInteger value = [self integerForKey:YZThemeKey defaultValue:YZThemeLight];

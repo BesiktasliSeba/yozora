@@ -1,11 +1,23 @@
 #import <UIKit/UIKit.h>
+#import "YZTabPager.h"
+
+@class CAGradientLayer;
 
 @protocol YZTabsViewDelegate;
 
 /* the tab tray: a switch between the normal tabs and the private ones, one card per tab, a button for a new tab and a done button */
-@interface YZTabsView : UIView {
+@interface YZTabsView : UIView <YZTabPagerDelegate> {
     id<YZTabsViewDelegate> _delegate;
     UIScrollView *_scroll;
+    // the other way to show the tabs: pages paged sideways, with the toolbar of the system under them in the classic design
+    YZTabPager *_pager;
+    UIToolbar *_toolbar;
+    UIBarButtonItem *_toolbarDone;
+    // the modern design's bar under the pages: a new tab on the left, done on the right
+    UIView *_pagesBar;
+    UIView *_pagesBarLine;
+    UIButton *_pagesDone;
+    CAGradientLayer *_ground;
     UIView *_header;
     UIControl *_modes;
     UIButton *_newTab;

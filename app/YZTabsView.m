@@ -3,6 +3,7 @@
 #import "YZControls.h"
 #import "YZFavicons.h"
 #import "YZMotion.h"
+#import "YZSettings.h"
 #import "YZStrings.h"
 #import "YZTab.h"
 #import "YZTheme.h"
@@ -192,9 +193,58 @@ static void YZPlaceView(UIView *view, CGRect frame) {
     [_newTab addTarget:self action:@selector(newTabPressed) forControlEvents:UIControlEventTouchUpInside];
     YZMotionAttachBounce(_newTab, 0.08f);
     [self addSubview:_newTab];
+    _pager = [[YZTabPager alloc] initWithFrame:CGRectZero];
+    _pager.delegate = self;
+    _pager.hidden = YES;
+    [self addSubview:_pager];
+    // the bar of the system with the two buttons of the page switcher of ios 5 and 6
+    _toolbar = [[UIToolbar alloc] initWithFrame:CGRectZero];
+    _toolbar.hidden = YES;
+    _toolbarDone = [[UIBarButtonItem alloc] initWithTitle:YZT(@"Готово") style:UIBarButtonItemStyleDone target:self action:@selector(donePressed)];
+    UIBarButtonItem *space = [[[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace target:nil action:nil] autorelease];
+    // done only: a new page is made by the page with the plus at the end of the row
+    _toolbar.items = [NSArray arrayWithObjects:space, _toolbarDone, nil];
+    [self addSubview:_toolbar];
+    _pagesBar = [[UIView alloc] initWithFrame:CGRectZero];
+    _pagesBar.hidden = YES;
+    [self addSubview:_pagesBar];
+    _pagesBarLine = [[UIView alloc] initWithFrame:CGRectZero];
+    [_pagesBar addSubview:_pagesBarLine];
+    _pagesDone = [[YZStateButton buttonWithType:UIButtonTypeCustom] retain];
+    [(YZStateButton *)_pagesDone setPillInsets:UIEdgeInsetsMake(6, 4, 6, 4)];
+    [_pagesDone addTarget:self action:@selector(donePressed) forControlEvents:UIControlEventTouchUpInside];
+    [_pagesBar addSubview:_pagesDone];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(iconLoaded:) name:YZFaviconDidLoadNotification object:nil];
     [self applyTheme];
     return self;
+}
+
+// the setting can change between two openings of the tray: what each layout needs is shown or hidden here
+- (void)applyLayoutMode {
+    BOOL pages = [self showsPages], bar = [self usesToolbar];
+    if (_pager.hidden != !pages || _toolbar.hidden != !bar || _pagesBar.hidden != ![self usesPagesBar])
+        [self applyTheme];
+}
+
+- (BOOL)showsPages { return [YZSettings tabsLayout] == YZTabsLayoutPages; }
+// the classic pages stand over the toolbar of the system, the modern ones keep the header and the floating button
+- (BOOL)usesToolbar { return [self showsPages] && [YZTheme isClassic]; }
+// the modern pages stand over a flat bar of two buttons instead of the floating button
+- (BOOL)usesPagesBar { return [self showsPages] && ![YZTheme isClassic]; }
+
+- (void)tabPager:(YZTabPager *)pager didSelectIndex:(NSUInteger)index {
+    (void)pager;
+    [_delegate tabsView:self didSelectIndex:index];
+}
+
+- (void)tabPagerDidRequestNewTab:(YZTabPager *)pager {
+    (void)pager;
+    [_delegate tabsViewDidRequestNewTab:self];
+}
+
+- (void)tabPager:(YZTabPager *)pager didCloseIndex:(NSUInteger)index {
+    (void)pager;
+    [_delegate tabsView:self didCloseIndex:index];
 }
 
 // the cards whose site icon arrived show it
@@ -203,6 +253,7 @@ static void YZPlaceView(UIView *view, CGRect frame) {
     YZTab *selected = _selected < [_tabs count] ? [_tabs objectAtIndex:_selected] : nil;
     for (YZTabCard *card in _cards)
         [card updateSelected:card->open.tab == selected];
+    [_pager refreshThumbnails];
 }
 
 - (void)setIncognito:(BOOL)incognito {
@@ -225,7 +276,48 @@ static void YZPlaceView(UIView *view, CGRect frame) {
 }
 
 - (void)applyTheme {
-    self.backgroundColor = [YZTheme backdropColor];
+    self.backgroundColor = [YZTheme isClassic] ? [YZTheme screenColor] : [YZTheme backdropColor];
+    BOOL pages = [self showsPages], bar = [self usesToolbar];
+    _scroll.hidden = pages;
+    _pager.hidden = !pages;
+    BOOL pagesBar = [self usesPagesBar];
+    _toolbar.hidden = !bar;
+    _pagesBar.hidden = !pagesBar;
+    // the header's done button and the floating plus belong to the grid, the pages have their own two buttons
+    _done.hidden = pages;
+    _newTab.hidden = pages;
+    if (pagesBar) {
+        _pagesBar.backgroundColor = [YZTheme toolbarColor];
+        _pagesBarLine.backgroundColor = [YZTheme separatorColor];
+        [_pagesDone setTitle:YZT(@"Готово") forState:UIControlStateNormal];
+        [_pagesDone setTitleColor:[YZTheme accentColor] forState:UIControlStateNormal];
+        _pagesDone.titleLabel.font = [YZTheme boldSystemFontOfSize:15];
+    }
+    if (bar) {
+        // the ground behind the pages of ios 5 and 6: blue grey, lighter at the top
+        if (!_ground) {
+            _ground = [[CAGradientLayer alloc] init];
+            [self.layer insertSublayer:_ground atIndex:0];
+        }
+        // the accent of the theme, lighter at the top and deep at the foot, in place of the blue grey of Safari
+        CGFloat r = 0, g = 0, b = 0, a = 1;
+        [[YZClassic barMidColor] getRed:&r green:&g blue:&b alpha:&a];
+        UIColor *top = [UIColor colorWithRed:r + (1 - r) * 0.22f green:g + (1 - g) * 0.22f blue:b + (1 - b) * 0.22f alpha:1];
+        UIColor *foot = [UIColor colorWithRed:r * 0.5f green:g * 0.5f blue:b * 0.5f alpha:1];
+        _ground.colors = [NSArray arrayWithObjects:(id)[top CGColor], (id)[foot CGColor], nil];
+        _ground.hidden = NO;
+        self.backgroundColor = foot;
+        // the done key is the accent too, the system draws it blue unless it is told
+        _toolbarDone.tintColor = [YZTheme accentColor];
+        if ([_toolbar respondsToSelector:@selector(setBarTintColor:)])
+            [_toolbar setValue:[YZClassic barMidColor] forKey:@"barTintColor"];
+        else
+            _toolbar.tintColor = [YZClassic barMidColor];
+        _toolbarDone.title = YZT(@"Готово");
+    } else {
+        _ground.hidden = YES;
+    }
+    [_pager applyTheme];
     [(YZSegmentedPill *)_modes setTitles:[NSArray arrayWithObjects:YZT(@"Обычные"), YZT(@"Инкогнито"), nil]];
     [(YZSegmentedPill *)_modes setSelectedSegment:_incognito ? 1 : 0];
     if ([YZTheme isClassic]) {
@@ -288,6 +380,10 @@ static void YZPlaceView(UIView *view, CGRect frame) {
 
 - (void)present {
     [self layoutIfNeeded];
+    if ([self showsPages]) {
+        [_pager focusSelected];
+        return;
+    }
     NSUInteger animated = 0;
     for (UIView *card in _cards) {
         if (!CGRectIntersectsRect(card.frame, _scroll.bounds))
@@ -302,6 +398,21 @@ static void YZPlaceView(UIView *view, CGRect frame) {
 }
 
 - (void)showTabs:(NSArray *)tabs selected:(NSUInteger)selected {
+    [self applyLayoutMode];
+    if ([self showsPages]) {
+        // the pages are the other view of the same tabs, the grid keeps no cards meanwhile
+        for (YZTabCard *card in _cards)
+            [card removeFromSuperview];
+        [_cards release];
+        _cards = nil;
+        [tabs retain];
+        [_tabs release];
+        _tabs = tabs;
+        _selected = selected;
+        [_pager showTabs:tabs selected:selected];
+        [self setNeedsLayout];
+        return;
+    }
     NSMutableArray *cards = [NSMutableArray arrayWithCapacity:[tabs count]];
     for (YZTab *tab in tabs) {
         YZTabCard *card = nil;
@@ -347,14 +458,35 @@ static void YZPlaceView(UIView *view, CGRect frame) {
     if (width <= 0 || height <= 0)
         return;
     _header.frame = CGRectMake(0, _edgeInsets.top, width, YZTrayHeaderHeight);
-    _modes.frame = CGRectMake(_edgeInsets.left + 16, (YZTrayHeaderHeight - 36) / 2, 216, 36);
+    // the pages stand in the middle of the screen and so does the switch above them, the grid keeps it at the left edge
+    CGFloat modesLeft = [self showsPages] ? floor((width - 216) / 2) : _edgeInsets.left + 16;
+    _modes.frame = CGRectMake(modesLeft, (YZTrayHeaderHeight - 36) / 2, 216, 36);
     _done.frame = CGRectMake(width - _edgeInsets.right - 88, 0, 80, YZTrayHeaderHeight);
     CGFloat scrollTop = _edgeInsets.top + YZTrayHeaderHeight;
+    CGFloat barHeight = 44 + _edgeInsets.bottom;
+    if ([self usesToolbar]) {
+        _toolbar.frame = CGRectMake(0, height - barHeight, width, barHeight);
+        [CATransaction begin];
+        [CATransaction setDisableActions:YES];
+        _ground.frame = self.bounds;
+        [CATransaction commit];
+    }
+    CGFloat pagesBarHeight = 52 + _edgeInsets.bottom;
+    if ([self usesPagesBar]) {
+        _pagesBar.frame = CGRectMake(0, height - pagesBarHeight, width, pagesBarHeight);
+        _pagesBarLine.frame = CGRectMake(0, 0, width, 1);
+        _pagesDone.frame = CGRectMake(width - _edgeInsets.right - 88, 0, 80, 52);
+    }
+    CGFloat below = [self usesToolbar] ? barHeight : ([self usesPagesBar] ? pagesBarHeight : 0);
+    _pager.frame = CGRectMake(0, scrollTop, width, height - scrollTop - below);
     // the cards scroll under the button of a new tab and can still be lifted clear of it
     CGFloat fabClearance = YZFabSize + 32;
     _scroll.frame = CGRectMake(0, scrollTop, width, height - scrollTop);
     _scroll.contentInset = UIEdgeInsetsMake(0, 0, fabClearance + _edgeInsets.bottom, 0);
     YZPlaceView(_newTab, CGRectMake(width - _edgeInsets.right - 16 - YZFabSize, height - _edgeInsets.bottom - 16 - YZFabSize, YZFabSize, YZFabSize));
+    // the pages have no cards to place
+    if ([self showsPages])
+        return;
     // an ipad shows more and smaller cards: three columns of 320 points would be pictures the size of a phone
     NSUInteger columns = [YZTheme isPad] ? MIN((NSUInteger)5, MAX((NSUInteger)3, (NSUInteger)(width / 180))) : (width > 400 ? 3 : 2);
     CGFloat cardWidth = (width - YZCardGap * (columns + 1)) / columns;
@@ -378,6 +510,14 @@ static void YZPlaceView(UIView *view, CGRect frame) {
 
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+    _pager.delegate = nil;
+    [_pager release];
+    [_toolbar release];
+    [_toolbarDone release];
+    [_pagesBar release];
+    [_pagesBarLine release];
+    [_pagesDone release];
+    [_ground release];
     [_scroll release];
     [_header release];
     [_modes release];
