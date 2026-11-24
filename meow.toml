@@ -365,12 +365,24 @@ from = "app/icons/fox-error.png"
 to = "fox-error.png"
 
 [[ipa.ipa-armv7.file]]
+from = "app/icons/senko-error.png"
+to = "senko-error.png"
+
+[[ipa.ipa-armv7.file]]
 from = "app/icons/fox-error@2x.png"
 to = "fox-error@2x.png"
 
 [[ipa.ipa-armv7.file]]
+from = "app/icons/senko-error@2x.png"
+to = "senko-error@2x.png"
+
+[[ipa.ipa-armv7.file]]
 from = "app/icons/fox-error@3x.png"
 to = "fox-error@3x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/senko-error@3x.png"
+to = "senko-error@3x.png"
 
 [[ipa.ipa-armv7.file]]
 from = "app/textures/linen-light.png"
@@ -393,20 +405,40 @@ from = "app/icons/fox-hero.png"
 to = "fox-hero.png"
 
 [[ipa.ipa-armv7.file]]
+from = "app/icons/senko-hero.png"
+to = "senko-hero.png"
+
+[[ipa.ipa-armv7.file]]
 from = "app/icons/fox-hero@2x.png"
 to = "fox-hero@2x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/senko-hero@2x.png"
+to = "senko-hero@2x.png"
 
 [[ipa.ipa-armv7.file]]
 from = "app/icons/fox-sticker.png"
 to = "fox-sticker.png"
 
 [[ipa.ipa-armv7.file]]
+from = "app/icons/senko-sticker.png"
+to = "senko-sticker.png"
+
+[[ipa.ipa-armv7.file]]
 from = "app/icons/fox-sticker@2x.png"
 to = "fox-sticker@2x.png"
 
 [[ipa.ipa-armv7.file]]
+from = "app/icons/senko-sticker@2x.png"
+to = "senko-sticker@2x.png"
+
+[[ipa.ipa-armv7.file]]
 from = "app/icons/fox-sticker@3x.png"
 to = "fox-sticker@3x.png"
+
+[[ipa.ipa-armv7.file]]
+from = "app/icons/senko-sticker@3x.png"
+to = "senko-sticker@3x.png"
 
 [[ipa.ipa-armv7.file]]
 from = "app/icons/Icon-60.png"
@@ -959,12 +991,24 @@ from = "app/icons/fox-error.png"
 to = "fox-error.png"
 
 [[ipa.ipa-arm64.file]]
+from = "app/icons/senko-error.png"
+to = "senko-error.png"
+
+[[ipa.ipa-arm64.file]]
 from = "app/icons/fox-error@2x.png"
 to = "fox-error@2x.png"
 
 [[ipa.ipa-arm64.file]]
+from = "app/icons/senko-error@2x.png"
+to = "senko-error@2x.png"
+
+[[ipa.ipa-arm64.file]]
 from = "app/icons/fox-error@3x.png"
 to = "fox-error@3x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/senko-error@3x.png"
+to = "senko-error@3x.png"
 
 [[ipa.ipa-arm64.file]]
 from = "app/textures/linen-light.png"
@@ -987,20 +1031,40 @@ from = "app/icons/fox-hero.png"
 to = "fox-hero.png"
 
 [[ipa.ipa-arm64.file]]
+from = "app/icons/senko-hero.png"
+to = "senko-hero.png"
+
+[[ipa.ipa-arm64.file]]
 from = "app/icons/fox-hero@2x.png"
 to = "fox-hero@2x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/senko-hero@2x.png"
+to = "senko-hero@2x.png"
 
 [[ipa.ipa-arm64.file]]
 from = "app/icons/fox-sticker.png"
 to = "fox-sticker.png"
 
 [[ipa.ipa-arm64.file]]
+from = "app/icons/senko-sticker.png"
+to = "senko-sticker.png"
+
+[[ipa.ipa-arm64.file]]
 from = "app/icons/fox-sticker@2x.png"
 to = "fox-sticker@2x.png"
 
 [[ipa.ipa-arm64.file]]
+from = "app/icons/senko-sticker@2x.png"
+to = "senko-sticker@2x.png"
+
+[[ipa.ipa-arm64.file]]
 from = "app/icons/fox-sticker@3x.png"
 to = "fox-sticker@3x.png"
+
+[[ipa.ipa-arm64.file]]
+from = "app/icons/senko-sticker@3x.png"
+to = "senko-sticker@3x.png"
 
 [[ipa.ipa-arm64.file]]
 from = "app/icons/Icon-60.png"
@@ -1553,12 +1617,24 @@ from = "app/icons/fox-error.png"
 to = "fox-error.png"
 
 [[ipa.ipa.file]]
+from = "app/icons/senko-error.png"
+to = "senko-error.png"
+
+[[ipa.ipa.file]]
 from = "app/icons/fox-error@2x.png"
 to = "fox-error@2x.png"
 
 [[ipa.ipa.file]]
+from = "app/icons/senko-error@2x.png"
+to = "senko-error@2x.png"
+
+[[ipa.ipa.file]]
 from = "app/icons/fox-error@3x.png"
 to = "fox-error@3x.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/senko-error@3x.png"
+to = "senko-error@3x.png"
 
 [[ipa.ipa.file]]
 from = "app/textures/linen-light.png"
@@ -1581,20 +1657,40 @@ from = "app/icons/fox-hero.png"
 to = "fox-hero.png"
 
 [[ipa.ipa.file]]
+from = "app/icons/senko-hero.png"
+to = "senko-hero.png"
+
+[[ipa.ipa.file]]
 from = "app/icons/fox-hero@2x.png"
 to = "fox-hero@2x.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/senko-hero@2x.png"
+to = "senko-hero@2x.png"
 
 [[ipa.ipa.file]]
 from = "app/icons/fox-sticker.png"
 to = "fox-sticker.png"
 
 [[ipa.ipa.file]]
+from = "app/icons/senko-sticker.png"
+to = "senko-sticker.png"
+
+[[ipa.ipa.file]]
 from = "app/icons/fox-sticker@2x.png"
 to = "fox-sticker@2x.png"
 
 [[ipa.ipa.file]]
+from = "app/icons/senko-sticker@2x.png"
+to = "senko-sticker@2x.png"
+
+[[ipa.ipa.file]]
 from = "app/icons/fox-sticker@3x.png"
 to = "fox-sticker@3x.png"
+
+[[ipa.ipa.file]]
+from = "app/icons/senko-sticker@3x.png"
+to = "senko-sticker@3x.png"
 
 [[ipa.ipa.file]]
 from = "app/icons/Icon-60.png"

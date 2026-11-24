@@ -650,7 +650,8 @@ static const CGFloat YZIconTilesHead = 44;
     label.backgroundColor = [UIColor clearColor];
     label.textAlignment = YZTextAlignmentCenter;
     label.font = [YZTheme systemFontOfSize:12];
-    label.text = name ? name : @"Yozora";
+    // the file prefix of the alternate icon stays "Fox" (Info.plist and the stored choice use it), the name shown is the full one
+    label.text = !name ? @"Yozora" : ([name isEqualToString:@"Fox"] ? @"YozoraFox" : name);
     [self addSubview:label];
     self.accessibilityLabel = label.text;
     return self;
@@ -1121,6 +1122,14 @@ static NSArray *YZLanguageNames(void) {
     return [NSArray arrayWithObjects:@"Русский", @"English", @"日本語", nil];
 }
 
+static NSString *YZMascotTitle(YZMascot mascot) {
+    switch (mascot) {
+    case YZMascotFox: return @"Yozora (Fox)";
+    case YZMascotSenko: return @"Senko";
+    default: return @"Yozora";
+    }
+}
+
 // the sticker of a mascot as it is, fitted into a square, for the picker: its outline is its own shape
 static UIImage *YZMascotMark(YZMascot mascot, CGFloat side) {
     UIImage *picture = [YZTheme mascotImage:@"sticker" mascot:mascot];
@@ -1539,7 +1548,7 @@ static NSArray *YZEngineTints(void) {
 
 // the names of the mascots are names, they stay as they are in every language
 - (NSString *)mascotName {
-    return [YZSettings mascot] == YZMascotFox ? @"Yozora fox" : @"Yozora-san";
+    return YZMascotTitle([YZSettings mascot]);
 }
 
 - (NSString *)designName {
@@ -2013,9 +2022,9 @@ static NSArray *YZEngineLogos(void) {
         break;
     case YZRowMascot:
         choice.heading = YZT(@"Маскот");
-        choice.titles = [NSArray arrayWithObjects:@"Yozora-san", @"Yozora fox", nil];
+        choice.titles = [NSArray arrayWithObjects:YZMascotTitle(YZMascotSan), YZMascotTitle(YZMascotFox), YZMascotTitle(YZMascotSenko), nil];
         choice.details = nil;
-        choice.pictures = [NSArray arrayWithObjects:YZMascotMark(YZMascotSan, 40), YZMascotMark(YZMascotFox, 40), nil];
+        choice.pictures = [NSArray arrayWithObjects:YZMascotMark(YZMascotSan, 40), YZMascotMark(YZMascotFox, 40), YZMascotMark(YZMascotSenko, 40), nil];
         choice.tints = nil;
         choice.bareMarks = YES;
         choice.selected = [YZSettings mascot];

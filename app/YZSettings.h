@@ -12,7 +12,8 @@ typedef enum {
 /* the picture that stands for the app on the start page, the about screen and the error screens */
 typedef enum {
     YZMascotSan,
-    YZMascotFox
+    YZMascotFox,
+    YZMascotSenko
 } YZMascot;
 
 /* the drawing of the interface: Material cards and pills, the bars and controls the system of ios 5 to 7 draws itself, or

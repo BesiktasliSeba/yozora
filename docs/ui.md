@@ -114,7 +114,7 @@ the icon row in settings offers the icon of the app and the alternate icons the 
 
 the alternate icon files are rounded and prerendered (`tools/make_icons.py SOURCE OUTPUT NAME`), because the home screen of ios 5 and 6 does not mask the icon of an app in /Applications. the same tool writes the icon of the app with the name `Icon`.
 
-the mascot is the picture of the start page and the splash (hero), the about screen (sticker) and the error screens (error): `Yozora-san`, the default, or `Yozora fox`. the fox art is cut from the pictures in `tools/art` by `tools/make_mascot_art.py`, which finds the black ground from the border and fades the edge by brightness so no dark halo is left.
+the mascot is the picture of the start page and the splash (hero), the about screen (sticker) and the error screens (error): `Yozora`, the default, `Yozora (Fox)` or `Senko`. the Senko pictures are cut-out stickers and are only resized (`tools/art/senko-*-source.png`). the fox art is cut from the pictures in `tools/art` by `tools/make_mascot_art.py`, which finds the black ground from the border and fades the edge by brightness so no dark halo is left.
 
 ## reuse
 

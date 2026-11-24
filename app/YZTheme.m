@@ -543,8 +543,16 @@ static UIImage *YZTintedMask(CGImageRef mask, CGFloat size, UIColor *color, void
     return [self mascotImage:place mascot:[YZSettings mascot]];
 }
 
++ (NSString *)mascotFilePrefix:(YZMascot)mascot {
+    switch (mascot) {
+    case YZMascotFox: return @"fox";
+    case YZMascotSenko: return @"senko";
+    default: return @"yozora";
+    }
+}
+
 + (UIImage *)mascotImage:(NSString *)place mascot:(YZMascot)mascot {
-    return [UIImage imageNamed:[NSString stringWithFormat:@"%@-%@", mascot == YZMascotFox ? @"fox" : @"yozora", place]];
+    return [UIImage imageNamed:[NSString stringWithFormat:@"%@-%@", [self mascotFilePrefix:mascot], place]];
 }
 
 + (UIImage *)wordmarkWithHeight:(CGFloat)height color:(UIColor *)color {

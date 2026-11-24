@@ -143,7 +143,8 @@ static NSInteger YZDesignCurrent = -1;
 
 // the girl that came with the app until the person picks the fox, a value of a later version counts as the girl
 + (YZMascot)mascot {
-    return [self integerForKey:YZMascotKey defaultValue:YZMascotSan] == YZMascotFox ? YZMascotFox : YZMascotSan;
+    NSInteger stored = [self integerForKey:YZMascotKey defaultValue:YZMascotSan];
+    return stored == YZMascotFox || stored == YZMascotSenko ? (YZMascot)stored : YZMascotSan;
 }
 + (void)setMascot:(YZMascot)mascot { [self storeInteger:mascot forKey:YZMascotKey]; }
 
