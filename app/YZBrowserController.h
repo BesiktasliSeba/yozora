@@ -93,6 +93,7 @@
     UIButton *_backButton;
     UIButton *_forwardButton;
     UIButton *_starButton;
+    UIButton *_shareButton;
     UIButton *_tabsButton;
     UIButton *_menuButton;
     YZPageView *_pageView;

@@ -142,6 +142,9 @@ typedef enum {
 + (UIImageView *)disclosureView;
 /* a square template icon drawn at the screen scale, cached by kind, size and color */
 + (UIImage *)icon:(YZIcon)icon size:(CGFloat)size color:(UIColor *)color;
+/* a glyph of the bars and the address field: the thin outline of ios 7 in the flat design where one is drawn (back, forward, share,
+   menu, close, plus, search, lock, star, bookmarks, the find arrows), the mask of the bundle elsewhere */
++ (UIImage *)chromeIcon:(YZIcon)icon size:(CGFloat)size color:(UIColor *)color;
 /* the tab counter is a rounded square with the number inside */
 + (UIImage *)tabsIconWithCount:(NSUInteger)count size:(CGFloat)size color:(UIColor *)color;
 /* a colored mark of a search engine (@"google", @"duckduckgo"), drawn as it is and not tinted, nil when the file is missing */

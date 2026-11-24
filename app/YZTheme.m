@@ -475,11 +475,164 @@ static UIImage *YZTintedMask(CGImageRef mask, CGFloat size, UIColor *color, void
     return image;
 }
 
+// the thin outline glyphs of the bars of ios 7, drawn on the 24 point grid of the masks. a glyph that is not drawn here keeps the
+// mask of the bundle
+static UIBezierPath *YZStroke(CGFloat s, CGFloat x0, CGFloat y0, CGFloat x1, CGFloat y1) {
+    UIBezierPath *path = [UIBezierPath bezierPath];
+    [path moveToPoint:CGPointMake(x0 * s, y0 * s)];
+    [path addLineToPoint:CGPointMake(x1 * s, y1 * s)];
+    return path;
+}
+
+static BOOL YZDrawFlatGlyph(YZIcon icon, CGFloat s, UIColor *color) {
+    NSMutableArray *strokes = [NSMutableArray array];
+    NSMutableArray *fills = [NSMutableArray array];
+    CGFloat width = 1.5f * s;
+    switch (icon) {
+    case YZIconBack:
+    case YZIconForward: {
+        UIBezierPath *path = [UIBezierPath bezierPath];
+        CGFloat x = icon == YZIconBack ? 15 : 9, tip = icon == YZIconBack ? 8 : 16;
+        [path moveToPoint:CGPointMake(x * s, 4.5f * s)];
+        [path addLineToPoint:CGPointMake(tip * s, 12 * s)];
+        [path addLineToPoint:CGPointMake(x * s, 19.5f * s)];
+        [strokes addObject:path];
+        width = 2 * s;
+        break;
+    }
+    case YZIconArrowUp:
+    case YZIconArrowDown: {
+        UIBezierPath *path = [UIBezierPath bezierPath];
+        CGFloat from = icon == YZIconArrowUp ? 15 : 9, tip = icon == YZIconArrowUp ? 8.5f : 15.5f;
+        [path moveToPoint:CGPointMake(5 * s, from * s)];
+        [path addLineToPoint:CGPointMake(12 * s, tip * s)];
+        [path addLineToPoint:CGPointMake(19 * s, from * s)];
+        [strokes addObject:path];
+        width = 2 * s;
+        break;
+    }
+    case YZIconShare: {
+        UIBezierPath *tray = [UIBezierPath bezierPath];
+        [tray moveToPoint:CGPointMake(8.5f * s, 9.5f * s)];
+        [tray addLineToPoint:CGPointMake(6 * s, 9.5f * s)];
+        [tray addLineToPoint:CGPointMake(6 * s, 20 * s)];
+        [tray addLineToPoint:CGPointMake(18 * s, 20 * s)];
+        [tray addLineToPoint:CGPointMake(18 * s, 9.5f * s)];
+        [tray addLineToPoint:CGPointMake(15.5f * s, 9.5f * s)];
+        UIBezierPath *arrow = [UIBezierPath bezierPath];
+        [arrow moveToPoint:CGPointMake(8.5f * s, 6.5f * s)];
+        [arrow addLineToPoint:CGPointMake(12 * s, 3 * s)];
+        [arrow addLineToPoint:CGPointMake(15.5f * s, 6.5f * s)];
+        [strokes addObject:tray];
+        [strokes addObject:arrow];
+        [strokes addObject:YZStroke(s, 12, 3, 12, 14.5f)];
+        break;
+    }
+    case YZIconMenu:
+        for (int i = 0; i < 3; ++i)
+            [fills addObject:[UIBezierPath bezierPathWithOvalInRect:CGRectMake((5 + 7 * i - 1.7f) * s, (12 - 1.7f) * s, 3.4f * s, 3.4f * s)]];
+        break;
+    case YZIconClose:
+        [strokes addObject:YZStroke(s, 6.5f, 6.5f, 17.5f, 17.5f)];
+        [strokes addObject:YZStroke(s, 17.5f, 6.5f, 6.5f, 17.5f)];
+        width = 1.7f * s;
+        break;
+    case YZIconPlus:
+        [strokes addObject:YZStroke(s, 12, 5, 12, 19)];
+        [strokes addObject:YZStroke(s, 5, 12, 19, 12)];
+        width = 1.7f * s;
+        break;
+    case YZIconSearch: {
+        [strokes addObject:[UIBezierPath bezierPathWithOvalInRect:CGRectMake(4.5f * s, 4.5f * s, 11 * s, 11 * s)]];
+        [strokes addObject:YZStroke(s, 13.5f, 13.5f, 19.5f, 19.5f)];
+        break;
+    }
+    case YZIconLock: {
+        UIBezierPath *shackle = [UIBezierPath bezierPath];
+        [shackle moveToPoint:CGPointMake(8.5f * s, 10.5f * s)];
+        [shackle addLineToPoint:CGPointMake(8.5f * s, 8 * s)];
+        [shackle addArcWithCenter:CGPointMake(12 * s, 8 * s) radius:3.5f * s startAngle:(CGFloat)M_PI endAngle:0 clockwise:YES];
+        [shackle addLineToPoint:CGPointMake(15.5f * s, 10.5f * s)];
+        [strokes addObject:shackle];
+        [fills addObject:[UIBezierPath bezierPathWithRoundedRect:CGRectMake(6 * s, 10.5f * s, 12 * s, 9.5f * s) cornerRadius:2 * s]];
+        break;
+    }
+    case YZIconStar:
+    case YZIconStarFilled: {
+        UIBezierPath *star = [UIBezierPath bezierPath];
+        for (int i = 0; i < 10; ++i) {
+            CGFloat angle = (CGFloat)M_PI * (-0.5f + i / 5.0f), radius = (i % 2 ? 4.8f : 9.5f) * s;
+            CGPoint point = CGPointMake(12 * s + radius * cos(angle), 12.8f * s + radius * sin(angle));
+            if (i == 0)
+                [star moveToPoint:point];
+            else
+                [star addLineToPoint:point];
+        }
+        [star closePath];
+        if (icon == YZIconStarFilled)
+            [fills addObject:star];
+        [strokes addObject:star];
+        break;
+    }
+    case YZIconBookmarks: {
+        UIBezierPath *book = [UIBezierPath bezierPath];
+        [book moveToPoint:CGPointMake(12 * s, 6.5f * s)];
+        [book addCurveToPoint:CGPointMake(3 * s, 5 * s) controlPoint1:CGPointMake(9.5f * s, 4.8f * s) controlPoint2:CGPointMake(6 * s, 4.6f * s)];
+        [book addLineToPoint:CGPointMake(3 * s, 18 * s)];
+        [book addCurveToPoint:CGPointMake(12 * s, 19.5f * s) controlPoint1:CGPointMake(6.5f * s, 17.6f * s) controlPoint2:CGPointMake(9.8f * s, 17.9f * s)];
+        [book addCurveToPoint:CGPointMake(21 * s, 18 * s) controlPoint1:CGPointMake(14.2f * s, 17.9f * s) controlPoint2:CGPointMake(17.5f * s, 17.6f * s)];
+        [book addLineToPoint:CGPointMake(21 * s, 5 * s)];
+        [book addCurveToPoint:CGPointMake(12 * s, 6.5f * s) controlPoint1:CGPointMake(18 * s, 4.6f * s) controlPoint2:CGPointMake(14.5f * s, 4.8f * s)];
+        [strokes addObject:book];
+        [strokes addObject:YZStroke(s, 12, 6.5f, 12, 19.5f)];
+        break;
+    }
+    default:
+        return NO;
+    }
+    [color setStroke];
+    [color setFill];
+    for (UIBezierPath *path in fills)
+        [path fill];
+    for (UIBezierPath *path in strokes) {
+        path.lineWidth = width;
+        path.lineCapStyle = kCGLineCapRound;
+        path.lineJoinStyle = kCGLineJoinRound;
+        [path stroke];
+    }
+    return YES;
+}
+
+// a glyph of the bars: the thin outline of ios 7 in the flat design where one is drawn, the mask of the bundle elsewhere
++ (UIImage *)chromeIcon:(YZIcon)icon size:(CGFloat)size color:(UIColor *)color {
+    if (![self isFlat])
+        return [self icon:icon size:size color:color];
+    static NSMutableDictionary *cache;
+    if (!cache)
+        cache = [[NSMutableDictionary alloc] init];
+    CGFloat red = 0, green = 0, blue = 0, alpha = 0;
+    [color getRed:&red green:&green blue:&blue alpha:&alpha];
+    NSString *key = [NSString stringWithFormat:@"%d-%.0f-%.2f-%.2f-%.2f-%.2f", (int)icon, size, red, green, blue, alpha];
+    UIImage *cached = [cache objectForKey:key];
+    if (cached)
+        return cached;
+    UIGraphicsBeginImageContextWithOptions(CGSizeMake(size, size), NO, 0);
+    BOOL drawn = YZDrawFlatGlyph(icon, size / 24, color);
+    UIImage *image = drawn ? UIGraphicsGetImageFromCurrentImageContext() : nil;
+    UIGraphicsEndImageContext();
+    if (!drawn)
+        return [self icon:icon size:size color:color];
+    [cache setObject:image forKey:key];
+    return image;
+}
+
 + (UIImage *)barIcon:(YZIcon)icon size:(CGFloat)size disabled:(BOOL)disabled {
     if ([self isClassic]) {
         UIImage *glyph = [self icon:icon size:size color:disabled ? [UIColor colorWithWhite:1 alpha:0.35f] : [YZClassic inkColor]];
         return disabled ? glyph : [YZClassic stampedImage:glyph];
     }
+    if ([self isFlat])
+        return [self chromeIcon:icon size:size color:disabled ? [[self subtleTextColor] colorWithAlphaComponent:0.45f] : [self accentColor]];
     return [self icon:icon size:size color:disabled ? [[self subtleTextColor] colorWithAlphaComponent:0.4f] : [self textColor]];
 }
 

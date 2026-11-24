@@ -196,6 +196,14 @@ static UIImage *YZThumbnailFromView(UIView *view) {
     }
 }
 
+// the keys of the bars in the order they stand. the flat design has the share key where the others have the star (the star lives in the
+// menu there), the tabs and the menu close the row in every design
+- (NSArray *)barButtons {
+    if ([YZTheme isFlat])
+        return [NSArray arrayWithObjects:_backButton, _forwardButton, _shareButton, _tabsButton, _menuButton, nil];
+    return [NSArray arrayWithObjects:_backButton, _forwardButton, _starButton, _tabsButton, _menuButton, nil];
+}
+
 - (void)styleBarButton:(UIButton *)button icon:(YZIcon)icon {
     [button setImage:[YZTheme barIcon:icon size:24 disabled:NO] forState:UIControlStateNormal];
     [button setImage:[YZTheme barIcon:icon size:24 disabled:YES] forState:UIControlStateDisabled];
@@ -337,9 +345,10 @@ static UIImage *YZThumbnailFromView(UIView *view) {
     _backButton = [[self barButtonWithIcon:YZIconBack action:@selector(backPressed) label:YZT(@"Назад")] retain];
     _forwardButton = [[self barButtonWithIcon:YZIconForward action:@selector(forwardPressed) label:YZT(@"Вперёд")] retain];
     _starButton = [[self barButtonWithIcon:YZIconStar action:@selector(starPressed) label:YZT(@"Закладка")] retain];
+    _shareButton = [[self barButtonWithIcon:YZIconShare action:@selector(sharePressed) label:YZT(@"Поделиться")] retain];
     _tabsButton = [[self barButtonWithIcon:YZIconTabs action:@selector(tabsPressed) label:YZT(@"Вкладки")] retain];
     _menuButton = [[self barButtonWithIcon:YZIconMenu action:@selector(menuPressed) label:YZT(@"Меню")] retain];
-    for (UIButton *button in [NSArray arrayWithObjects:_backButton, _forwardButton, _starButton, _tabsButton, _menuButton, nil])
+    for (UIButton *button in [NSArray arrayWithObjects:_backButton, _forwardButton, _starButton, _shareButton, _tabsButton, _menuButton, nil])
         [_bottomBar addSubview:button];
 
     _tabsView = [[YZTabsView alloc] initWithFrame:CGRectZero];
@@ -763,7 +772,7 @@ static UIImage *YZThumbnailFromView(UIView *view) {
     }
     YZMotionAnimateEnter(_field, CGAffineTransformMakeScale(0.9f, 0.9f), 0, YOZORA_MOTION_WOBBLE, 0.12);
     YZMotionAnimateEnter(_securityView, CGAffineTransformMakeScale(0.3f, 0.3f), 0, YOZORA_MOTION_WOBBLE, 0.2);
-    NSArray *buttons = [NSArray arrayWithObjects:_backButton, _forwardButton, _starButton, _tabsButton, _menuButton, nil];
+    NSArray *buttons = [self barButtons];
     for (NSUInteger i = 0; i < [buttons count]; ++i)
         YZMotionAnimateEnter([(UIButton *)[buttons objectAtIndex:i] imageView], CGAffineTransformMakeScale(0.4f, 0.4f), 0, YOZORA_MOTION_WOBBLE,
                              0.16 + i * 0.04);
@@ -1438,6 +1447,9 @@ static const CGFloat YZTabStripHeight = 44;
 
 - (CGFloat)barHeight {
     BOOL landscape = self.view.bounds.size.width > self.view.bounds.size.height;
+    // the bars of ios 7 are 44 points, 32 on a phone on its side, a little more here to keep the glyphs apart
+    if ([YZTheme isFlat])
+        return (landscape && ![YZTheme isPad]) ? 36 : 44;
     if ([self isWide])
         return 52;
     return (landscape && ![YZTheme isPad]) ? 40 : 56;
@@ -1509,7 +1521,9 @@ static const CGFloat YZTabStripHeight = 44;
     _tabStrip.frame = CGRectMake(insets.left, top, inner, strip);
     // the buttons live in the bottom bar of a phone and in the toolbar of a wide screen
     UIView *host = wide ? _topBar : _bottomBar;
-    NSArray *buttons = [NSArray arrayWithObjects:_backButton, _forwardButton, _starButton, _tabsButton, _menuButton, nil];
+    NSArray *buttons = [self barButtons];
+    for (UIButton *button in [NSArray arrayWithObjects:_starButton, _shareButton, nil])
+        button.hidden = ![buttons containsObject:button];
     for (UIButton *button in buttons) {
         if (button.superview != host)
             [host addSubview:button];
@@ -1517,7 +1531,7 @@ static const CGFloat YZTabStripHeight = 44;
     _bottomBar.hidden = wide;
     // the address field is the search bar of Material 3: a pill that leaves room for the cancel button while it is edited
     CGFloat cancelWidth = _editing ? 80 : 0;
-    CGFloat fieldHeight = bar - 16;
+    CGFloat fieldHeight = [YZTheme isFlat] ? MIN(bar - 14, (CGFloat)30) : bar - 16;
     CGFloat fieldLeft = insets.left + 12, fieldRight = insets.right + 12;
     if (wide) {
         // back and forward left, bookmark, tabs and menu right, cancel takes the right while the address is
@@ -1546,9 +1560,9 @@ static const CGFloat YZTabStripHeight = 44;
         _bottomBar.center = CGPointMake(CGRectGetMidX(barFrame), CGRectGetMidY(barFrame));
         [_bottomBar viewWithTag:YZBottomSkirtTag].frame = CGRectMake(0, barFrame.size.height, barFrame.size.width, 120);
     }
-    _field.frame = CGRectMake(fieldLeft, toolTop + 8, MAX((CGFloat)0, width - fieldLeft - fieldRight - cancelWidth), fieldHeight);
+    _field.frame = CGRectMake(fieldLeft, toolTop + floor((bar - fieldHeight) / 2), MAX((CGFloat)0, width - fieldLeft - fieldRight - cancelWidth), fieldHeight);
     // the classic well carries its own corners in its picture
-    _field.layer.cornerRadius = [YZTheme isClassic] ? 0 : fieldHeight / 2;
+    _field.layer.cornerRadius = [YZTheme isClassic] ? 0 : [YZTheme isFlat] ? 8 : fieldHeight / 2;
     _securityView.frame = CGRectMake(10, 0, 28, fieldHeight);
     // the classic field is a pill with a round end: the keys in it are a little smaller and stand off the end
     BOOL classicField = [YZTheme isClassic];
@@ -1714,12 +1728,12 @@ static const CGFloat YZTabStripHeight = 44;
         // the key of the translation belongs to a page: the start page has none, whatever was offered before
         [self updateTranslationAnimated:NO];
         BOOL loading = state == YOZORA_LOAD_LOADING;
-        [_reloadButton setImage:[YZTheme icon:(loading ? YZIconStop : YZIconReload) size:20 color:[YZTheme fieldHintColor]]
+        [_reloadButton setImage:[YZTheme chromeIcon:(loading ? YZIconStop : YZIconReload) size:[YZTheme isFlat] ? 18 : 20 color:[YZTheme fieldHintColor]]
                        forState:UIControlStateNormal];
         _reloadButton.hidden = blank || _editing;
         _reloadButton.accessibilityLabel = loading ? YZT(@"Остановить") : YZT(@"Обновить");
         // a blank private tab shows the mask of the private session where a blank tab shows the search glass
-        _securityView.image = [YZTheme icon:(blank ? ([YZSettings incognito] ? YZIconIncognito : YZIconSearch) : YZIconLock) size:20
+        _securityView.image = [YZTheme chromeIcon:(blank ? ([YZSettings incognito] ? YZIconIncognito : YZIconSearch) : YZIconLock) size:[YZTheme isFlat] ? 16 : 20
                                       color:(secure || (blank && [YZSettings incognito])) ? [YZTheme fieldAccentColor] : [YZTheme fieldHintColor]];
         _securityView.hidden = !blank && !secure;
         if (state != YOZORA_LOAD_FAILED)
@@ -1734,12 +1748,13 @@ static const CGFloat YZTabStripHeight = 44;
     }
     if (forced || bookmarked != _shownBookmarked || blankChanged) {
         _shownBookmarked = bookmarked;
-        UIImage *star = [YZTheme icon:(bookmarked ? YZIconStarFilled : YZIconStar) size:24
+        UIImage *star = [YZTheme chromeIcon:(bookmarked ? YZIconStarFilled : YZIconStar) size:24
                                 color:bookmarked ? [YZTheme barHighlightColor] : [YZTheme barInkColor]];
         if ([YZTheme isClassic])
             star = [YZClassic stampedImage:star];
         [_starButton setImage:star forState:UIControlStateNormal];
         [self setBarButton:_starButton enabled:!blank];
+        [self setBarButton:_shareButton enabled:!blank && !_popupMode && [self canShare]];
     }
     [self refreshTabStrip];
     if (forced || (int)[_tabs count] != _shownTabCount) {
@@ -2025,6 +2040,7 @@ static const CGFloat YZTabStripHeight = 44;
     if (_popupMode) {
         _menuButton.enabled = NO;
         _starButton.enabled = NO;
+        _shareButton.enabled = NO;
     }
     if (visited)
         [self saveTabs];
@@ -2180,6 +2196,10 @@ static const CGFloat YZTabStripHeight = 44;
     [self updateChromeForced:YES];
 }
 
+- (void)sharePressed {
+    [self shareText:[self currentURL] fromRect:_shareButton.bounds inView:_shareButton];
+}
+
 - (void)tabsPressed {
     [_input resignFirstResponder];
     [self captureCurrentTab];
@@ -2235,6 +2255,11 @@ static const CGFloat YZTabStripHeight = 44;
         add(YZMenuHistory, YZT(@"История"), YZIconHistory);
     add(YZMenuDownloads, YZT(@"Загрузки"), YZIconDownload);
     if (!blank) {
+        // the flat bar has no star, the page is kept and dropped from the menu
+        if ([YZTheme isFlat]) {
+            BOOL bookmarked = [_store isBookmarked:[self currentURL]];
+            add(YZMenuBookmarkPage, bookmarked ? YZT(@"Убрать из закладок") : YZT(@"Добавить в закладки"), bookmarked ? YZIconStarFilled : YZIconStar);
+        }
         add(YZMenuCopyAddress, YZT(@"Скопировать адрес"), YZIconCopy);
         if ([self canShare])
             add(YZMenuShare, YZT(@"Поделиться"), YZIconShare);
@@ -2329,6 +2354,9 @@ static const CGFloat YZTabStripHeight = 44;
     case YZMenuShare:
         [self shareText:[self currentURL] fromRect:_menuButton.bounds inView:_menuButton];
         break;
+    case YZMenuBookmarkPage:
+        [self starPressed];
+        break;
     case YZMenuFindInPage:
         [self showFindBar];
         break;
@@ -2375,8 +2403,8 @@ static const CGFloat YZTabStripHeight = 44;
     _input.keyboardAppearance = [YZTheme isDark] ? UIKeyboardAppearanceAlert : UIKeyboardAppearanceDefault;
     [_cancelButton setTitle:YZT(@"Отмена") forState:UIControlStateNormal];
     [self styleCancelButton];
-    NSArray *buttons = [NSArray arrayWithObjects:_backButton, _forwardButton, _starButton, _tabsButton, _menuButton, nil];
-    NSArray *labels = [NSArray arrayWithObjects:@"Назад", @"Вперёд", @"Закладка", @"Вкладки", @"Меню", nil];
+    NSArray *buttons = [NSArray arrayWithObjects:_backButton, _forwardButton, _starButton, _shareButton, _tabsButton, _menuButton, nil];
+    NSArray *labels = [NSArray arrayWithObjects:@"Назад", @"Вперёд", @"Закладка", @"Поделиться", @"Вкладки", @"Меню", nil];
     for (NSUInteger i = 0; i < [buttons count]; ++i) {
         UIButton *button = [buttons objectAtIndex:i];
         [self styleBarButton:button icon:(YZIcon)button.tag];
@@ -3191,6 +3219,7 @@ typedef enum {
     [_backButton release];
     [_forwardButton release];
     [_starButton release];
+    [_shareButton release];
     [_tabsButton release];
     [_menuButton release];
     [_pageView release];

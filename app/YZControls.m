@@ -57,6 +57,18 @@
         [UIView animateWithDuration:[YZTheme animationsEnabled] ? 0.08 : 0 animations:^{ _pill.alpha = highlighted ? 1 : 0; }];
         return;
     }
+    if ([YZTheme isFlat]) {
+        // a key of ios 7 has no plate under it, its glyph or title goes pale while it is held
+        CGFloat level = highlighted ? 0.3f : 1;
+        [UIView animateWithDuration:[YZTheme animationsEnabled] ? (highlighted ? 0.05 : 0.2) : 0
+                              delay:0
+                            options:UIViewAnimationOptionAllowUserInteraction | UIViewAnimationOptionBeginFromCurrentState
+                         animations:^{
+            self.imageView.alpha = level;
+            self.titleLabel.alpha = level;
+        } completion:nil];
+        return;
+    }
     _pill.backgroundColor = [YZTheme stateColor];
     if (highlighted) {
         if (_pill.alpha == 0)
