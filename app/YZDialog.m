@@ -58,6 +58,11 @@ static const CGFloat YZDialogFieldHeight = 44;
     [_card addSubview:_message];
     _fields = [[NSMutableArray alloc] init];
     _buttons = [[NSMutableArray alloc] init];
+    // a tap on the card or beside it puts the keyboard away, the dialog itself stays
+    UITapGestureRecognizer *tap = [[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(tappedAway)] autorelease];
+    tap.delegate = self;
+    tap.cancelsTouchesInView = NO;
+    [self addGestureRecognizer:tap];
     // the card moves up when the keyboard would cover its fields
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardChanged:) name:UIKeyboardWillShowNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardChanged:) name:UIKeyboardWillHideNotification object:nil];
@@ -182,6 +187,22 @@ static const CGFloat YZDialogFieldHeight = 44;
     if (_alert)
         ((void (*)(id, SEL, NSString *))objc_msgSend)(_alert, NSSelectorFromString(@"setMessage:"), text);
     [self setNeedsLayout];
+}
+
+- (void)tappedAway {
+    [self endEditing:YES];
+}
+
+// the fields and the buttons keep their own touches: a tap on a field would otherwise end the editing it starts
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)recognizer shouldReceiveTouch:(UITouch *)touch {
+    (void)recognizer;
+    if ([touch.view isKindOfClass:[UIControl class]])
+        return NO;
+    for (UITextField *field in _fields) {
+        if ([touch.view isDescendantOfView:field])
+            return NO;
+    }
+    return YES;
 }
 
 - (BOOL)textFieldShouldReturn:(UITextField *)field {

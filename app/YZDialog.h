@@ -3,7 +3,7 @@
 /* a question as a card over the page, in place of the system alert, which looks like another app on ios 15
    and a gray box on ios 5. the answer is the button index (0 is cancel of two, or the only button) and the
    field texts */
-@interface YZDialog : UIView <UITextFieldDelegate> {
+@interface YZDialog : UIView <UITextFieldDelegate, UIGestureRecognizerDelegate> {
     UIView *_card;
     UILabel *_title;
     UILabel *_message;
