@@ -90,8 +90,8 @@ YZAppIconMode YZAppIconCurrentMode(void) {
 
 static NSError *YZIconFailure(NSInteger code, NSString *reason);
 
-// cocoa 513 names no file, so the path, owners and modes go in the error
-static NSError *YZIconWriteFailure(NSString *path, NSError *cause) {
+// the step and errno go in the error with the path, owners and modes: a refused write does not say which of them refused it
+static NSError *YZIconWriteFailure(NSString *path, const char *step, int code) {
     struct stat info;
     NSString *folder = [path stringByDeletingLastPathComponent];
     NSString *state = stat([path fileSystemRepresentation], &info) == 0
@@ -100,10 +100,55 @@ static NSError *YZIconWriteFailure(NSString *path, NSError *cause) {
     NSString *folderState = stat([folder fileSystemRepresentation], &info) == 0
         ? [NSString stringWithFormat:@"folder uid %u mode %o", (unsigned)info.st_uid, (unsigned)info.st_mode & 0777]
         : @"folder absent";
-    NSString *text = [NSString stringWithFormat:@"%@ was not written (%@, %@, process uid %u): %@", [path lastPathComponent], state, folderState, (unsigned)getuid(),
-        cause ? [cause localizedDescription] : @"no reason given"];
+    NSString *text = [NSString stringWithFormat:@"%@ was not written, %s failed: %s (%d) (%@, %@, process uid %u)", [path lastPathComponent], step, strerror(code), code,
+        state, folderState, (unsigned)getuid()];
     NSLog(@"yozora: icon: %@", text);
-    return YZIconFailure(cause ? [cause code] : 3, text);
+    return YZIconFailure(code, text);
+}
+
+// replaces a file with a new one made beside it. NSDataWritingAtomic does the same but also gives the new file the owner of the old
+// one, and a plist installed by root in a folder of mobile fails that fchown on ios 6 with Cocoa error 513 (NSFileWriteNoPermissionError)
+// although the folder accepts the write. here the new file belongs to the process, which is all the rename needs
+static NSError *YZReplaceFile(NSData *data, NSString *path) {
+    struct stat old;
+    mode_t mode = stat([path fileSystemRepresentation], &old) == 0 ? (old.st_mode & 0777) : 0644;
+    NSString *temporary = [path stringByAppendingString:@".yozora-new"];
+    const char *name = [temporary fileSystemRepresentation];
+    unlink(name);
+    int fd = open(name, O_WRONLY | O_CREAT | O_EXCL, 0600);
+    if (fd < 0)
+        return YZIconWriteFailure(path, "open", errno);
+    const uint8_t *bytes = [data bytes];
+    size_t done = 0, total = [data length];
+    while (done < total) {
+        ssize_t n = write(fd, bytes + done, total - done);
+        if (n < 0 && errno == EINTR)
+            continue;
+        if (n <= 0) {
+            int code = n < 0 ? errno : EIO;
+            close(fd);
+            unlink(name);
+            return YZIconWriteFailure(path, "write", code);
+        }
+        done += (size_t)n;
+    }
+    if (fchmod(fd, mode) != 0 || fsync(fd) != 0) {
+        int code = errno;
+        close(fd);
+        unlink(name);
+        return YZIconWriteFailure(path, "fchmod or fsync", code);
+    }
+    if (close(fd) != 0) {
+        int code = errno;
+        unlink(name);
+        return YZIconWriteFailure(path, "close", code);
+    }
+    if (rename(name, [path fileSystemRepresentation]) != 0) {
+        int code = errno;
+        unlink(name);
+        return YZIconWriteFailure(path, "rename", code);
+    }
+    return nil;
 }
 
 static NSError *YZIconFailure(NSInteger code, NSString *reason) {
@@ -176,9 +221,7 @@ static NSError *YZWriteBundlePlist(NSDictionary *plist) {
     NSData *out = [NSPropertyListSerialization dataWithPropertyList:plist format:NSPropertyListXMLFormat_v1_0 options:0 error:&error];
     if (!out)
         return error ? error : YZIconFailure(2, @"the Info.plist could not be made");
-    if (![out writeToFile:YZBundlePlistPath() options:NSDataWritingAtomic error:&error])
-        return YZIconWriteFailure(YZBundlePlistPath(), error);
-    return nil;
+    return YZReplaceFile(out, YZBundlePlistPath());
 }
 
 // the plist with the primary icon of every entry swapped for the files of the named alternate icon, or put back as
@@ -346,8 +389,9 @@ static NSError *YZWriteUserIconFiles(NSString *name) {
         }
         if (!data)
             return YZIconFailure(9, @"the app icon could not be prepared");
-        if (![data writeToFile:[bundle stringByAppendingPathComponent:file] options:NSDataWritingAtomic error:&error])
-            return YZIconWriteFailure([bundle stringByAppendingPathComponent:file], error);
+        NSError *written = YZReplaceFile(data, [bundle stringByAppendingPathComponent:file]);
+        if (written)
+            return written;
     }
     return nil;
 }
@@ -377,8 +421,8 @@ static NSError *YZRewriteSelectedIcon(NSString *name) {
         NSError *rollback = YZWriteUserIconFiles(previous);
         if (rollback)
             NSLog(@"yozora: the previous app icon files could not be restored: %@", rollback);
-        NSError *plistError = nil;
-        if (![previousPlist writeToFile:YZBundlePlistPath() options:NSDataWritingAtomic error:&plistError])
+        NSError *plistError = YZReplaceFile(previousPlist, YZBundlePlistPath());
+        if (plistError)
             NSLog(@"yozora: the previous app icon plist could not be restored: %@", plistError);
     }
     return error;
