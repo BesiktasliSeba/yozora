@@ -42,7 +42,7 @@ meow build app --slice arm64
 outputs `build/ios/libyozora.a`, `build/ios/yozora-store`, `build/ipa/Yozora-armv7.ipa`, `build/ipa/Yozora-arm64.ipa` and `build/ipa/Yozora.ipa`.
 
 ```bash
-meow build deb        # build/ipa/Yozora-v1.3.0-stable.deb
+meow build deb        # build/ipa/Yozora-v1.4.0-stable.deb
 ```
 
 the deb is cut from the checked universal ipa by `scripts/build_deb.sh` (`YOZORA_DEB_IPA`, `YOZORA_DEB_OUT` and `YOZORA_DEB_STAGE` move its paths). `Architecture: all`, gzip members, the bundle in `/var/jb/Applications/Yozora.app` with root ownership, files 644 and the binary 755. a rootless jailbreak registers that path with its uicache, on a rootful one `postinst` moves the bundle to `/Applications` (a copy would keep two bundles of 100 MB) and marks it with `.yozora-rootful-move`, `postrm` removes only a bundle that carries the mark. the script stops when the version of `packaging/DEBIAN/control` is not the one in the plist of the ipa.
