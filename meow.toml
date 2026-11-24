@@ -85,7 +85,7 @@ cflags = ["-fno-objc-arc", "-fno-strict-aliasing", "-fno-exceptions", "-fPIE", "
 # the order cmake linked them; CoreLocation is named here as well because a tree configured before the location
 # code did not list it
 ldflags = ["-Wl,-search_paths_first", "-Wl,-headerpad_max_install_names", "-Xlinker", "-dead_strip",
-           "-framework", "CoreLocation", "@build/${slice}/link.rsp"]
+           "-framework", "CoreLocation", "-Wl,-map,build/${slice}/Yozora.map", "@build/${slice}/link.rsp"]
 needs = ["webcore-${slice}"]
 strip = true
 entitlements = "${ENTITLEMENTS}"
@@ -115,7 +115,7 @@ cflags = ["-fno-objc-arc", "-fno-strict-aliasing", "-fno-exceptions", "-fPIE", "
 # the order cmake linked them; CoreLocation is named here as well because a tree configured before the location
 # code did not list it
 ldflags = ["-Wl,-search_paths_first", "-Wl,-headerpad_max_install_names", "-Xlinker", "-dead_strip",
-           "-framework", "CoreLocation", "@build/${slice}/link.rsp"]
+           "-framework", "CoreLocation", "-Wl,-map,build/${slice}/Yozora.map", "@build/${slice}/link.rsp"]
 needs = ["webcore-${slice}"]
 strip = true
 entitlements = "${ENTITLEMENTS}"
@@ -145,7 +145,7 @@ cflags = ["-fno-objc-arc", "-fno-strict-aliasing", "-fno-exceptions", "-fPIE", "
 # the order cmake linked them; CoreLocation is named here as well because a tree configured before the location
 # code did not list it
 ldflags = ["-Wl,-search_paths_first", "-Wl,-headerpad_max_install_names", "-Xlinker", "-dead_strip",
-           "-framework", "CoreLocation", "@build/${slice}/link.rsp"]
+           "-framework", "CoreLocation", "-Wl,-map,build/${slice}/Yozora.map", "@build/${slice}/link.rsp"]
 needs = ["webcore-${slice}"]
 strip = true
 entitlements = "${ENTITLEMENTS}"
@@ -178,7 +178,7 @@ slices = ["armv7"]
 min_ios = "5.0"
 signed = true
 allow_dylibs = ["/usr/lib/", "/System/Library/"]
-needs = ["app-armv7"]
+needs = ["app-armv7", "symbols-armv7"]
 
 [verify.release-arm64]
 file = "build/arm64/Yozora"
@@ -186,7 +186,7 @@ slices = ["arm64"]
 min_ios = "5.0"
 signed = true
 allow_dylibs = ["/usr/lib/", "/System/Library/"]
-needs = ["app-arm64"]
+needs = ["app-arm64", "symbols-arm64"]
 
 [verify.release-universal]
 file = "build/Yozora"
@@ -2428,6 +2428,19 @@ bootstrap = true
 # WebKit through cmake and ninja, one step per slice. YOZORA_BUILD_APP=0 leaves the Yozora executable to meow, then
 # the link line cmake computed for it is written as the response file the app target links with. ninja has its own
 # graph, so a stale step only asks it what changed
+
+# the map of each link kept under the uuid of its binary, so a crash report of an older build can be read: tools/yozora_ips.py
+[step.symbols-armv7]
+run = [["python3", "-B", "scripts/archive_symbols.py", "armv7"]]
+needs = ["app-armv7"]
+inputs = ["build/armv7/Yozora", "build/armv7/Yozora.map", "scripts/archive_symbols.py"]
+outputs = ["build/symbols/armv7-latest.txt"]
+
+[step.symbols-arm64]
+run = [["python3", "-B", "scripts/archive_symbols.py", "arm64"]]
+needs = ["app-arm64"]
+inputs = ["build/arm64/Yozora", "build/arm64/Yozora.map", "scripts/archive_symbols.py"]
+outputs = ["build/symbols/arm64-latest.txt"]
 
 [step.webcore-armv7]
 run = [["bash", "scripts/build_webcore_ios.sh", "webcore"],
