@@ -14,6 +14,7 @@ static const CGFloat YZDialogFieldHeight = 44;
 @implementation YZDialog
 @synthesize messageText = _messageText;
 @synthesize isShown = _shown;
+@dynamic picture;
 
 + (YZDialog *)dialogWithTitle:(NSString *)title message:(NSString *)message cancelTitle:(NSString *)cancelTitle confirmTitle:(NSString *)confirmTitle
                   destructive:(BOOL)destructive handler:(void (^)(NSInteger index, NSArray *texts))handler {
@@ -63,8 +64,28 @@ static const CGFloat YZDialogFieldHeight = 44;
     return self;
 }
 
+- (UIImage *)picture { return _pictureView.image; }
+
+- (void)setPicture:(UIImage *)picture {
+    if (!picture) {
+        [_pictureView removeFromSuperview];
+        [_pictureView release];
+        _pictureView = nil;
+        return;
+    }
+    if (!_pictureView) {
+        _pictureView = [[UIImageView alloc] initWithFrame:CGRectZero];
+        _pictureView.contentMode = UIViewContentModeScaleAspectFit;
+        [_card addSubview:_pictureView];
+    }
+    _pictureView.image = picture;
+    _title.textAlignment = YZTextAlignmentCenter;
+    _message.textAlignment = YZTextAlignmentCenter;
+}
+
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [_pictureView release];
     [_card release];
     [_title release];
     [_message release];
@@ -73,6 +94,7 @@ static const CGFloat YZDialogFieldHeight = 44;
     [_titleText release];
     [_messageText release];
     [_placeholders release];
+    [_initialTexts release];
     [_cancelTitle release];
     [_confirmTitle release];
     [_answerTexts release];
@@ -123,6 +145,8 @@ static const CGFloat YZDialogFieldHeight = 44;
         field.secureTextEntry = (NSInteger)i == secureIndex;
         field.returnKeyType = i + 1 < [_placeholders count] ? UIReturnKeyNext : UIReturnKeyDone;
         field.clearButtonMode = UITextFieldViewModeWhileEditing;
+        // the text stands in the middle of the height of the field
+        field.contentVerticalAlignment = UIControlContentVerticalAlignmentCenter;
         field.delegate = self;
         field.leftView = [[[UIView alloc] initWithFrame:CGRectMake(0, 0, 14, 10)] autorelease];
         field.leftViewMode = UITextFieldViewModeAlways;
@@ -131,6 +155,13 @@ static const CGFloat YZDialogFieldHeight = 44;
         [_fields addObject:field];
     }
     [self setNeedsLayout];
+}
+
+- (void)setFieldTexts:(NSArray *)texts {
+    [_initialTexts release];
+    _initialTexts = [texts copy];
+    for (NSUInteger i = 0; i < [_fields count] && i < [_initialTexts count]; ++i)
+        [[_fields objectAtIndex:i] setText:[_initialTexts objectAtIndex:i]];
 }
 
 - (void)setMessageText:(NSString *)text {
@@ -176,6 +207,11 @@ static const CGFloat YZDialogFieldHeight = 44;
     CGSize title = [_title sizeThatFits:CGSizeMake(inner, 400)];
     CGSize message = [_messageText length] ? [_message sizeThatFits:CGSizeMake(inner, 400)] : CGSizeZero;
     CGFloat y = YZDialogPad;
+    if (_pictureView) {
+        CGFloat side = 112;
+        _pictureView.frame = CGRectMake(floor((width - side) / 2), y, side, side);
+        y += side + 12;
+    }
     _title.frame = CGRectMake(YZDialogPad, y, inner, ceil(title.height));
     y += ceil(title.height);
     if ([_messageText length]) {
@@ -251,6 +287,8 @@ static const CGFloat YZDialogFieldHeight = 44;
         for (NSUInteger i = 0; i < fields && i < 2; ++i) {
             UITextField *field = ((UITextField *(*)(id, SEL, NSInteger))objc_msgSend)(alert, NSSelectorFromString(@"textFieldAtIndex:"), (NSInteger)i);
             field.placeholder = [_placeholders objectAtIndex:i];
+            if (i < [_initialTexts count])
+                field.text = [_initialTexts objectAtIndex:i];
             field.autocapitalizationType = UITextAutocapitalizationTypeNone;
             field.autocorrectionType = UITextAutocorrectionTypeNo;
             field.secureTextEntry = (NSInteger)i == _secureIndex;
@@ -297,7 +335,7 @@ static const CGFloat YZDialogFieldHeight = 44;
 - (void)showInView:(UIView *)host {
     if (_shown)
         return;
-    if ([YZTheme isClassic] && NSClassFromString(@"UIAlertView")) {
+    if ([YZTheme isClassic] && NSClassFromString(@"UIAlertView") && !_pictureView) {
         [self showSystemAlert];
         return;
     }

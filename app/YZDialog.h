@@ -7,11 +7,13 @@
     UIView *_card;
     UILabel *_title;
     UILabel *_message;
+    UIImageView *_pictureView;
     NSMutableArray *_fields;
     NSMutableArray *_buttons;
     NSString *_titleText;
     NSString *_messageText;
     NSArray *_placeholders;
+    NSArray *_initialTexts;
     NSInteger _secureIndex;
     NSString *_cancelTitle;
     NSString *_confirmTitle;
@@ -30,7 +32,11 @@
                   destructive:(BOOL)destructive handler:(void (^)(NSInteger index, NSArray *texts))handler;
 /* the texts of the empty fields, one field for each; the field at secureIndex hides its text (-1 for none) */
 - (void)setFieldPlaceholders:(NSArray *)placeholders secureIndex:(NSInteger)secureIndex;
+/* the text each field starts with, one for each field set by setFieldPlaceholders:secureIndex:, empty strings leave a field empty */
+- (void)setFieldTexts:(NSArray *)texts;
 @property(nonatomic, copy) NSString *messageText;
+/* a picture above the title, centered. a card with one is always the card of the app, the alert of the system cannot carry it */
+@property(nonatomic, retain) UIImage *picture;
 @property(nonatomic, readonly) BOOL isShown;
 - (void)showInView:(UIView *)host;
 /* closes the card as if nothing was answered: the handler does not run */
