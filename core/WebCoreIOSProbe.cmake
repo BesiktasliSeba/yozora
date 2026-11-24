@@ -29,7 +29,8 @@ function(yozora_add_ios_page)
         "${yozora_root}/tests/test_webcore_services.cpp"
         "${yozora_root}/tests/yozora_test_page.cpp"
         "${yozora_test_api}/TestPlatformStrategies.cpp"
-        "${yozora_root}/core/yozora_log.c")
+        "${yozora_root}/core/yozora_log.c"
+        "${yozora_root}/core/yozora_divdc3.c")
     get_target_property(yozora_includes WebCore INCLUDE_DIRECTORIES)
     target_include_directories(yozora-page PRIVATE ${yozora_includes}
         "${CMAKE_BINARY_DIR}" "${JavaScriptCore_FRAMEWORK_HEADERS_DIR}"

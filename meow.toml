@@ -107,6 +107,8 @@ files = [
   "app/YZTranslateSheet.m", "app/YZColorPicker.m", "app/YZSplashController.m", "app/YZTabStrip.m", "app/YZTabPager.m", "app/YZTabStack.m", "app/YZSignIn.m",
   # the blur of the start page photo is used by the app only, so it is built here and not in libYozoraCore (which needs a webkit build)
   "core/yozora_blur.c",
+  # libSystem has no ___divdc3 for arm64 (see the file), the empty file on armv7 costs nothing
+  "core/yozora_divdc3.c",
 ]
 
 
@@ -139,6 +141,8 @@ files = [
   "app/YZTranslateSheet.m", "app/YZColorPicker.m", "app/YZSplashController.m", "app/YZTabStrip.m", "app/YZTabPager.m", "app/YZTabStack.m", "app/YZSignIn.m",
   # the blur of the start page photo is used by the app only, so it is built here and not in libYozoraCore (which needs a webkit build)
   "core/yozora_blur.c",
+  # libSystem has no ___divdc3 for arm64 (see the file), the empty file on armv7 costs nothing
+  "core/yozora_divdc3.c",
 ]
 
 
@@ -173,6 +177,8 @@ files = [
   "app/YZTranslateSheet.m", "app/YZColorPicker.m", "app/YZSplashController.m", "app/YZTabStrip.m", "app/YZTabPager.m", "app/YZTabStack.m", "app/YZSignIn.m",
   # the blur of the start page photo is used by the app only, so it is built here and not in libYozoraCore (which needs a webkit build)
   "core/yozora_blur.c",
+  # libSystem has no ___divdc3 for arm64 (see the file), the empty file on armv7 costs nothing
+  "core/yozora_divdc3.c",
 ]
 
 
@@ -2178,6 +2184,12 @@ sanitize = "address,undefined"
 [test.blur]
 src = ["core/yozora_blur.c", "tests/test_blur.c"]
 cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+sanitize = "address,undefined"
+
+[test.divdc3]
+src = ["core/yozora_divdc3.c", "tests/test_divdc3.c"]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore", "-DYOZORA_DIVDC3_TEST", "-DYOZORA_DIVDC3_NAME=yozora_test_divdc3"]
+libs = ["m"]
 sanitize = "address,undefined"
 
 [test.mp4-ts]
