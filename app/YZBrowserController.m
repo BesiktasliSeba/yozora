@@ -105,6 +105,12 @@ static UIImage *YZThumbnailFromView(UIView *view) {
     return YZPresentedOrientation();
 }
 
+// a navigation controller takes the status bar style from its own bar, not from the screen it shows: the default bar gave dark
+// text over the dark themes from ios 7 on
+- (UIStatusBarStyle)preferredStatusBarStyle {
+    return [YZTheme statusBarStyle];
+}
+
 // before ios 6 the default is portrait only and the panel screens never answer, so they opened sideways
 - (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)orientation {
     (void)orientation;
@@ -2380,8 +2386,13 @@ static const CGFloat YZTabStripHeight = 44;
 // every view that took a theme color or a text when it was built takes it again
 - (void)applyTheme {
     [[UIApplication sharedApplication] setStatusBarStyle:[YZTheme statusBarStyle]];
-    if ([self respondsToSelector:NSSelectorFromString(@"setNeedsStatusBarAppearanceUpdate")])
-        [self performSelector:NSSelectorFromString(@"setNeedsStatusBarAppearanceUpdate")];
+    SEL update = NSSelectorFromString(@"setNeedsStatusBarAppearanceUpdate");
+    if ([self respondsToSelector:update])
+        [self performSelector:update];
+    // a panel that is open (settings changing the theme) keeps its own status bar
+    UIViewController *panel = self.presentedViewController;
+    if ([panel isKindOfClass:[YZPanelNavigationController class]] && [panel respondsToSelector:update])
+        [panel performSelector:update];
     self.view.window.backgroundColor = [YZTheme toolbarColor];
     self.view.backgroundColor = [YZTheme surfaceColor];
     [(YZSystemBarView *)_topBar applyTheme];
