@@ -32,9 +32,15 @@ static char YZCrashNotes[YZCrashNoteCount][YZCrashNoteLength];
 static volatile unsigned YZCrashNoteTotal;
 static time_t YZCrashStarted;
 
+// the crash record also goes to stderr so the log holds it
+static volatile sig_atomic_t YZCrashEcho;
+
 static void YZCrashWrite(const char *text) {
+    size_t length = strlen(text);
     if (YZCrashFD >= 0)
-        write(YZCrashFD, text, strlen(text));
+        write(YZCrashFD, text, length);
+    if (YZCrashEcho)
+        write(STDERR_FILENO, text, length);
 }
 
 // decimal and hexadecimal without printf, which is not safe inside a signal handler
@@ -120,18 +126,72 @@ static void YZCrashRegisters(void *context) {
 #endif
 }
 
+static uintptr_t YZCrashFaultPC(void *context) {
+    ucontext_t *thread = (ucontext_t *)context;
+    if (!thread || !thread->uc_mcontext)
+        return 1;
+#if defined(__arm__)
+    return thread->uc_mcontext->__ss.__pc;
+#elif defined(__arm64__)
+    return (uintptr_t)thread->uc_mcontext->__ss.__pc;
+#else
+    return 1;
+#endif
+}
+
+// the code of an image is in its segments, and generated code (the jit) is in none: a jump to such an address that ends in a fault
+// means the jit made something that was not code. no malloc and no lock here, dyld is only read
+static int YZCrashInImage(uintptr_t pc) {
+    uint32_t count = _dyld_image_count();
+    for (uint32_t i = 0; i < count; ++i) {
+        const struct mach_header *header = _dyld_get_image_header(i);
+        if (!header)
+            continue;
+        intptr_t slide = _dyld_get_image_vmaddr_slide(i);
+#ifdef __LP64__
+        const struct load_command *command = (const struct load_command *)((const char *)header + sizeof(struct mach_header_64));
+#else
+        const struct load_command *command = (const struct load_command *)((const char *)header + sizeof(struct mach_header));
+#endif
+        for (uint32_t c = 0; c < header->ncmds; ++c) {
+#ifdef __LP64__
+            if (command->cmd == LC_SEGMENT_64) {
+                const struct segment_command_64 *segment = (const struct segment_command_64 *)command;
+#else
+            if (command->cmd == LC_SEGMENT) {
+                const struct segment_command *segment = (const struct segment_command *)command;
+#endif
+                uintptr_t low = (uintptr_t)(segment->vmaddr + slide), high = low + (uintptr_t)segment->vmsize;
+                if (pc >= low && pc < high)
+                    return 1;
+            }
+            command = (const struct load_command *)((const char *)command + command->cmdsize);
+        }
+    }
+    return 0;
+}
+
 static void YZCrashSignalHandler(int signal_number, siginfo_t *info, void *context) {
+    YZCrashEcho = 1;
     YZCrashHeader("signal");
     YZCrashField("signal ", (unsigned)signal_number, 10);
     YZCrashField(" code ", (unsigned long long)(unsigned)(info ? info->si_code : 0), 10);
     YZCrashField(" address ", (unsigned long long)(uintptr_t)(info ? info->si_addr : NULL), 16);
     YZCrashWrite("\n");
     YZCrashRegisters(context);
+    {
+        uintptr_t pc = YZCrashFaultPC(context);
+        if (!YZCrashInImage(pc)) {
+            YZCrashField("fault in generated code, pc ", (unsigned long long)pc, 16);
+            YZCrashWrite("\n");
+        }
+    }
     YZCrashNotesWrite();
     void *frames[48];
     int count = backtrace(frames, 48);
     if (YZCrashFD >= 0)
         backtrace_symbols_fd(frames, count, YZCrashFD);
+    backtrace_symbols_fd(frames, count, STDERR_FILENO);
     fsync(YZCrashFD);
     // the log capture reads the app's stderr on its own thread and writes the file: the last line before a stop (a zombie
     // names its class there) is on its way when this handler starts, so the stop waits a moment for it
@@ -144,6 +204,7 @@ static void YZCrashSignalHandler(int signal_number, siginfo_t *info, void *conte
 }
 
 static void YZCrashException(NSException *exception) {
+    YZCrashEcho = 1;
     YZCrashHeader("exception");
     NSString *text = [NSString stringWithFormat:@"%@: %@\n%@\n", [exception name], [exception reason], [[exception callStackReturnAddresses] componentsJoinedByString:@" "]];
     YZCrashWrite([text UTF8String]);
