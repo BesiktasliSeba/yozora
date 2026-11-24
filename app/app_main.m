@@ -71,6 +71,7 @@ static void YZDownloadObserver(unsigned identifier, int state, void *context);
     // the launch got past JavaScriptCore and the first page core
     [YZSettings endJitStart];
     [_browser offerJit];
+    [_browser checkForUpdate];
     if (_pendingURL) {
         [_browser openExternalURL:_pendingURL];
         [_pendingURL release];

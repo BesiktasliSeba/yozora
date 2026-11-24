@@ -5,6 +5,7 @@
 #import "YZControls.h"
 #import "YZLog.h"
 #import "YZCrash.h"
+#import "YZUpdateUI.h"
 #import "YZMediaPlayer.h"
 #import "YZMotion.h"
 #import "YZCompat.h"
@@ -2418,6 +2419,20 @@ static const CGFloat YZTabStripHeight = 44;
     [YZCrash note:@"settings: theme applied"];
     [self applyDeveloperSettings];
     [YZCrash note:@"settings: developer applied"];
+}
+
+- (void)settingsController:(YZSettingsController *)controller openAddress:(NSString *)address {
+    (void)controller;
+    [self dismissViewControllerAnimated:YES completion:nil];
+    [self openExternalURL:[NSURL URLWithString:address]];
+}
+
+- (void)checkForUpdate {
+    [YZUpdate check:^(YZRelease *release, BOOL failed) {
+        (void)failed;
+        if ([YZUpdate isNewer:release])
+            [YZUpdateCard presentInView:self.view openPage:^{ [self openExternalURL:[NSURL URLWithString:YZReleasePageAddress]]; }];
+    }];
 }
 
 - (void)listController:(YZListController *)controller didSelectURL:(NSString *)url {

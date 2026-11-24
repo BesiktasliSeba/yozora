@@ -33,6 +33,7 @@ function(yozora_add_core)
         "${yozora_root}/core/yozora_mp4.c"
         "${yozora_root}/core/yozora_ts.c"
         "${yozora_root}/core/yozora_hls.c"
+        "${yozora_root}/core/yozora_release.c"
         "${yozora_root}/core/yozora_log.c"
         "${yozora_root}/core/yozora_stream_proxy.c"
         "${yozora_root}/core/yozora_blocklist.c"
@@ -45,7 +46,7 @@ function(yozora_add_core)
         "${yozora_root}/core/yozora_zoom.c" "${yozora_root}/core/yozora_debug.c" "${yozora_root}/core/yozora_translate.c" "${yozora_root}/core/yozora_transfer.c" "${yozora_root}/core/yozora_color.c" "${yozora_root}/core/yozora_render_plan.c" "${yozora_root}/core/yozora_signin.c")
     # glibc 2.43 declares memchr and strchr with _Generic, which -pedantic reports in C99 mode on the host
     set_source_files_properties("${yozora_root}/core/yozora_types.c" "${yozora_root}/core/yozora_navigation.c"
-        "${yozora_root}/core/yozora_store.c" "${yozora_root}/core/yozora_address.c"  "${yozora_root}/core/yozora_accent.c" "${yozora_root}/core/yozora_playlist.c" "${yozora_root}/core/yozora_icons.c" "${yozora_root}/core/yozora_mp4.c" "${yozora_root}/core/yozora_ts.c" "${yozora_root}/core/yozora_hls.c"  "${yozora_root}/core/yozora_log.c" "${yozora_root}/core/yozora_stream_proxy.c" "${yozora_root}/core/yozora_blocklist.c" "${yozora_root}/core/yozora_filter.c" "${yozora_root}/core/yozora_sitegrants.c" "${yozora_root}/core/yozora_budget.c" "${yozora_root}/core/yozora_httpcache.c" "${yozora_root}/core/yozora_keys.c" "${yozora_root}/core/yozora_motion.c" "${yozora_root}/core/yozora_zoom.c" "${yozora_root}/core/yozora_debug.c" "${yozora_root}/core/yozora_translate.c" "${yozora_root}/core/yozora_transfer.c" "${yozora_root}/core/yozora_color.c" "${yozora_root}/core/yozora_render_plan.c" "${yozora_root}/core/yozora_signin.c" "${yozora_root}/core/yozora_icon_environment.c" PROPERTIES COMPILE_OPTIONS "-std=c99;-Wall;-Wextra;-Werror;-pedantic;-Wno-c11-extensions")
+        "${yozora_root}/core/yozora_store.c" "${yozora_root}/core/yozora_address.c"  "${yozora_root}/core/yozora_accent.c" "${yozora_root}/core/yozora_playlist.c" "${yozora_root}/core/yozora_icons.c" "${yozora_root}/core/yozora_mp4.c" "${yozora_root}/core/yozora_ts.c" "${yozora_root}/core/yozora_hls.c" "${yozora_root}/core/yozora_release.c" "${yozora_root}/core/yozora_log.c" "${yozora_root}/core/yozora_stream_proxy.c" "${yozora_root}/core/yozora_blocklist.c" "${yozora_root}/core/yozora_filter.c" "${yozora_root}/core/yozora_sitegrants.c" "${yozora_root}/core/yozora_budget.c" "${yozora_root}/core/yozora_httpcache.c" "${yozora_root}/core/yozora_keys.c" "${yozora_root}/core/yozora_motion.c" "${yozora_root}/core/yozora_zoom.c" "${yozora_root}/core/yozora_debug.c" "${yozora_root}/core/yozora_translate.c" "${yozora_root}/core/yozora_transfer.c" "${yozora_root}/core/yozora_color.c" "${yozora_root}/core/yozora_render_plan.c" "${yozora_root}/core/yozora_signin.c" "${yozora_root}/core/yozora_icon_environment.c" PROPERTIES COMPILE_OPTIONS "-std=c99;-Wall;-Wextra;-Werror;-pedantic;-Wno-c11-extensions")
     if (NOT ENABLE_WEBASSEMBLY)
         # JavaScriptCore has no WebAssembly on armv7 (nor in the host trees), core/wasm answers for it and
         # core/core/yozora_wasm_api.js is the page api. the arm64 slice built with YOZORA_WASM=ON keeps the
@@ -140,6 +141,8 @@ function(yozora_add_core)
             "${yozora_root}/app/YZWaveSeekBar.m"
             "${yozora_root}/app/YZPlayerViews.m"
             "${yozora_root}/app/YZStreamProxy.m"
+            "${yozora_root}/app/YZUpdate.m"
+            "${yozora_root}/app/YZUpdateUI.m"
             "${yozora_root}/app/YZMediaPlayer.m"
             "${yozora_root}/app/YZFindBar.m"
             "${yozora_root}/app/YZSheets.m"

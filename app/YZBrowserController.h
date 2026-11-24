@@ -158,6 +158,8 @@
 - (void)saveTabsAndWait;
 /* a link another app handed over: only http and https, opened in the blank tab or in a new one. returns NO for anything else */
 - (BOOL)openExternalURL:(NSURL *)url;
+/* asks for the latest release and, when it is newer than this one, puts the update card over the page. every launch */
+- (void)checkForUpdate;
 /* asks about the jit once, or says that a failed start turned it off. the answer counts at the next launch */
 - (void)offerJit;
 @end

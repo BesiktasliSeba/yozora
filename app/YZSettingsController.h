@@ -25,6 +25,8 @@
 - (void)settingsControllerDidFinish:(YZSettingsController *)controller;
 /* a setting changed that the open screens show: the theme, the language or the text of a page */
 - (void)settingsControllerDidChange:(YZSettingsController *)controller;
+/* the settings close and the address opens in a new tab */
+- (void)settingsController:(YZSettingsController *)controller openAddress:(NSString *)address;
 @end
 
 /* options for a setting with a few values. the chosen one is a plate in its own color and choosing leaves the

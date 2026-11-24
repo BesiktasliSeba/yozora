@@ -49,6 +49,7 @@ see [docs/webgl.md](docs/webgl.md), [docs/webassembly.md](docs/webassembly.md), 
 - another app can ask for a sign in on a site: `yozora-auth://` opens it in a private tab and gives the page address and the cookies back to that app, after the person agrees
 - downloads with pause, resume, a wave progress bar, and system notifications when a file is done
 - translation of pages, language, theme, text size, search engines (google, duckduckgo, yandex)
+- updates: every launch the app asks GitHub for the latest release and, when it is newer, shows a card with the sticker, the versions and the notes. settings > Update has the same with the installed and the newest version and the changelog. a phone with AppSync installs it from the app, any other is sent to the release page, see [docs/updates.md](docs/updates.md)
 
 see [docs/ui.md](docs/ui.md), [docs/tabs.md](docs/tabs.md), [docs/incognito.md](docs/incognito.md), [docs/signin.md](docs/signin.md), [docs/downloads.md](docs/downloads.md).
 
@@ -145,6 +146,7 @@ outputs `build/ipa/Yozora-armv7.ipa` and `build/ipa/Yozora-arm64.ipa`, signed, a
 - [tests](docs/tests.md): host, core and interface tests, what ran where
 - [limits](docs/limits.md): every bound in the code, and what is not done
 - [debug](docs/debug.md): switches, tools, logs
+- [updates](docs/updates.md): the release check, the card, the install
 
 ## contributing
 

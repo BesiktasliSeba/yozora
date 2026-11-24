@@ -39,3 +39,4 @@ contact the providers and are not part of the suite: `python3 -B tests/probe_cap
 
 - ran on a real armv7 phone: the native compositor, corrected armv7 dfg, linked property caches, the darwin double calling convention, concurrent compilation, layer pixels, scrolling, animations while a script is blocked, local mp4 playback, the tab tray and home page reuse, the scroll snapshot
 - `meow test fmp4-ts` converts an init segment and a fragment to a transport stream (packets, tables, key frames, time order, refusals of cuts and other codecs); with a directory as argument it rewrites the fixtures of `tests/data`
+- `meow test release` parses the json of the releases api and the atom feed (notes as plain text, assets, refused drafts, foreign addresses, truncation), compares versions and reads the digest file

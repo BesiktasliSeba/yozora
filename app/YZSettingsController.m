@@ -18,6 +18,7 @@
 #import "YZSettings.h"
 #import "YZStrings.h"
 #import "YZTheme.h"
+#import "YZUpdateUI.h"
 #include "yozora_core.h"
 #import <QuartzCore/QuartzCore.h>
 
@@ -54,6 +55,7 @@ typedef enum {
     YZRowUnlockDesigns,
     YZRowJit,
     YZRowJitState,
+    YZRowUpdate,
     YZRowAbout
 } YZRow;
 
@@ -1283,7 +1285,7 @@ static NSArray *YZEngineTints(void) {
          row(YZRowSaveHistory), row(YZRowClearHistory), row(YZRowClearSiteData), nil],
         [NSArray arrayWithObjects:YZT(@"Страницы"), row(YZRowJavascript), row(YZRowEconomy), row(YZRowCrispScrolling), row(YZRowReduceMotion), row(YZRowHideBars), row(YZRowWebFonts), nil],
         [NSArray arrayWithObjects:YZT(@"Для разработчиков"), row(YZRowDebug), row(YZRowLogging), row(YZRowLogOpen), row(YZRowZombies), row(YZRowUnlockDesigns), row(YZRowJit), row(YZRowJitState), nil],
-        [NSArray arrayWithObjects:YZT(@"О программе"), row(YZRowAbout), nil],
+        [NSArray arrayWithObjects:YZT(@"О программе"), row(YZRowUpdate), row(YZRowAbout), nil],
         nil];
 }
 
@@ -1613,6 +1615,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowUnlockDesigns: return YZT(@"Все оформления");
     case YZRowJit: return @"JIT";
     case YZRowJitState: return YZT(@"Состояние JIT");
+    case YZRowUpdate: return YZT(@"Обновление");
     case YZRowAbout: return YZT(@"Об Yozora");
     // the row of the icon tiles has a title of its own inside its card
     case YZRowAppIcons: return @"";
@@ -1631,6 +1634,10 @@ static NSArray *YZEngineLogos(void) {
     case YZRowMascot: return [self mascotName];
     case YZRowSearchEngine: return [self coreName];
     case YZRowTextSize: return [NSString stringWithFormat:@"%d%%", (int)[YZSettings textZoom]];
+    case YZRowUpdate: {
+        YZRelease *release = [YZUpdate cachedRelease];
+        return [YZUpdate isNewer:release] ? [NSString stringWithFormat:YZT(@"Доступна %@"), release.tag] : [NSString stringWithFormat:YZT(@"Установлена %@"), [YZUpdate installedVersion]];
+    }
     case YZRowAdblockRules: return YZT(@"Свои правила, как в списках Adblock Plus");
     case YZRowSitePermissions: return YZT(@"Место, уведомления и сайты без блокировщика");
     case YZRowEconomy: return YZT(@"Страницы рисуются быстрее и мягче");
@@ -1681,6 +1688,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowLogOpen: return YZIconReceiptLong;
     case YZRowJit: return YZIconBolt;
     case YZRowJitState: return YZIconMemory;
+    case YZRowUpdate: return YZIconDownload;
     case YZRowAbout: return YZIconInfo;
     case YZRowAppIcons: return YZIconImage;
     }
@@ -2129,6 +2137,13 @@ static NSArray *YZEngineLogos(void) {
     case YZRowClearSiteData:
         [self confirmClearSiteData];
         break;
+    case YZRowUpdate: {
+        YZUpdateController *update = [[YZUpdateController alloc] init];
+        update.openPage = ^{ [_settingsDelegate settingsController:self openAddress:YZReleasePageAddress]; };
+        [self.navigationController pushViewController:update animated:YES];
+        [update release];
+        break;
+    }
     case YZRowAbout: {
         YZAboutController *about = [[YZAboutController alloc] init];
         [self.navigationController pushViewController:about animated:YES];
