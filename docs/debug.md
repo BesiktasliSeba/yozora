@@ -5,7 +5,7 @@
 developer settings (a section with its own glyphs):
 
 - debug: a card in the corner of the page with the frames of the interface and the scenes put on screen each second, the processor load of the process, the share of time the core spends in layout and painting, resident memory against the memory of the phone, the bytes received and sent by the page loader and downloads (the media proxy is not counted), the phone by name (`core/yozora_debug.c` maps the system identifier) and the host of the page. there is no gpu line, see [graphics](graphics.md)
-- logging: keeps the stderr of the app (`NSLog`, the core, console errors of pages) in a buffer of 256 KB and passes it on
+- logging: on by default, switched off by the person only. keeps the stderr of the app (`NSLog`, the core, console errors of pages) in a buffer of 256 KB and passes it on. the capture starts in `main`, right after the crash recorder, so the splash and the engine start are in the file of the run
 - logs: opens it as a terminal card (`YZLogController`): this run, the run before, crashes, a filter by level (all, info, important, errors), copy and clear. the file of a run is kept up to 1 MB and the run before is kept as `yozora-previous.log`
 - jit: a switch and a line with what javascriptcore reports, read once at start. on by default on armv7, off on arm64 until it has run on a device
 

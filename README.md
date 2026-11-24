@@ -86,6 +86,25 @@ see [docs/core.md](docs/core.md), [docs/performance.md](docs/performance.md).
 
 see [docs/debug.md](docs/debug.md).
 
+## troubleshooting
+
+yozora keeps a log from the first launch, nothing has to be turned on. when something breaks, send the log with the report.
+
+1. reproduce the problem, then open Settings > For developers > Logs. do not restart the app before this step if the problem is not a crash
+2. the three tabs are the log of this run (Now), of the run before (Previous) and the crash record (Crashes). after a crash or a restart the Previous tab holds the run that went wrong, and Crashes holds the addresses of the stack
+3. pick the tab, tap the copy button in the top right corner and paste the text into the issue or the message. a long log fits in a file or a gist better than in a comment
+4. say the phone, the ios version, the version of yozora (Settings > About) and what you did before the problem
+
+what is kept and where, inside the app container, `Library/Caches`:
+
+- `yozora.log`: this run, up to 1 MB, a longer run drops its oldest lines
+- `yozora-previous.log`: the run before
+- `yozora-crash.log`: faults and uncaught exceptions with the screen the app was on, the last notes, registers and the stack. a crash is also written to `yozora.log`, so the log of the run before holds it too
+
+on a jailbroken phone the files can be taken straight from the container, for example with `scp`.
+
+the log holds the addresses of the pages that were open, so read it before posting if that matters. switch it off in Settings > For developers > Logging, the app then keeps no log and a crash leaves only `yozora-crash.log`.
+
 ## install
 
 build the ipa, see below, and install it with your sideloading tool, or build the deb (`meow build deb`) for a jailbroken phone.

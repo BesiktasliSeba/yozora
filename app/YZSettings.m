@@ -317,7 +317,7 @@ static void YZClearAccent(BOOL isPrivate) {
 // change counts at the next launch
 + (BOOL)debugOverlay { return [self boolForKey:YZDebugOverlayKey defaultValue:NO]; }
 + (void)setDebugOverlay:(BOOL)enabled { [self storeBool:enabled forKey:YZDebugOverlayKey]; }
-+ (BOOL)logging { return [self boolForKey:YZLoggingKey defaultValue:NO]; }
++ (BOOL)logging { return [self boolForKey:YZLoggingKey defaultValue:YES]; }
 + (void)setLogging:(BOOL)enabled { [self storeBool:enabled forKey:YZLoggingKey]; }
 + (BOOL)zombies { return [self boolForKey:YZZombiesKey defaultValue:NO]; }
 + (void)setZombies:(BOOL)enabled { [self storeBool:enabled forKey:YZZombiesKey]; }

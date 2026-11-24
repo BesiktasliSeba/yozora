@@ -1,6 +1,7 @@
 #import <UIKit/UIKit.h>
 #import "YZBrowserController.h"
 #import "YZCrash.h"
+#import "YZLog.h"
 #import <QuartzCore/QuartzCore.h>
 #import "YZAppIcon.h"
 #import "YZSplashController.h"
@@ -282,6 +283,8 @@ int main(int argc, char **argv) {
         [YZSettings setLogging:YES];
         [YZCrash enableZombies];
     }
+    // started here so a launch that dies in the engine start still has a log
+    [YZLog setCapturing:[YZSettings logging]];
     // the jit is chosen while JavaScriptCore starts, so the setting is read here and a change in the settings counts at the next launch
     [YZSettings beginJitStart];
     yozora_set_jit_requested([YZSettings jit] ? 1 : 0);
