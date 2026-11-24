@@ -139,7 +139,7 @@ static const NSInteger YZLightTag = 90417;
     [button setBackgroundImage:nil forState:UIControlStateNormal];
     [button setBackgroundImage:nil forState:UIControlStateHighlighted];
     button.backgroundColor = color;
-    button.layer.cornerRadius = modernRadius;
+    button.layer.cornerRadius = [YZTheme isFlat] ? MIN(modernRadius, (CGFloat)10) : modernRadius;
     button.titleLabel.shadowColor = nil;
 }
 
@@ -169,6 +169,14 @@ static const NSInteger YZLightTag = 90417;
 
 @implementation YZSystemBarView
 
+@synthesize hairlineAtTop = _hairlineAtTop;
+
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    CGFloat line = 1.0f / [[UIScreen mainScreen] scale];
+    _hairline.frame = CGRectMake(0, _hairlineAtTop ? 0 : self.bounds.size.height - line, self.bounds.size.width, line);
+}
+
 - (id)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
     if (!self)
@@ -184,12 +192,20 @@ static const NSInteger YZLightTag = 90417;
 
 - (void)dealloc {
     [_system release];
+    [_hairline release];
     [super dealloc];
 }
 
 - (void)applyTheme {
     BOOL classic = [YZTheme isClassic];
     _system.hidden = !classic;
+    if (!_hairline) {
+        _hairline = [[UIView alloc] initWithFrame:CGRectZero];
+        [self addSubview:_hairline];
+    }
+    _hairline.hidden = ![YZTheme isFlat];
+    _hairline.backgroundColor = [YZTheme separatorColor];
+    [self setNeedsLayout];
     if (!classic) {
         // the modern bar is the flat color of the theme
         UIColor *flat = [YZTheme toolbarColor];

@@ -319,6 +319,7 @@ static UIImage *YZThumbnailFromView(UIView *view) {
     [_topBar addSubview:_progress];
 
     _bottomBar = [[YZSystemBarView alloc] initWithFrame:CGRectZero];
+    ((YZSystemBarView *)_bottomBar).hairlineAtTop = YES;
     // the wobble lifts the bar's lower edge above the screen for a moment, a skirt of its color hides the
     // page strip
     UIView *skirt = [[[UIView alloc] initWithFrame:CGRectZero] autorelease];
@@ -747,6 +748,12 @@ static UIImage *YZThumbnailFromView(UIView *view) {
 
 // the bars and the glyphs of the new look wobble into their places, one after the other from the top bar to the bottom bar
 - (void)wobbleChrome {
+    // the glyphs of the bars do not pop in the flat design, only the tiles of the start page settle
+    if ([YZTheme isFlat]) {
+        if (!_home.hidden)
+            [_home animateContents];
+        return;
+    }
     YZMotionAnimateEnter(_field, CGAffineTransformMakeScale(0.9f, 0.9f), 0, YOZORA_MOTION_WOBBLE, 0.12);
     YZMotionAnimateEnter(_securityView, CGAffineTransformMakeScale(0.3f, 0.3f), 0, YOZORA_MOTION_WOBBLE, 0.2);
     NSArray *buttons = [NSArray arrayWithObjects:_backButton, _forwardButton, _starButton, _tabsButton, _menuButton, nil];

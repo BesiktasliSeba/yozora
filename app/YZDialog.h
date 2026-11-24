@@ -8,6 +8,7 @@
     UILabel *_title;
     UILabel *_message;
     UIImageView *_pictureView;
+    NSMutableArray *_rules;
     NSMutableArray *_fields;
     NSMutableArray *_buttons;
     NSString *_titleText;

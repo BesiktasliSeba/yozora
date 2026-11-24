@@ -40,11 +40,23 @@ static CGAffineTransform YZBlend(CGAffineTransform from, CGAffineTransform to, C
                                  from.tx + (to.tx - from.tx) * progress, from.ty + (to.ty - from.ty) * progress);
 }
 
+// the flat design moves things the way ios 7 does: one ease out, no overshoot and no spring, quick on the way out. every curve of the modern design
+// is played as this one there
+static double YZFlatProgress(double time) {
+    double rest = 1 - time;
+    return 1 - rest * rest * rest;
+}
+
+static NSTimeInterval YZFlatDuration(yozora_motion_curve curve) {
+    return curve == YOZORA_MOTION_DISMISS || curve == YOZORA_MOTION_EXIT || curve == YOZORA_MOTION_POPUP_EXIT ? 0.22 : 0.34;
+}
+
 static CAAnimationGroup *YZMotionGroup(CGAffineTransform from, CGAffineTransform to, CGFloat fromAlpha, CGFloat toAlpha, yozora_motion_curve curve) {
     NSMutableArray *transforms = [NSMutableArray arrayWithCapacity:YZ_MOTION_SAMPLES];
     NSMutableArray *opacities = [NSMutableArray arrayWithCapacity:YZ_MOTION_SAMPLES];
     for (NSUInteger i = 0; i < YZ_MOTION_SAMPLES; ++i) {
-        CGFloat progress = (CGFloat)yozora_motion_progress(curve, (double)i / (YZ_MOTION_SAMPLES - 1));
+        double time = (double)i / (YZ_MOTION_SAMPLES - 1);
+        CGFloat progress = (CGFloat)([YZTheme isFlat] ? YZFlatProgress(time) : yozora_motion_progress(curve, time));
         [transforms addObject:[NSValue valueWithCATransform3D:CATransform3DMakeAffineTransform(YZBlend(from, to, progress))]];
         // a spring passes its target and the opacity is held to the range, a fade does not bounce
         [opacities addObject:[NSNumber numberWithDouble:fromAlpha + (toAlpha - fromAlpha) * MIN((CGFloat)1, MAX((CGFloat)0, progress))]];
@@ -54,7 +66,7 @@ static CAAnimationGroup *YZMotionGroup(CGAffineTransform from, CGAffineTransform
     CAKeyframeAnimation *fade = [CAKeyframeAnimation animationWithKeyPath:@"opacity"];
     fade.values = opacities;
     CAAnimationGroup *group = [CAAnimationGroup animation];
-    group.duration = yozora_motion_duration(curve);
+    group.duration = [YZTheme isFlat] ? YZFlatDuration(curve) : yozora_motion_duration(curve);
     movement.duration = fade.duration = group.duration;
     group.animations = [NSArray arrayWithObjects:movement, fade, nil];
     group.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionLinear];
@@ -129,7 +141,7 @@ void YZMotionAnimateEnter(UIView *view, CGAffineTransform from, CGFloat fromAlph
 }
 
 UIView *YZMotionBeginReveal(UIView *host) {
-    // the circle that opens from the switch is not an animation of ios 5 to 7
+    // the circle that opens from the switch is not an animation of ios 5 to 7, the flat design fades the old look away instead
     if ([YZTheme isClassic] || !host.window || ![YZTheme animationsEnabled] || host.bounds.size.width < 1 || host.bounds.size.height < 1)
         return nil;
     UIGraphicsBeginImageContextWithOptions(host.bounds.size, YES, 0);
@@ -159,6 +171,13 @@ static CGPathRef YZRevealPath(CGRect bounds, CGPoint origin, CGFloat radius) {
 void YZMotionFinishReveal(UIView *cover, CGPoint origin) {
     if (!cover)
         return;
+    if ([YZTheme isFlat]) {
+        [UIView animateWithDuration:0.28 delay:0 options:UIViewAnimationOptionCurveEaseOut animations:^{ cover.alpha = 0; } completion:^(BOOL finished) {
+            (void)finished;
+            [cover removeFromSuperview];
+        }];
+        return;
+    }
     CGRect bounds = cover.bounds;
     // the circle has to pass the corner that lies farthest from where it opens
     CGFloat dx = MAX(origin.x, bounds.size.width - origin.x), dy = MAX(origin.y, bounds.size.height - origin.y);
@@ -212,8 +231,8 @@ static CGFloat YZBounceShownScale(CALayer *layer) {
 }
 
 - (BOOL)animates:(UIControl *)control {
-    // a system button only lights while pressed, it does not shrink or spring
-    return control.window && [YZTheme animationsEnabled] && ![YZTheme isClassic];
+    // a system button only lights while pressed, it does not shrink or spring, and the flat design's buttons are the same
+    return control.window && [YZTheme animationsEnabled] && ![YZTheme isClassic] && ![YZTheme isFlat];
 }
 
 - (void)press:(UIControl *)control {

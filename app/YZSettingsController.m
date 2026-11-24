@@ -182,6 +182,12 @@ static CGFloat YZMeasureHeight(NSString *text, UIFont *font, CGFloat width) {
 // the width left for a row's texts: the card is 16 points in on each side, the glyph disc, switch and chevron
 // take their room
 static CGFloat YZRowTextWidth(CGFloat tableWidth, BOOL disc, BOOL toggle, BOOL accessory) {
+    if ([YZTheme isFlat]) {
+        // rows of ios 7 to 12 run the whole width: 15 points in, a square of 29 for the glyph, 51 for the switch
+        CGFloat flatLeft = disc ? 15 + 29 + 12 : 15;
+        CGFloat flatRight = toggle ? 15 + 51 + 12 : (accessory ? 34 : 15);
+        return MAX((CGFloat)0, tableWidth - flatLeft - flatRight);
+    }
     CGFloat left = disc ? 16 + 40 + 14 : 16;
     CGFloat right = toggle ? 16 + [YZToggle controlSize].width + 12 : (accessory ? 12 + 24 + 4 : 16);
     return MAX((CGFloat)0, tableWidth - 32 - left - right);
@@ -189,8 +195,13 @@ static CGFloat YZRowTextWidth(CGFloat tableWidth, BOOL disc, BOOL toggle, BOOL a
 
 static CGFloat YZRowHeight(NSString *title, NSString *detail, CGFloat tableWidth, BOOL disc, BOOL toggle, BOOL accessory) {
     CGFloat width = YZRowTextWidth(tableWidth, disc, toggle, accessory);
-    CGFloat titleHeight = YZMeasureHeight(title, [YZTheme systemFontOfSize:16], width);
+    BOOL flat = [YZTheme isFlat];
+    CGFloat titleHeight = YZMeasureHeight(title, [YZTheme systemFontOfSize:flat ? 17 : 16], width);
     CGFloat detailHeight = YZMeasureHeight(detail, [YZTheme systemFontOfSize:13], width);
+    if (flat) {
+        CGFloat flatHeight = 11 + titleHeight + (detailHeight > 0 ? 2 + detailHeight : 0) + 11;
+        return MAX(detailHeight > 0 ? (CGFloat)58 : (CGFloat)44, flatHeight);
+    }
     CGFloat height = 16 + titleHeight + (detailHeight > 0 ? 3 + detailHeight : 0) + 16;
     return MAX(detailHeight > 0 ? (CGFloat)68 : (CGFloat)58, height);
 }
@@ -206,6 +217,9 @@ static CGFloat YZRowHeight(NSString *title, NSString *detail, CGFloat tableWidth
     UILabel *detail;
     UIImageView *accessory;
     YZToggle *toggle;
+    // the hairlines of a row of the flat design: under it (from the text, or the whole width at the end of a group) and over the first
+    UIView *lineBelow;
+    UIView *lineAbove;
     // the color ball of a row that shows a color and morphs, hidden in every other row
     YZMorphView *ball;
     // the color of the card at rest: the card color, or the tint of a chosen option
@@ -284,6 +298,12 @@ static CGFloat YZRowHeight(NSString *title, NSString *detail, CGFloat tableWidth
 
 // the card is the picture of its place in the group in the given color
 - (void)showCardColor:(UIColor *)color {
+    if ([YZTheme isFlat]) {
+        card.layer.contents = nil;
+        card.backgroundColor = color;
+        return;
+    }
+    card.backgroundColor = [UIColor clearColor];
     [YZTheme stretchImage:YZCardImage(position, color) caps:YZGroupRadius onView:card];
 }
 
@@ -319,6 +339,11 @@ static CGFloat YZRowHeight(NSString *title, NSString *detail, CGFloat tableWidth
 - (void)layoutSubviews {
     [super layoutSubviews];
     CGFloat width = self.contentView.bounds.size.width, height = self.contentView.bounds.size.height;
+    if ([YZTheme isFlat]) {
+        [self layoutFlatWidth:width height:height];
+        return;
+    }
+    lineBelow.hidden = lineAbove.hidden = YES;
     // the rows of a classic group touch, the modern cards stand a point apart
     card.frame = [YZTheme isClassic] ? CGRectMake(16, 0, width - 32, height) : CGRectMake(16, 1, width - 32, height - 2);
     CGFloat cw = card.bounds.size.width, ch = card.bounds.size.height;
@@ -345,7 +370,49 @@ static CGFloat YZRowHeight(NSString *title, NSString *detail, CGFloat tableWidth
     detail.frame = detailHeight > 0 ? CGRectMake(left, y + titleHeight + 3, textWidth, detailHeight) : CGRectZero;
 }
 
+- (void)layoutFlatWidth:(CGFloat)width height:(CGFloat)height {
+    if (!lineBelow) {
+        lineBelow = [[UIView alloc] initWithFrame:CGRectZero];
+        lineAbove = [[UIView alloc] initWithFrame:CGRectZero];
+        [card addSubview:lineBelow];
+        [card addSubview:lineAbove];
+    }
+    card.frame = CGRectMake(0, 0, width, height);
+    CGFloat cw = width, ch = height;
+    disc.hidden = !withDisc;
+    if (withDisc) {
+        disc.bounds = CGRectMake(0, 0, 29, 29);
+        disc.center = CGPointMake(15 + 14.5f, ch / 2);
+        icon.frame = bareMark ? disc.bounds : CGRectInset(disc.bounds, 4, 4);
+        ball.frame = CGRectInset(disc.bounds, 4, 4);
+    }
+    if ([self showsSwitch]) {
+        CGSize size = [YZToggle controlSize];
+        toggle.frame = CGRectMake(cw - 15 - size.width, (ch - size.height) / 2, size.width, size.height);
+    }
+    if (accessory.image)
+        accessory.frame = CGRectMake(cw - 8 - 24, (ch - 24) / 2, 24, 24);
+    CGFloat textWidth = YZRowTextWidth(width, withDisc, [self showsSwitch], accessory.image != nil);
+    CGFloat left = withDisc ? 15 + 29 + 12 : 15;
+    CGFloat titleHeight = YZMeasureHeight(title.text, title.font, textWidth);
+    CGFloat detailHeight = YZMeasureHeight(detail.text, detail.font, textWidth);
+    CGFloat block = titleHeight + (detailHeight > 0 ? 2 + detailHeight : 0);
+    CGFloat y = floor((ch - block) / 2);
+    title.frame = CGRectMake(left, y, textWidth, titleHeight);
+    detail.frame = detailHeight > 0 ? CGRectMake(left, y + titleHeight + 2, textWidth, detailHeight) : CGRectZero;
+    BOOL opens = position == YZPositionSingle || position == YZPositionFirst;
+    BOOL ends = position == YZPositionSingle || position == YZPositionLast;
+    CGFloat line = 1.0f / [[UIScreen mainScreen] scale];
+    lineAbove.hidden = !opens;
+    lineAbove.frame = CGRectMake(0, 0, cw, line);
+    lineBelow.hidden = NO;
+    lineBelow.frame = ends ? CGRectMake(0, ch - line, cw, line) : CGRectMake(left, ch - line, MAX((CGFloat)0, cw - left), line);
+    lineAbove.backgroundColor = lineBelow.backgroundColor = [YZTheme separatorColor];
+}
+
 - (void)dealloc {
+    [lineBelow release];
+    [lineAbove release];
     [card release];
     [disc release];
     [icon release];
@@ -383,12 +450,13 @@ static void YZConfigureCell(YZSettingsCell *cell, NSString *title, NSString *det
     [cell->restColor release];
     cell->restColor = [(plate ? plate : [YZTheme cardColor]) retain];
     [cell showCardColor:cell->restColor];
-    cell->disc.layer.cornerRadius = cell->bareMark ? 0 : 20;
+    BOOL flat = [YZTheme isFlat];
+    cell->disc.layer.cornerRadius = cell->bareMark ? 0 : (flat ? 7 : 20);
     cell->disc.backgroundColor = cell->bareMark ? [UIColor clearColor]
-        : (picture ? YZMarkGround() : (destructive ? [[YZTheme errorColor] colorWithAlphaComponent:0.16f] : [YZTheme stateColor]));
+        : (picture ? YZMarkGround() : (flat ? (destructive ? [YZTheme errorColor] : [YZTheme accentColor]) : (destructive ? [[YZTheme errorColor] colorWithAlphaComponent:0.16f] : [YZTheme stateColor])));
     cell->disc.layer.borderWidth = (picture && !cell->bareMark) ? 1 : 0;
     cell->disc.layer.borderColor = [[YZTheme separatorColor] CGColor];
-    cell->icon.image = picture ? picture : (hasGlyph ? [YZTheme icon:glyph size:24 color:destructive ? [YZTheme errorColor] : [YZTheme accentColor]] : nil);
+    cell->icon.image = picture ? picture : (hasGlyph ? [YZTheme icon:glyph size:flat ? 21 : 24 color:flat ? [UIColor whiteColor] : (destructive ? [YZTheme errorColor] : [YZTheme accentColor])] : nil);
     // the classic glyph is white on a lit rounded tile of the accent (or of the error red), the tile of the settings of the old system
     if ([YZTheme isClassic] && !picture && hasGlyph) {
         CGFloat radius = 9;
@@ -405,13 +473,13 @@ static void YZConfigureCell(YZSettingsCell *cell, NSString *title, NSString *det
     cell->ball.hidden = YES;
     cell->icon.hidden = NO;
     // a row that is reused takes the size of the text of the moment
-    cell->title.font = [YZTheme systemFontOfSize:16];
+    cell->title.font = [YZTheme systemFontOfSize:flat ? 17 : 16];
     cell->detail.font = [YZTheme systemFontOfSize:13];
     cell->title.text = title;
     cell->title.textColor = destructive ? [YZTheme errorColor] : [YZTheme textColor];
     cell->detail.text = detail;
     cell->detail.textColor = [YZTheme subtleTextColor];
-    cell->accessory.image = chevron ? [YZTheme icon:YZIconChevron size:24 color:[YZTheme subtleTextColor]] : nil;
+    cell->accessory.image = chevron ? [YZTheme icon:YZIconChevron size:flat ? 20 : 24 color:flat ? [[YZTheme subtleTextColor] colorWithAlphaComponent:0.7f] : [YZTheme subtleTextColor]] : nil;
     [cell setNeedsLayout];
 }
 
@@ -455,6 +523,16 @@ static void YZConfigureCell(YZSettingsCell *cell, NSString *title, NSString *det
 - (void)layoutSubviews {
     [super layoutSubviews];
     CGFloat width = self.contentView.bounds.size.width, height = self.contentView.bounds.size.height;
+    if ([YZTheme isFlat]) {
+        // the header of a group of ios 7 to 12: small gray capitals over the group, a chevron at the end for folding it
+        CGFloat flatLeft = mark.image ? 15 + 24 : 15;
+        mark.frame = CGRectMake(15, height - 27, 18, 18);
+        name.frame = CGRectMake(flatLeft, height - 28, MAX((CGFloat)0, width - flatLeft - 50), 20);
+        chevron.bounds = CGRectMake(0, 0, 20, 20);
+        chevron.center = CGPointMake(width - 25, height - 18);
+        pill.alpha = 0;
+        return;
+    }
     CGFloat labelLeft = mark.image ? 32 + 24 : 32;
     mark.frame = CGRectMake(32, height - 28, 20, 20);
     name.frame = CGRectMake(labelLeft, height - 28, MAX((CGFloat)0, width - labelLeft - 72), 20);
@@ -488,7 +566,8 @@ static void YZConfigureCell(YZSettingsCell *cell, NSString *title, NSString *det
 
 // one icon of the picker: its picture and name, a ring in the accent around the one the home screen shows. the
 // pictures carry their own corners, so nothing masks them
-static const CGFloat YZIconTileSide = 64;
+// the icons of ios 7 to 12 are 60 points, the other designs keep 64
+#define YZIconTileSide ([YZTheme isFlat] ? (CGFloat)60 : (CGFloat)64)
 static const CGFloat YZIconTileWidth = 88;
 static const CGFloat YZIconTilesHead = 44;
 
@@ -510,13 +589,21 @@ static const CGFloat YZIconTilesHead = 44;
         return nil;
     iconName = [name copy];
     ring = [[UIView alloc] initWithFrame:CGRectMake((YZIconTileWidth - YZIconTileSide) / 2 - 4, -4, YZIconTileSide + 8, YZIconTileSide + 8)];
-    ring.layer.cornerRadius = YZIconTileSide * 0.175f + 4;
+    // the ring runs concentric with the corner of the picture, a ring with a wider corner than the picture's left a dark wedge of the card in
+    // each corner of a selected icon
+    ring.layer.cornerRadius = YZIconTileSide * ([YZTheme isFlat] ? 0.2237f : 0.175f) + 4;
     ring.layer.borderWidth = 3;
     ring.userInteractionEnabled = NO;
     [self addSubview:ring];
     picture = [[UIImageView alloc] initWithFrame:CGRectMake((YZIconTileWidth - YZIconTileSide) / 2, 0, YZIconTileSide, YZIconTileSide)];
     picture.contentMode = UIViewContentModeScaleAspectFit;
     picture.userInteractionEnabled = NO;
+    // the files are cut with a corner of 0.175, the icons of ios 7 to 12 have 0.2237: the flat design cuts the picture to that corner, so the
+    // ring around it fits
+    if ([YZTheme isFlat]) {
+        picture.layer.cornerRadius = YZIconTileSide * 0.2237f;
+        picture.layer.masksToBounds = YES;
+    }
     // an install that has to overwrite the Icon files keeps the real ones in its own folder, and the tile of the
     // icon of the app shows those, the files of the bundle may hold the icon chosen
     NSString *bundle = [[NSBundle mainBundle] bundlePath];
@@ -570,6 +657,8 @@ static CGFloat YZIconTilesHeight(CGFloat tableWidth, NSString *note) {
     UILabel *note;
     NSMutableArray *tiles;
     YZPosition position;
+    UIView *lineAbove;
+    UIView *lineBelow;
     void (^choose)(NSString *name);
 }
 - (void)showNote:(NSString *)text enabled:(BOOL)enabled position:(YZPosition)place;
@@ -613,7 +702,14 @@ static CGFloat YZIconTilesHeight(CGFloat tableWidth, NSString *note) {
 
 - (void)showNote:(NSString *)text enabled:(BOOL)enabled position:(YZPosition)place {
     position = place;
-    [YZTheme stretchImage:YZCardImage(position, [YZTheme cardColor]) caps:YZGroupRadius onView:card];
+    if ([YZTheme isFlat]) {
+        card.layer.contents = nil;
+        card.backgroundColor = [YZTheme cardColor];
+    } else {
+        card.backgroundColor = [UIColor clearColor];
+        [YZTheme stretchImage:YZCardImage(position, [YZTheme cardColor]) caps:YZGroupRadius onView:card];
+    }
+    title.font = [YZTheme systemFontOfSize:[YZTheme isFlat] ? 17 : 16];
     title.text = YZT(@"Значок приложения");
     title.textColor = [YZTheme textColor];
     note.text = text;
@@ -642,19 +738,36 @@ static CGFloat YZIconTilesHeight(CGFloat tableWidth, NSString *note) {
 - (void)layoutSubviews {
     [super layoutSubviews];
     CGFloat width = self.contentView.bounds.size.width, height = self.contentView.bounds.size.height;
-    card.frame = CGRectMake(16, 1, width - 32, height - 2);
-    CGFloat cw = card.bounds.size.width;
-    title.frame = CGRectMake(16, 14, cw - 32, 22);
-    CGFloat x = 16 - (YZIconTileWidth - YZIconTileSide) / 2;
+    BOOL flat = [YZTheme isFlat];
+    // a row of the flat design runs the whole width with its hairlines, the others are cards
+    card.frame = flat ? CGRectMake(0, 0, width, height) : CGRectMake(16, 1, width - 32, height - 2);
+    CGFloat cw = card.bounds.size.width, side = flat ? 15 : 16;
+    if (!lineAbove) {
+        lineAbove = [[UIView alloc] initWithFrame:CGRectZero];
+        lineBelow = [[UIView alloc] initWithFrame:CGRectZero];
+        [card addSubview:lineAbove];
+        [card addSubview:lineBelow];
+    }
+    lineAbove.hidden = lineBelow.hidden = !flat;
+    if (flat) {
+        CGFloat line = 1.0f / [[UIScreen mainScreen] scale];
+        lineAbove.frame = CGRectMake(0, 0, cw, line);
+        lineBelow.frame = CGRectMake(0, height - line, cw, line);
+        lineAbove.backgroundColor = lineBelow.backgroundColor = [YZTheme separatorColor];
+    }
+    title.frame = CGRectMake(side, 14, cw - 2 * side, 22);
+    CGFloat x = side - (YZIconTileWidth - YZIconTileSide) / 2;
     for (YZIconTile *tile in tiles) {
         tile.frame = CGRectMake(x, YZIconTilesHead, YZIconTileWidth, YZIconTileSide + 28);
         x += YZIconTileWidth;
     }
     CGFloat noteHeight = YZMeasureHeight(note.text, note.font, cw - 32);
-    note.frame = noteHeight > 0 ? CGRectMake(16, YZIconTilesHead + YZIconTileSide + 28 + 4, cw - 32, noteHeight) : CGRectZero;
+    note.frame = noteHeight > 0 ? CGRectMake(side, YZIconTilesHead + YZIconTileSide + 28 + 4, cw - 2 * side, noteHeight) : CGRectZero;
 }
 
 - (void)dealloc {
+    [lineAbove release];
+    [lineBelow release];
     [card release];
     [title release];
     [note release];
@@ -1397,7 +1510,11 @@ static NSArray *YZEngineTints(void) {
 }
 
 - (NSString *)designName {
-    return [YZSettings design] == YZDesignClassic ? YZT(@"Классическое") : YZT(@"Современное");
+    switch ([YZSettings design]) {
+    case YZDesignClassic: return YZT(@"Классическое");
+    case YZDesignFlat: return YZT(@"Плоское");
+    default: return YZT(@"Современное");
+    }
 }
 
 - (NSString *)themeName {
@@ -1627,7 +1744,7 @@ static NSArray *YZEngineLogos(void) {
 
 - (CGFloat)tableView:(UITableView *)table heightForRowAtIndexPath:(NSIndexPath *)path {
     if (path.row == 0)
-        return path.section == 0 ? 48 : 60;
+        return [YZTheme isFlat] ? (path.section == 0 ? 46 : 52) : (path.section == 0 ? 48 : 60);
     YZRow kind = [self rowAtIndexPath:path];
     if (kind == YZRowAppIcons)
         return YZIconTilesHeight(table.bounds.size.width, [self iconNote]);
@@ -1639,9 +1756,9 @@ static NSArray *YZEngineLogos(void) {
     if (!cell)
         cell = [[[YZSectionCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"YZSectionHead"] autorelease];
     cell.accessibilityLabel = [[_sections objectAtIndex:section] objectAtIndex:0];
-    cell->name.text = [[_sections objectAtIndex:section] objectAtIndex:0];
-    cell->name.font = [YZTheme boldSystemFontOfSize:13];
-    cell->name.textColor = [YZTheme accentColor];
+    cell->name.text = [YZTheme isFlat] ? [[[_sections objectAtIndex:section] objectAtIndex:0] uppercaseString] : [[_sections objectAtIndex:section] objectAtIndex:0];
+    cell->name.font = [YZTheme isFlat] ? [YZTheme systemFontOfSize:13] : [YZTheme boldSystemFontOfSize:13];
+    cell->name.textColor = [YZTheme isFlat] ? [YZTheme subtleTextColor] : [YZTheme accentColor];
     // the developer section carries the hammer in front of its name
     cell->mark.image = section == YZDeveloperSection ? [YZTheme icon:YZIconHardware size:20 color:[YZTheme accentColor]] : nil;
     cell->chevron.image = [YZTheme icon:YZIconChevron size:20 color:[YZTheme subtleTextColor]];
@@ -1809,8 +1926,9 @@ static NSArray *YZEngineLogos(void) {
         break;
     case YZRowDesign:
         choice.heading = YZT(@"Оформление");
-        choice.titles = [NSArray arrayWithObjects:YZT(@"Современное"), YZT(@"Классическое"), nil];
-        choice.details = [NSArray arrayWithObjects:YZT(@"Современный браузер для старого железа"), YZT(@"Классический вид Safari снаружи, всё новое внутри"), nil];
+        choice.titles = [NSArray arrayWithObjects:YZT(@"Современное"), YZT(@"Классическое"), YZT(@"Плоское"), nil];
+        choice.details = [NSArray arrayWithObjects:YZT(@"Современный браузер для старого железа"), YZT(@"Классический вид Safari снаружи, всё новое внутри"),
+                          YZT(@"Белые панели и серое поле адреса, как в Safari на iOS 7, в цветах Yozora"), nil];
         choice.pictures = nil;
         choice.tints = nil;
         choice.bareMarks = NO;

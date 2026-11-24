@@ -15,11 +15,12 @@ typedef enum {
     YZMascotFox
 } YZMascot;
 
-/* the drawing of the interface: Material flat cards and pills, or the bars and controls the system of ios 5 to 7
-   draws itself. every system starts with the modern one */
+/* the drawing of the interface: Material cards and pills, the bars and controls the system of ios 5 to 7 draws itself, or
+   the flat bars of Safari on ios 7 in the colors of the app. every system starts with the modern one */
 typedef enum {
     YZDesignModern,
-    YZDesignClassic
+    YZDesignClassic,
+    YZDesignFlat
 } YZDesign;
 
 /* how the tab tray shows the tabs: a grid of cards that scroll, as Firefox does, or pages that are paged sideways one at a time, as Safari does */
@@ -41,8 +42,9 @@ extern NSString *const YZSettingsDidChangeNotification;
 @interface YZSettings : NSObject
 + (YZLanguage)language;
 + (void)setLanguage:(YZLanguage)language;
-/* the classic design exists on ios 5 to 7 only */
+/* the classic design works on ios 5 to 7 only, the flat one on ios 5 to 15, elsewhere their options are shown locked */
 + (BOOL)classicDesignAvailable;
++ (BOOL)flatDesignAvailable;
 + (YZDesign)design;
 + (void)setDesign:(YZDesign)design;
 /* an unset choice is the pages of Safari in the classic design and the grid of Firefox in the modern one */

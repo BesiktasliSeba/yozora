@@ -85,6 +85,7 @@ static const CGFloat YZDialogFieldHeight = 44;
 
 - (void)dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [_rules release];
     [_pictureView release];
     [_card release];
     [_title release];
@@ -106,7 +107,15 @@ static const CGFloat YZDialogFieldHeight = 44;
     UIButton *button = [UIButton buttonWithType:UIButtonTypeCustom];
     button.titleLabel.font = [YZTheme boldSystemFontOfSize:16];
     button.backgroundColor = fill;
-    button.layer.cornerRadius = YZDialogButtonHeight / 2;
+    if ([YZTheme isFlat]) {
+        // the alert of ios 7 to 12: text over hairlines, the accent in the answer that is meant, the other one in plain weight
+        button.backgroundColor = [UIColor clearColor];
+        text = [YZTheme accentColor];
+        button.titleLabel.font = index == 0 && _cancelTitle ? [UIFont systemFontOfSize:17] : [UIFont boldSystemFontOfSize:17];
+        if (_destructive && index != 0)
+            text = [YZTheme errorColor];
+    }
+    button.layer.cornerRadius = [YZTheme isFlat] ? 10 : YZDialogButtonHeight / 2;
     button.tag = index;
     [button setTitle:title forState:UIControlStateNormal];
     [button setTitleColor:text forState:UIControlStateNormal];
@@ -195,11 +204,82 @@ static const CGFloat YZDialogFieldHeight = 44;
     [UIView animateWithDuration:0.25 animations:^{ [self layoutIfNeeded]; }];
 }
 
+- (void)layoutFlat {
+    CGFloat width = MIN(self.bounds.size.width - 2 * YZDialogSide, (CGFloat)270);
+    CGFloat inner = MAX((CGFloat)0, width - 32);
+    _card.layer.cornerRadius = 13;
+    _card.backgroundColor = [YZTheme cardColor];
+    _title.text = _titleText;
+    _message.text = _messageText;
+    _title.textAlignment = YZTextAlignmentCenter;
+    _message.textAlignment = YZTextAlignmentCenter;
+    _title.font = [UIFont boldSystemFontOfSize:17];
+    _message.font = [UIFont systemFontOfSize:13];
+    CGFloat y = 20;
+    if (_pictureView) {
+        _pictureView.frame = CGRectMake(floor((width - 96) / 2), y, 96, 96);
+        y += 96 + 8;
+    }
+    CGSize title = [_title sizeThatFits:CGSizeMake(inner, 400)];
+    _title.frame = CGRectMake(16, y, inner, ceil(title.height));
+    y += ceil(title.height);
+    if ([_messageText length]) {
+        CGSize message = [_message sizeThatFits:CGSizeMake(inner, 400)];
+        y += 4;
+        _message.frame = CGRectMake(16, y, inner, ceil(message.height));
+        y += ceil(message.height);
+    } else
+        _message.frame = CGRectZero;
+    for (UITextField *field in _fields) {
+        y += 12;
+        field.frame = CGRectMake(16, y, inner, 30);
+        y += 30;
+    }
+    y += 20;
+    if (!_rules)
+        _rules = [[NSMutableArray alloc] init];
+    for (UIView *rule in _rules)
+        [rule removeFromSuperview];
+    [_rules removeAllObjects];
+    CGFloat line = 1.0f / [[UIScreen mainScreen] scale];
+    void (^rule)(CGRect) = ^(CGRect frame) {
+        UIView *view = [[[UIView alloc] initWithFrame:frame] autorelease];
+        view.backgroundColor = [YZTheme separatorColor];
+        [_card addSubview:view];
+        [_rules addObject:view];
+    };
+    rule(CGRectMake(0, y, width, line));
+    if ([_buttons count] == 2) {
+        CGFloat half = floor(width / 2);
+        [[_buttons objectAtIndex:0] setFrame:CGRectMake(0, y, half, 44)];
+        [[_buttons objectAtIndex:1] setFrame:CGRectMake(half, y, width - half, 44)];
+        rule(CGRectMake(half, y, line, 44));
+        y += 44;
+    } else {
+        for (NSInteger i = (NSInteger)[_buttons count] - 1; i >= 0; --i) {
+            [[_buttons objectAtIndex:i] setFrame:CGRectMake(0, y, width, 44)];
+            y += 44;
+            if (i)
+                rule(CGRectMake(0, y, width, line));
+        }
+    }
+    CGFloat room = self.bounds.size.height - _keyboardHeight;
+    CGAffineTransform held = _card.transform;
+    _card.transform = CGAffineTransformIdentity;
+    _card.frame = CGRectMake(floor((self.bounds.size.width - width) / 2), MAX((CGFloat)8, floor((room - y) / 2)), width, y);
+    _card.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:_card.bounds cornerRadius:13].CGPath;
+    _card.transform = held;
+}
+
 - (void)layoutSubviews {
     [super layoutSubviews];
     // a layout while the card leaves would fit it again under its own fade
     if (_leaving)
         return;
+    if ([YZTheme isFlat]) {
+        [self layoutFlat];
+        return;
+    }
     CGFloat width = MIN(self.bounds.size.width - 2 * YZDialogSide, YZDialogMaxWidth);
     CGFloat inner = MAX((CGFloat)0, width - 2 * YZDialogPad);
     _title.text = _titleText;

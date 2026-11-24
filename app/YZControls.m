@@ -101,6 +101,9 @@ static const CGFloat YZSegmentHeight = 36;
         button.tag = (NSInteger)i;
         button.titleLabel.font = [YZTheme boldSystemFontOfSize:13];
         button.titleEdgeInsets = UIEdgeInsetsMake(0, 6, 0, 0);
+        // a button cuts a long title in the middle ("Уведо…ения") unless told otherwise: it shrinks a little and is cut at the end
+        button.titleLabel.lineBreakMode = YZLineBreakTailTruncation;
+        YZShrinkToFit(button.titleLabel);
         [button addTarget:self action:@selector(segmentPressed:) forControlEvents:UIControlEventTouchUpInside];
         [self addSubview:button];
         [_buttons addObject:button];
@@ -235,6 +238,8 @@ static const CGFloat YZToggleThumb = 24;
 @synthesize on = _on;
 
 + (CGSize)controlSize {
+    if ([YZTheme isFlat])
+        return CGSizeMake(51, 31);
     return [YZTheme isClassic] ? CGSizeMake(79, 27) : CGSizeMake(YZToggleWidth, YZToggleHeight);
 }
 
@@ -274,6 +279,8 @@ static const CGFloat YZToggleThumb = 24;
 
 // the thumb is placed on the left and moved by its transform: small when off, full size and 20 points to the right when on
 - (CGAffineTransform)thumbTransform {
+    if ([YZTheme isFlat])
+        return _on ? CGAffineTransformMakeTranslation(20, 0) : CGAffineTransformIdentity;
     return _on ? CGAffineTransformMakeTranslation(YZToggleWidth - YZToggleHeight, 0) : CGAffineTransformMakeScale(0.667f, 0.667f);
 }
 
@@ -291,6 +298,28 @@ static const CGFloat YZToggleThumb = 24;
         _system.on = _on;
         return;
     }
+    if ([YZTheme isFlat]) {
+        // the switch of ios 7 to 12: a white track with a gray rim that fills with the accent, a white knob of 27 with a soft shadow
+        _track.frame = CGRectMake(0, 0, 51, 31);
+        _thumb.bounds = CGRectMake(0, 0, 27, 27);
+        _thumb.center = CGPointMake(15.5f, 15.5f);
+        UIColor *flatTrack = _on ? [YZTheme accentColor] : [YZTheme cardColor];
+        [track setTop:flatTrack bottom:flatTrack];
+        track.layer.cornerRadius = 15.5f;
+        track.layer.borderWidth = _on ? 0 : 1.5f;
+        track.layer.borderColor = [[YZTheme separatorColor] CGColor];
+        [thumb setTop:[UIColor whiteColor] bottom:[UIColor whiteColor]];
+        thumb.layer.cornerRadius = 13.5f;
+        thumb.layer.borderWidth = 0;
+        thumb.layer.shadowColor = [[UIColor blackColor] CGColor];
+        thumb.layer.shadowOpacity = 0.3f;
+        thumb.layer.shadowRadius = 2.5f;
+        thumb.layer.shadowOffset = CGSizeMake(0, 2);
+        return;
+    }
+    _track.frame = CGRectMake(0, 0, YZToggleWidth, YZToggleHeight);
+    _thumb.bounds = CGRectMake(0, 0, YZToggleThumb, YZToggleThumb);
+    _thumb.center = CGPointMake(4 + YZToggleThumb / 2, YZToggleHeight / 2);
     UIColor *trackColor = _on ? [YZTheme accentColor] : [YZTheme fieldColor];
     [track setTop:trackColor bottom:trackColor];
     track.layer.cornerRadius = YZToggleHeight / 2;
@@ -389,7 +418,7 @@ static const CGFloat YZToggleThumb = 24;
 
 // what the title looks like depends on the text color and the interface text scale: the same ones need no new pass
 - (void)applyThemeIfChanged {
-    NSString *key = [NSString stringWithFormat:@"%@|%d|%.1f", [YZTheme barInkColor], [YZTheme isClassic] ? 1 : 0, [YZTheme boldSystemFontOfSize:22].pointSize];
+    NSString *key = [NSString stringWithFormat:@"%@|%d|%.1f", [YZTheme barInkColor], [YZSettings design], [YZTheme boldSystemFontOfSize:22].pointSize];
     if ([key isEqualToString:_appliedKey])
         return;
     [self applyTheme];
@@ -397,10 +426,13 @@ static const CGFloat YZToggleThumb = 24;
 
 - (void)applyTheme {
     [_appliedKey release];
-    _appliedKey = [[NSString stringWithFormat:@"%@|%d|%.1f", [YZTheme barInkColor], [YZTheme isClassic] ? 1 : 0, [YZTheme boldSystemFontOfSize:22].pointSize] retain];
+    _appliedKey = [[NSString stringWithFormat:@"%@|%d|%.1f", [YZTheme barInkColor], [YZSettings design], [YZTheme boldSystemFontOfSize:22].pointSize] retain];
     [_arrow setImage:[YZTheme barIcon:YZIconBack size:24 disabled:NO] forState:UIControlStateNormal];
     [_arrow applyTheme];
-    _label.font = [YZTheme boldSystemFontOfSize:22];
+    // the title of ios 7 to 12 stands in the middle of the bar in a smaller type, the back arrow keeps the left edge
+    BOOL flat = [YZTheme isFlat];
+    _label.font = flat ? [UIFont boldSystemFontOfSize:17] : [YZTheme boldSystemFontOfSize:22];
+    _label.textAlignment = flat ? YZTextAlignmentCenter : YZTextAlignmentLeft;
     _label.textColor = [YZTheme barInkColor];
     if ([YZTheme isClassic])
         [YZClassic stampLabel:_label];
@@ -415,7 +447,10 @@ static const CGFloat YZToggleThumb = 24;
     [super layoutSubviews];
     CGFloat height = self.bounds.size.height;
     _arrow.frame = CGRectMake(0, (height - 40) / 2, 48, 40);
-    _label.frame = CGRectMake(52, 0, MAX((CGFloat)0, self.bounds.size.width - 52 - 8), height);
+    if ([YZTheme isFlat])
+        _label.frame = CGRectMake(52, 0, MAX((CGFloat)0, self.bounds.size.width - 2 * 52), height);
+    else
+        _label.frame = CGRectMake(52, 0, MAX((CGFloat)0, self.bounds.size.width - 52 - 8), height);
 }
 @end
 

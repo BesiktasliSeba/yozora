@@ -57,6 +57,8 @@ typedef enum {
 @interface YZTheme : NSObject
 /* the classic design is on: lit glossy surfaces, an accent colored bar, small corners */
 + (BOOL)isClassic;
+/* the flat design: the white bars of Safari on ios 7 with a gray field and the accent on the glyphs */
++ (BOOL)isFlat;
 /* the ground of the start page in the classic design: white linen on the light theme, black linen on the dark ones, a
    tile that repeats. the modern design keeps the flat surface color */
 + (UIColor *)linenColor;

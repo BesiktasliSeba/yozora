@@ -39,7 +39,11 @@
    the edge lines are the ones of the system. the modern design is the flat toolbar color */
 @interface YZSystemBarView : YZGradientView {
     UIToolbar *_system;
+    UIView *_hairline;
+    BOOL _hairlineAtTop;
 }
+/* the flat design ends a bar in a hairline: on its lower edge, or on its upper edge for the bar at the bottom */
+@property(nonatomic, assign) BOOL hairlineAtTop;
 /* takes the colors of the theme and the accent again */
 - (void)applyTheme;
 @end

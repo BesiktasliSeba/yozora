@@ -115,8 +115,13 @@ static NSInteger YZDesignCurrent = -1;
 
 + (YZDesign)design {
     if (YZDesignCurrent < 0) {
-        BOOL classic = [self classicDesignAvailable] && [self integerForKey:YZDesignKey defaultValue:YZDesignModern] == YZDesignClassic;
-        YZDesignCurrent = classic ? YZDesignClassic : YZDesignModern;
+        NSInteger stored = [self integerForKey:YZDesignKey defaultValue:YZDesignModern];
+        if (stored == YZDesignClassic && [self classicDesignAvailable])
+            YZDesignCurrent = YZDesignClassic;
+        else if (stored == YZDesignFlat && [self flatDesignAvailable])
+            YZDesignCurrent = YZDesignFlat;
+        else
+            YZDesignCurrent = YZDesignModern;
     }
     return (YZDesign)YZDesignCurrent;
 }

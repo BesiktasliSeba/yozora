@@ -7,6 +7,10 @@ static NSDictionary *YZEnglish(void) {
         return table;
     table = [[NSDictionary alloc] initWithObjectsAndKeys:
         @"Address of the page", @"Адрес страницы",
+        @"Flat", @"Плоское",
+        @"White bars and a gray address field, as in Safari on iOS 7, in the colors of Yozora", @"Белые панели и серое поле адреса, как в Safari на iOS 7, в цветах Yozora",
+        @"The flat design is supported on iOS 5 to 15", @"Плоское оформление поддерживается на iOS с 5 по 15",
+        @"Private", @"Приватный",
         @"Wikipedia", @"Википедия",
         @"Tabs", @"Вкладки",
         @"Tabs were not saved", @"Вкладки не сохранены",
@@ -623,6 +627,10 @@ static NSDictionary *YZJapanese(void) {
         @"開いているウィンドウが多すぎます", @"Слишком много открытых окон",
         @"このファイルをダウンロードできませんでした", @"Этот файл не удалось загрузить",
         @"マスコットの発光", @"Свечение маскота",
+        @"フラット", @"Плоское",
+        @"iOS 7のSafariのような白いバーとグレーのアドレス欄を、Yozoraの配色で", @"Белые панели и серое поле адреса, как в Safari на iOS 7, в цветах Yozora",
+        @"フラットデザインはiOS 5〜15で対応しています", @"Плоское оформление поддерживается на iOS с 5 по 15",
+        @"プライベート", @"Приватный",
         nil];
     return table;
 }

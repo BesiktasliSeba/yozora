@@ -89,8 +89,8 @@ static const CGFloat YZAddWidth = 48;
     [_add setImage:[YZTheme barIcon:YZIconPlus size:24 disabled:NO] forState:UIControlStateNormal];
     for (YZTabChip *chip in _chips) {
         // the classic chip is a lit tab: the chosen one pale, the others sunk into the bar
-        chip.layer.cornerRadius = classic ? 7 : 14;
-        chip.backgroundColor = chip->selected ? [YZTheme cardColor] : (classic ? [UIColor colorWithWhite:0 alpha:0.22f] : [UIColor clearColor]);
+        chip.layer.cornerRadius = classic ? 7 : [YZTheme isFlat] ? 8 : 14;
+        chip.backgroundColor = chip->selected ? ([YZTheme isFlat] ? [YZTheme fieldColor] : [YZTheme cardColor]) : (classic ? [UIColor colorWithWhite:0 alpha:0.22f] : [UIColor clearColor]);
         UIColor *rest = classic ? [YZTheme barSubtleInkColor] : [YZTheme subtleTextColor];
         chip->title.textColor = chip->selected ? [YZTheme textColor] : (classic ? [YZTheme barInkColor] : rest);
         [chip->close setImage:[YZTheme icon:YZIconClose size:16 color:chip->selected ? [YZTheme subtleTextColor] : rest] forState:UIControlStateNormal];

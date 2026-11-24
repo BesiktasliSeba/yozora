@@ -162,9 +162,13 @@ static const CGFloat YZPopupWidth = 304;
         [scrim release];
     }];
     _panel.alpha = 0;
-    _panel.transform = CGAffineTransformMakeScale(0.4f, 0.4f);
+    // the flat design opens a menu the way ios 7 does, from just under its size, where the modern one grows from a point
+    CGFloat opening = [YZTheme isFlat] ? 0.95f : 0.4f;
+    _panel.transform = CGAffineTransformMakeScale(opening, opening);
     YZMotionAnimateView(_panel, CGAffineTransformIdentity, 1, YOZORA_MOTION_WOBBLE, 0, nil);
-    // the glyphs wobble in one after the other while the card opens
+    // the glyphs wobble in one after the other while the card opens, the flat design keeps them still
+    if ([YZTheme isFlat])
+        return;
     NSUInteger animated = 0;
     for (UIView *row in [[_panel viewWithTag:9] subviews]) {
         if (![row isKindOfClass:[YZPopupRow class]])
@@ -213,7 +217,7 @@ static const CGFloat YZPopupWidth = 304;
         finish(YES);
         return;
     }
-    YZMotionAnimateView(_panel, CGAffineTransformMakeScale(0.7f, 0.7f), 0, YOZORA_MOTION_DISMISS, 0, finish);
+    YZMotionAnimateView(_panel, CGAffineTransformMakeScale([YZTheme isFlat] ? 0.96f : 0.7f, [YZTheme isFlat] ? 0.96f : 0.7f), 0, YOZORA_MOTION_DISMISS, 0, finish);
 }
 
 - (void)dismissAnimated:(BOOL)animated {
