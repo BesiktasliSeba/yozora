@@ -38,7 +38,18 @@ def fixture(root, members):
     return archive, source
 
 
+def check_webkit_version_in_plist():
+    # the about screen shows the engine version of Info.plist, which has to be the one the sources are pinned to
+    import json
+    import plistlib
+    root = Path(__file__).resolve().parent.parent
+    pinned = json.loads((root / "core/source.json").read_text())["version"]
+    shown = plistlib.loads((root / "app/Info.plist").read_bytes()).get("YozoraWebKitVersion")
+    assert shown == pinned, f"Info.plist YozoraWebKitVersion {shown!r} is not the pinned webkit {pinned!r}"
+
+
 def main():
+    check_webkit_version_in_plist()
     with tempfile.TemporaryDirectory(prefix="yozora-source-") as temporary:
         root = Path(temporary)
         sources = root / "sources"
@@ -76,7 +87,7 @@ def main():
         request = urllib.request.Request("https://example.org/source")
         handler = fetch.HTTPSRedirectHandler()
         reject(handler.redirect_request, request, None, 302, "Found", {}, "http://example.org/source")
-    print("core source: checksum, size, cache integrity, extraction bounds and HTTPS redirects passed")
+    print("core source: checksum, size, cache integrity, extraction bounds, HTTPS redirects and the webkit version of Info.plist passed")
 
 
 if __name__ == "__main__":

@@ -2979,12 +2979,23 @@ static NSArray *YZEngineLogos(void) {
 
 - (void)back { [self.navigationController popViewControllerAnimated:YES]; }
 
+// the engine version is written into Info.plist from the pin of the sources, a test keeps the two equal
+- (NSString *)webKitVersion {
+    NSString *version = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"YozoraWebKitVersion"];
+    if (![version isKindOfClass:[NSString class]] || ![version length]) {
+        NSLog(@"yozora: Info.plist has no YozoraWebKitVersion");
+        return @"?";
+    }
+    return version;
+}
+
 // the links: the title, the address under it
 - (NSArray *)links {
     return [NSArray arrayWithObjects:
         [NSArray arrayWithObjects:@"GitHub", @"https://github.com/sqmrak/yozora", @"https://github.com/sqmrak/yozora", [NSNumber numberWithInt:YZIconCode], nil],
         [NSArray arrayWithObjects:YZT(@"Telegram-канал"), @"@sqmrakdev", @"https://t.me/sqmrakdev", [NSNumber numberWithInt:YZIconShare], nil],
-        // no address: the row only shows the names
+        // no address: the row shows what it names. the version of the engine is the one this build was made from, `core/source.json`
+        [NSArray arrayWithObjects:@"WebKit", [self webKitVersion], @"", [NSNumber numberWithInt:YZIconCode], nil],
         [NSArray arrayWithObjects:YZT(@"Официальные тестеры"), YZAboutTesters, @"", [NSNumber numberWithInt:YZIconInfo], nil],
         nil];
 }

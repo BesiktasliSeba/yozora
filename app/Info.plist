@@ -69,6 +69,7 @@
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
     <key>CFBundleVersion</key><string>1</string>
     <key>CFBundleShortVersionString</key><string>1.4.0-stable</string>
+    <key>YozoraWebKitVersion</key><string>2.54.3</string>
     <key>MinimumOSVersion</key><string>5.0</string>
     <key>LSRequiresIPhoneOS</key><true/>
     <!-- the log screen only: pages never see this font, the core catalog reads app/fonts -->
