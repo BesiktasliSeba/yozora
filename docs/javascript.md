@@ -9,6 +9,7 @@ javascriptcore of the same revision as webcore, linked statically.
 - when the system refuses executable memory the assembler interpreter of the same binary runs, there is no second build for it
 - `YOZORA_ARMV7_JIT=0` at build time builds the c loop instead of the jit, `YOZORA_NO_JIT=1` turns the jit off at run time
 - ftl is off, there is no llvm on the phone
+- on armv7 the dfg compiles on the thread that runs the script (`useConcurrentJIT` off, the environment variable `JSC_useConcurrentJIT` still wins): two crashes of 1.3.0 on an iPad 4 ended in generated code, one reading at 0x64 inside optimized code and one jumping to the first byte of a page that was not executable, both from a call out of the interpreter into a function, and the compiler thread and the collector are the other writers of that memory. this is a mitigation of a cause that was not found, it was not run on a device. the arm64 slice keeps the concurrent compiler
 
 the jit needs memory that is both writable and executable. the entitlement is signed in `tools/yozora-jit.entitlements`, and the core reserves the executable region early, on the core thread, before uikit starts.
 

@@ -227,6 +227,7 @@ extern "C" void yozora_jit_info_read(yozora_jit_info* info)
     info->dfg = info->active && JSC::Options::useDFGJIT() ? 1 : 0;
 #endif
     info->regexp = info->active && JSC::Options::useRegExpJIT() ? 1 : 0;
+    info->concurrent = info->active && JSC::Options::useConcurrentJIT() ? 1 : 0;
     if (info->active) {
         info->pool_used = JSC::ExecutableAllocator::committedByteCount();
         // the size ExecutableAllocator.cpp reserves for this cpu when the option is not set (jump islands are on for thumb2 and arm64)
@@ -266,6 +267,14 @@ static void initialize_javascript_on_core()
 #endif
         // the regexp jit passes the script tests on the armv7 baseline build and runs regexps 5 times faster
         JSC::Options::useRegExpJIT() = jit;
+#if CPU(ARM_THUMB2)
+        // two armv7 crashes of 1.3.0 on an iPad 4 (ios 10.3.3) ended in generated code: one read at 0x64 inside optimized code, one jumped to the
+        // first byte of a page that was not executable, both from a call out of the interpreter into a function. the dfg compiler thread and the
+        // collector are the two writers of that memory besides the script thread, so on this cpu a function is compiled on the thread that runs it.
+        // JSC_useConcurrentJIT in the environment still decides when it is set
+        if (!std::getenv("JSC_useConcurrentJIT"))
+            JSC::Options::useConcurrentJIT() = false;
+#endif
 #endif
     });
 #if ENABLE(JIT)
