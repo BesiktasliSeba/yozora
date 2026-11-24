@@ -97,11 +97,13 @@ files = [
   "app/YZMotion.m", "app/YZSystemSheet.m", "app/YZControls.m", "app/YZFavicons.m", "app/YZStore.m", "app/YZTab.m", "app/YZHomeView.m",
   "app/YZErrorPage.m", "app/YZTabsView.m", "app/YZMenuView.m", "app/YZPopupMenu.m", "app/YZAppIcon.m", "app/YZClassic.m", "app/YZListController.m", "app/YZDownloadsController.m",
   "app/YZSettings.m", "app/YZSettingsController.m", "app/YZStrings.m", "app/YZLocation.m", "app/YZVideoController.m",
-  "app/YZAccentEditor.m", "app/YZTintPicker.m", "app/YZMascotPreview.m", "app/YZDnsPopup.m", "app/YZWaveSeekBar.m", "app/YZPlayerViews.m", "app/YZStreamProxy.m", "app/YZUpdate.m", "app/YZUpdateUI.m", "app/YZMediaPlayer.m",
+  "app/YZAccentEditor.m", "app/YZTintPicker.m", "app/YZMascotPreview.m", "app/YZBackground.m", "app/YZBackgroundPreview.m", "app/YZDnsPopup.m", "app/YZWaveSeekBar.m", "app/YZPlayerViews.m", "app/YZStreamProxy.m", "app/YZUpdate.m", "app/YZUpdateUI.m", "app/YZMediaPlayer.m",
   "app/YZFindBar.m", "app/YZSheets.m", "app/YZDialog.m", "app/YZErrorPopup.m", "app/YZShape.m", "app/YZLog.m",
   "app/YZCrash.m", "app/YZLogController.m", "app/YZSystemNotifier.m", "app/YZSitesController.m",
   "app/YZAdblockController.m", "app/YZDebugOverlay.m", "app/YZTranslation.m", "app/YZTranslateBar.m",
   "app/YZTranslateSheet.m", "app/YZColorPicker.m", "app/YZSplashController.m", "app/YZTabStrip.m", "app/YZTabPager.m", "app/YZTabStack.m", "app/YZSignIn.m",
+  # the blur of the start page photo is used by the app only, so it is built here and not in libYozoraCore (which needs a webkit build)
+  "core/yozora_blur.c",
 ]
 
 
@@ -127,11 +129,13 @@ files = [
   "app/YZMotion.m", "app/YZSystemSheet.m", "app/YZControls.m", "app/YZFavicons.m", "app/YZStore.m", "app/YZTab.m", "app/YZHomeView.m",
   "app/YZErrorPage.m", "app/YZTabsView.m", "app/YZMenuView.m", "app/YZPopupMenu.m", "app/YZAppIcon.m", "app/YZClassic.m", "app/YZListController.m", "app/YZDownloadsController.m",
   "app/YZSettings.m", "app/YZSettingsController.m", "app/YZStrings.m", "app/YZLocation.m", "app/YZVideoController.m",
-  "app/YZAccentEditor.m", "app/YZTintPicker.m", "app/YZMascotPreview.m", "app/YZDnsPopup.m", "app/YZWaveSeekBar.m", "app/YZPlayerViews.m", "app/YZStreamProxy.m", "app/YZUpdate.m", "app/YZUpdateUI.m", "app/YZMediaPlayer.m",
+  "app/YZAccentEditor.m", "app/YZTintPicker.m", "app/YZMascotPreview.m", "app/YZBackground.m", "app/YZBackgroundPreview.m", "app/YZDnsPopup.m", "app/YZWaveSeekBar.m", "app/YZPlayerViews.m", "app/YZStreamProxy.m", "app/YZUpdate.m", "app/YZUpdateUI.m", "app/YZMediaPlayer.m",
   "app/YZFindBar.m", "app/YZSheets.m", "app/YZDialog.m", "app/YZErrorPopup.m", "app/YZShape.m", "app/YZLog.m",
   "app/YZCrash.m", "app/YZLogController.m", "app/YZSystemNotifier.m", "app/YZSitesController.m",
   "app/YZAdblockController.m", "app/YZDebugOverlay.m", "app/YZTranslation.m", "app/YZTranslateBar.m",
   "app/YZTranslateSheet.m", "app/YZColorPicker.m", "app/YZSplashController.m", "app/YZTabStrip.m", "app/YZTabPager.m", "app/YZTabStack.m", "app/YZSignIn.m",
+  # the blur of the start page photo is used by the app only, so it is built here and not in libYozoraCore (which needs a webkit build)
+  "core/yozora_blur.c",
 ]
 
 
@@ -159,11 +163,13 @@ files = [
   "app/YZMotion.m", "app/YZSystemSheet.m", "app/YZControls.m", "app/YZFavicons.m", "app/YZStore.m", "app/YZTab.m", "app/YZHomeView.m",
   "app/YZErrorPage.m", "app/YZTabsView.m", "app/YZMenuView.m", "app/YZPopupMenu.m", "app/YZAppIcon.m", "app/YZClassic.m", "app/YZListController.m", "app/YZDownloadsController.m",
   "app/YZSettings.m", "app/YZSettingsController.m", "app/YZStrings.m", "app/YZLocation.m", "app/YZVideoController.m",
-  "app/YZAccentEditor.m", "app/YZTintPicker.m", "app/YZMascotPreview.m", "app/YZDnsPopup.m", "app/YZWaveSeekBar.m", "app/YZPlayerViews.m", "app/YZStreamProxy.m", "app/YZUpdate.m", "app/YZUpdateUI.m", "app/YZMediaPlayer.m",
+  "app/YZAccentEditor.m", "app/YZTintPicker.m", "app/YZMascotPreview.m", "app/YZBackground.m", "app/YZBackgroundPreview.m", "app/YZDnsPopup.m", "app/YZWaveSeekBar.m", "app/YZPlayerViews.m", "app/YZStreamProxy.m", "app/YZUpdate.m", "app/YZUpdateUI.m", "app/YZMediaPlayer.m",
   "app/YZFindBar.m", "app/YZSheets.m", "app/YZDialog.m", "app/YZErrorPopup.m", "app/YZShape.m", "app/YZLog.m",
   "app/YZCrash.m", "app/YZLogController.m", "app/YZSystemNotifier.m", "app/YZSitesController.m",
   "app/YZAdblockController.m", "app/YZDebugOverlay.m", "app/YZTranslation.m", "app/YZTranslateBar.m",
   "app/YZTranslateSheet.m", "app/YZColorPicker.m", "app/YZSplashController.m", "app/YZTabStrip.m", "app/YZTabPager.m", "app/YZTabStack.m", "app/YZSignIn.m",
+  # the blur of the start page photo is used by the app only, so it is built here and not in libYozoraCore (which needs a webkit build)
+  "core/yozora_blur.c",
 ]
 
 
@@ -2163,6 +2169,11 @@ sanitize = "address,undefined"
 
 [test.icons]
 src = ["core/yozora_icons.c", "core/yozora_playlist.c", "tests/test_icons.c"]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+sanitize = "address,undefined"
+
+[test.blur]
+src = ["core/yozora_blur.c", "tests/test_blur.c"]
 cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
 sanitize = "address,undefined"
 

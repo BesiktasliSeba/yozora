@@ -80,3 +80,9 @@ every archive is fetched once and checked by sha-256 against `core/*.json` befor
 - `tools/make_home_art.py`: the cut out sticker and the wordmark mask of the start page
 - `tools/make_launch_images.py`: launch images for every iphone and ipad screen and the `UILaunchImages` entries
 - `tools/make_ui_icons.py`: interface glyph masks from `tools/material-symbols` and the marks of the search engines from `tools/logos`, needs `rsvg-convert` and pillow
+
+## the c files built into the app
+
+some of the c code is used by the app only and is compiled with it (`meow.toml`, the lists of `app`, `app-armv7`, `app-arm64`) instead of into `libYozoraCore`, which needs a webkit build:
+
+- `core/yozora_blur.c`: the blur of the start page photo, see [core](core.md) and [ui](ui.md)

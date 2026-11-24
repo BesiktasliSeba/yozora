@@ -1,6 +1,7 @@
 #import "YZHomeView.h"
 #import "YZClassic.h"
 #import "YZCompat.h"
+#import "YZBackground.h"
 #import "YZFavicons.h"
 #import "YZMotion.h"
 #import "YZStrings.h"
@@ -111,8 +112,100 @@ static const CGFloat YZTileSide = 16;
     [self setNeedsLayout];
 }
 
+// the lettering follows the photo: gray on a light one is hard to read. the photo is judged as shown (blurred), light above this lightness
+static const CGFloat YZLightPhoto = 0.55f;
+
+- (UIColor *)headingInk {
+    if (_photoInk == 1)
+        return [UIColor colorWithWhite:0.08f alpha:1];
+    return _photoInk == 2 ? [UIColor colorWithWhite:0.98f alpha:1] : [YZTheme textColor];
+}
+
+- (UIColor *)captionInk {
+    if (_photoInk == 1)
+        return [UIColor colorWithWhite:0.2f alpha:1];
+    return _photoInk == 2 ? [UIColor colorWithWhite:0.9f alpha:1] : [YZTheme subtleTextColor];
+}
+
+// the tiles and headings take their colors again when the kind of photo changes
+- (void)adaptInkToPicture:(UIImage *)picture {
+    int ink = picture ? ([YZBackground lightnessOfImage:picture] > YZLightPhoto ? 1 : 2) : 0;
+    if (ink == _photoInk)
+        return;
+    _photoInk = ink;
+    _contentDirty = YES;
+    _builtWidth = 0;
+    [self setNeedsLayout];
+}
+
+// the private session keeps the plain surface: its note is set for it
+- (void)applyBackdrop {
+    if (_previewing)
+        return;
+    UIImage *picture = [YZTheme isIncognito] ? nil : [YZBackground image];
+    if (!picture) {
+        _backdrop.hidden = YES;
+        _backdrop.image = nil;
+        [self adaptInkToPicture:nil];
+        return;
+    }
+    if (!_backdrop) {
+        _backdrop = [[UIImageView alloc] initWithFrame:self.bounds];
+        _backdrop.contentMode = UIViewContentModeScaleAspectFill;
+        _backdrop.clipsToBounds = YES;
+        _backdrop.userInteractionEnabled = NO;
+        [self insertSubview:_backdrop atIndex:0];
+    }
+    _backdrop.hidden = NO;
+    UIImage *shown = [YZBackground imageBlurredBy:[YZSettings homeBackgroundBlur]];
+    _backdrop.image = shown;
+    [self adaptInkToPicture:shown];
+    _backdrop.alpha = 1;
+    _backdrop.frame = self.bounds;
+}
+
+- (void)showModelWithPicture:(UIImage *)picture dissolve:(BOOL)dissolve {
+    BOOL changed = !_previewing;
+    _previewing = YES;
+    self.userInteractionEnabled = NO;
+    self.showsVerticalScrollIndicator = NO;
+    if (changed) {
+        // the private note and the tiles are told apart by the session, a model shows the tiles
+        _contentDirty = YES;
+        _builtWidth = 0;
+        [self setNeedsLayout];
+    }
+    if (!picture) {
+        _backdrop.hidden = YES;
+        _backdrop.image = nil;
+        [self adaptInkToPicture:nil];
+        return;
+    }
+    if (!_backdrop) {
+        _backdrop = [[UIImageView alloc] initWithFrame:self.bounds];
+        _backdrop.contentMode = UIViewContentModeScaleAspectFill;
+        _backdrop.clipsToBounds = YES;
+        _backdrop.userInteractionEnabled = NO;
+        [self insertSubview:_backdrop atIndex:0];
+    }
+    _backdrop.hidden = NO;
+    [self adaptInkToPicture:picture];
+    if (_backdrop.image != picture) {
+        if (dissolve && self.window) {
+            CATransition *fade = [CATransition animation];
+            fade.type = kCATransitionFade;
+            fade.duration = 0.35;
+            [_backdrop.layer addAnimation:fade forKey:@"yz.photo"];
+        }
+        _backdrop.image = picture;
+    }
+    _backdrop.alpha = 1;
+    _backdrop.frame = self.bounds;
+}
+
 - (void)applyTheme {
     self.backgroundColor = [YZTheme isClassic] ? [YZTheme linenColor] : [YZTheme surfaceColor];
+    [self applyBackdrop];
     // the mascot is a setting like the theme, and the picture is only made when the brand is first laid out
     _brandImage.image = [YZTheme mascotImage:@"hero"];
     _contentDirty = YES;
@@ -191,7 +284,7 @@ static const CGFloat YZTileSide = 16;
         tile->letter.layer.borderColor = [[YZTheme separatorColor] CGColor];
     }
     tile->caption.text = [record.title length] ? record.title : name;
-    tile->caption.textColor = [YZTheme subtleTextColor];
+    tile->caption.textColor = [self captionInk];
 }
 
 - (CGFloat)layoutSection:(NSString *)heading records:(NSArray *)records tiles:(NSMutableArray *)tiles
@@ -217,7 +310,7 @@ static const CGFloat YZTileSide = 16;
     title.frame = CGRectMake(headingLeft, top, MAX((CGFloat)0, width - YZTileSide - headingLeft), 22);
     if (_contentDirty) {
         title.text = heading;
-        title.textColor = [YZTheme textColor];
+        title.textColor = [self headingInk];
     }
     top += 32;
     for (NSUInteger i = 0; i < shown; ++i) {
@@ -262,7 +355,7 @@ static const CGFloat YZTileSide = 16;
     _brandImage.hidden = NO;
     _brandGlow.hidden = ![YZSettings mascotGlow];
     _brandName.hidden = NO;
-    _brandName.textColor = [YZTheme textColor];
+    _brandName.textColor = [self headingInk];
     // a soft glow of the accent around the mascot: a finished picture behind it, not a shadow cast by its contour
     _brandGlow.image = [YZTheme glowImageWithColor:[YZTheme accentColor]];
     CGFloat width = self.bounds.size.width;
@@ -281,7 +374,7 @@ static const CGFloat YZTileSide = 16;
 
 // the private session shows its note in place of the tiles. returns whether it did
 - (BOOL)layoutHero {
-    BOOL incognito = [YZTheme isIncognito];
+    BOOL incognito = !_previewing && [YZTheme isIncognito];
     _heroDisc.hidden = !incognito;
     _heroTitle.hidden = !incognito;
     _heroText.hidden = !incognito;
@@ -341,6 +434,9 @@ static const CGFloat YZTileSide = 16;
 
 - (void)layoutSubviews {
     [super layoutSubviews];
+    // the bounds origin is the scroll offset: the photo stays where the screen is
+    if (_backdrop && !_backdrop.hidden && !CGRectEqualToRect(_backdrop.frame, self.bounds))
+        _backdrop.frame = self.bounds;
     // scrolling does not change tile geometry or content
     if (self.bounds.size.width < 1 || _builtWidth == self.bounds.size.width)
         return;
@@ -373,6 +469,7 @@ static const CGFloat YZTileSide = 16;
     [_bookmarkTiles release];
     [_sitesHeading release];
     [_bookmarksHeading release];
+    [_backdrop release];
     [_brandGlow release];
     [_brandImage release];
     [_brandName release];

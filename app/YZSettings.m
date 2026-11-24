@@ -24,6 +24,8 @@ static NSString *const YZDesignKey = @"YZDesign";
 static NSString *const YZCrispScrollingKey = @"YZCrispScrolling";
 static NSString *const YZMascotGlowKey = @"YZMascotGlow";
 static NSString *const YZDnsServerKey = @"YZDnsServer";
+static NSString *const YZHomeBackgroundBlurKey = @"YZHomeBackgroundBlur";
+static NSString *const YZHomeBackgroundStampKey = @"YZHomeBackgroundStamp";
 static NSString *const YZWebFontsKey = @"YZWebFonts";
 static NSString *const YZTranslateTargetKey = @"YZTranslateTarget";
 static NSString *const YZTranslateNeverKey = @"YZTranslateNever";
@@ -201,6 +203,17 @@ static NSInteger YZDesignCurrent = -1;
 // off until asked for: the half resolution tile keeps a slow phone from showing blank strips while it scrolls
 + (BOOL)crispScrolling { return [self boolForKey:YZCrispScrollingKey defaultValue:NO]; }
 + (void)setCrispScrolling:(BOOL)enabled { [self storeBool:enabled forKey:YZCrispScrollingKey]; }
+
++ (NSInteger)homeBackgroundBlur {
+    return MIN((NSInteger)100, MAX((NSInteger)0, [self integerForKey:YZHomeBackgroundBlurKey defaultValue:40]));
+}
++ (void)setHomeBackgroundBlur:(NSInteger)percent { [self storeInteger:MIN((NSInteger)100, MAX((NSInteger)0, percent)) forKey:YZHomeBackgroundBlurKey]; }
++ (NSInteger)homeBackgroundStamp { return [self integerForKey:YZHomeBackgroundStampKey defaultValue:0]; }
++ (void)noteHomeBackgroundChanged:(BOOL)present {
+    // seconds are not enough when two pictures are stored in one second, the stamp only has to differ from the last one
+    NSInteger stamp = present ? MAX((NSInteger)[[NSDate date] timeIntervalSince1970], [self homeBackgroundStamp] + 1) : 0;
+    [self storeInteger:stamp forKey:YZHomeBackgroundStampKey];
+}
 
 + (BOOL)mascotGlow { return [self boolForKey:YZMascotGlowKey defaultValue:YES]; }
 + (void)setMascotGlow:(BOOL)enabled { [self storeBool:enabled forKey:YZMascotGlowKey]; }

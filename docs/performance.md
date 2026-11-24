@@ -36,6 +36,7 @@ measurements were taken on real armv7 hardware with about 500 MB and two cores, 
 - an animation of opacity or transform runs in core animation
 - cards, tiles and rows are reused, entrances are limited to eight items
 - bytecode of big scripts is cached, the key is text and host
+- the start page photo is blurred once per stamp and percent, on a picture shrunk so that the box of a pass is 8 pixels at most
 - the home page keeps its headings and at most eight buttons per section and changes their targets
 
 ## the cost of the blocker
