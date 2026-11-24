@@ -23,6 +23,7 @@ static NSString *const YZTabsLayoutKey = @"YZTabsLayout";
 static NSString *const YZDesignKey = @"YZDesign";
 static NSString *const YZCrispScrollingKey = @"YZCrispScrolling";
 static NSString *const YZMascotGlowKey = @"YZMascotGlow";
+static NSString *const YZDnsServerKey = @"YZDnsServer";
 static NSString *const YZWebFontsKey = @"YZWebFonts";
 static NSString *const YZTranslateTargetKey = @"YZTranslateTarget";
 static NSString *const YZTranslateNeverKey = @"YZTranslateNever";
@@ -424,6 +425,31 @@ static NSString *YZAdblockRulesPath(void) {
     return YES;
 }
 
+// a stored address is read through the core again, an edited preferences file cannot hand the loader anything the settings would refuse
++ (NSString *)dnsServer {
+    NSString *stored = [[NSUserDefaults standardUserDefaults] stringForKey:YZDnsServerKey];
+    char url[YOZORA_DNS_CAPACITY];
+    if (![stored length] || yozora_dns_normalize([stored UTF8String], url, sizeof url) != YOZORA_DNS_OK)
+        return @"";
+    return [NSString stringWithUTF8String:url];
+}
+
++ (yozora_dns_status)setDnsServerText:(NSString *)text {
+    char url[YOZORA_DNS_CAPACITY];
+    yozora_dns_status status = yozora_dns_normalize([(text ? text : @"") UTF8String], url, sizeof url);
+    if (status != YOZORA_DNS_OK && status != YOZORA_DNS_EMPTY)
+        return status;
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    if (status == YOZORA_DNS_EMPTY)
+        [defaults removeObjectForKey:YZDnsServerKey];
+    else
+        [defaults setObject:[NSString stringWithUTF8String:url] forKey:YZDnsServerKey];
+    [defaults synchronize];
+    [self applyToCore];
+    [[NSNotificationCenter defaultCenter] postNotificationName:YZSettingsDidChangeNotification object:self];
+    return status;
+}
+
 + (void)applyToCore {
     static BOOL rulesGiven;
     if (!rulesGiven) {
@@ -447,6 +473,7 @@ static NSString *YZAdblockRulesPath(void) {
     yozora_set_tracker_blocking([self blockTrackers] ? 1 : 0);
     yozora_set_economy_raster([self economyRaster] ? 1 : 0);
     yozora_set_crisp_scrolling([self crispScrolling] ? 1 : 0);
+    yozora_dns_set([[self dnsServer] UTF8String]);
 }
 
 @end

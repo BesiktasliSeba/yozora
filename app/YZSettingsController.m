@@ -4,6 +4,7 @@
 #import "YZCompat.h"
 #import "YZAccentEditor.h"
 #import "YZTintPicker.h"
+#import "YZDnsPopup.h"
 #import "YZMascotPreview.h"
 #import "YZAppIcon.h"
 #import "YZClassic.h"
@@ -38,6 +39,7 @@ typedef enum {
     YZRowBlockTrackers,
     YZRowAdblockRules,
     YZRowSitePermissions,
+    YZRowDns,
     YZRowBlockThirdPartyCookies,
     YZRowSaveHistory,
     YZRowClearHistory,
@@ -1281,7 +1283,7 @@ static NSArray *YZEngineTints(void) {
     NSNumber *(^row)(YZRow) = ^(YZRow kind) { return [NSNumber numberWithInt:kind]; };
     return [NSArray arrayWithObjects:
         [self generalSection:row],
-        [NSArray arrayWithObjects:YZT(@"Приватность и безопасность"), row(YZRowBlockTrackers), row(YZRowAdblockRules), row(YZRowSitePermissions), row(YZRowBlockThirdPartyCookies),
+        [NSArray arrayWithObjects:YZT(@"Приватность и безопасность"), row(YZRowBlockTrackers), row(YZRowAdblockRules), row(YZRowSitePermissions), row(YZRowDns), row(YZRowBlockThirdPartyCookies),
          row(YZRowSaveHistory), row(YZRowClearHistory), row(YZRowClearSiteData), nil],
         [NSArray arrayWithObjects:YZT(@"Страницы"), row(YZRowJavascript), row(YZRowEconomy), row(YZRowCrispScrolling), row(YZRowReduceMotion), row(YZRowHideBars), row(YZRowWebFonts), nil],
         [NSArray arrayWithObjects:YZT(@"Для разработчиков"), row(YZRowDebug), row(YZRowLogging), row(YZRowLogOpen), row(YZRowZombies), row(YZRowUnlockDesigns), row(YZRowJit), row(YZRowJitState), nil],
@@ -1549,6 +1551,13 @@ static NSArray *YZEngineTints(void) {
 }
 
 // the names of the mascots are names, they stay as they are in every language
+// the server the pages are resolved through: the name of a known one, the host of another, or the system
+- (NSString *)dnsName {
+    char label[64];
+    yozora_dns_label([[YZSettings dnsServer] UTF8String], label, sizeof label);
+    return label[0] ? [NSString stringWithUTF8String:label] : YZT(@"Системный");
+}
+
 - (NSString *)mascotName {
     return YZMascotTitle([YZSettings mascot]);
 }
@@ -1598,6 +1607,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowBlockTrackers: return YZT(@"Блокировать рекламу и трекеры");
     case YZRowAdblockRules: return YZT(@"Правила блокировщика");
     case YZRowSitePermissions: return YZT(@"Разрешения сайтов");
+    case YZRowDns: return @"DNS";
     case YZRowBlockThirdPartyCookies: return YZT(@"Блокировать cookie сторонних сайтов");
     case YZRowSaveHistory: return YZT(@"Сохранять историю");
     case YZRowClearHistory: return YZT(@"Очистить историю");
@@ -1640,6 +1650,7 @@ static NSArray *YZEngineLogos(void) {
     }
     case YZRowAdblockRules: return YZT(@"Свои правила, как в списках Adblock Plus");
     case YZRowSitePermissions: return YZT(@"Место, уведомления и сайты без блокировщика");
+    case YZRowDns: return [self dnsName];
     case YZRowEconomy: return YZT(@"Страницы рисуются быстрее и мягче");
     case YZRowCrispScrolling: return YZT(@"Страницы не размываются на ходу, на медленном телефоне возможны пустые полосы");
     case YZRowReduceMotion: return YZT(@"Сайты анимируют меньше и реже");
@@ -1670,6 +1681,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowBlockTrackers: return YZIconShield;
     case YZRowAdblockRules: return YZIconCode;
     case YZRowSitePermissions: return YZIconLink;
+    case YZRowDns: return YZIconShield;
     case YZRowBlockThirdPartyCookies: return YZIconCookie;
     case YZRowSaveHistory: return YZIconHistory;
     case YZRowClearHistory: return YZIconDelete;
@@ -2110,6 +2122,12 @@ static NSArray *YZEngineLogos(void) {
         [rules release];
         break;
     }
+    case YZRowDns:
+        [YZDnsPopup presentInView:self.navigationController.view current:[YZSettings dnsServer] done:^(NSString *url) {
+            [YZSettings setDnsServerText:url];
+            [me changed];
+        }];
+        break;
     case YZRowSitePermissions: {
         YZSitesController *sites = [[YZSitesController alloc] init];
         [self.navigationController pushViewController:sites animated:YES];

@@ -691,5 +691,12 @@
       "before": "9de30effcfda66e62a640c1032cede1e74e4d7c349c1b9a9859b73bce5bed258",
       "after": "a2c88f99e1a6723ec593c68b9c3bbfe0c987538463e5641b82c9c7459794de81"
     }
+  ],
+  "webkit-yozora-dns": [
+    {
+      "path": "Source/WebCore/platform/network/curl/CurlRequest.cpp",
+      "before": "4940c7e651336be176fa3933a564ca4746e5ef1aa834aac51682e0ed37ecf253",
+      "after": "31add825ef56fdd78804e2d18b0b7a4cfaf5637c6c7881268052db8ec95bd2f8"
+    }
   ]
 }

@@ -13,6 +13,7 @@ yozora_lipo="${YOZORA_LIPO:-${yozora_tc}/lipo}"
 yozora_otool="${YOZORA_OTOOL:-${yozora_tc}/otool}"
 python3 -B "${yozora_root}/scripts/apply_core_patches.py" "${yozora_source}" webkit-ios
 python3 -B "${yozora_root}/scripts/apply_core_patches.py" "${yozora_source}" webkit-yozora
+python3 -B "${yozora_root}/scripts/apply_core_patches.py" "${yozora_source}" webkit-yozora-dns
 mkdir -p "${yozora_build}"
 for yozora_arch in armv7 arm64; do
     yozora_slice="${yozora_build}/${yozora_arch}"

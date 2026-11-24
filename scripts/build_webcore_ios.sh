@@ -51,7 +51,7 @@ yozora_gperf="${YOZORA_GPERF:-${YOZORA_CORE_TOOLS:-${yozora_deps}/host/tools}/bi
 [[ -x "${yozora_gperf}" ]] || { echo 'yozora: build host gperf with meow build core-tools' >&2; exit 1; }
 python3 -B "${yozora_root}/scripts/fetch_darwin_sources.py"
 python3 -B "${yozora_root}/scripts/fetch_network_sources.py"
-for yozora_patch in webkit-ios webkit-yozora webkit-yozora-ios; do
+for yozora_patch in webkit-ios webkit-yozora webkit-yozora-ios webkit-yozora-dns; do
     python3 -B "${yozora_root}/scripts/apply_core_patches.py" "${yozora_source}" "${yozora_patch}"
 done
 # YOZORA_SLICES limits the build to one slice, the universal archives need both

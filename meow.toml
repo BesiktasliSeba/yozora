@@ -97,7 +97,7 @@ files = [
   "app/YZMotion.m", "app/YZSystemSheet.m", "app/YZControls.m", "app/YZFavicons.m", "app/YZStore.m", "app/YZTab.m", "app/YZHomeView.m",
   "app/YZErrorPage.m", "app/YZTabsView.m", "app/YZMenuView.m", "app/YZPopupMenu.m", "app/YZAppIcon.m", "app/YZClassic.m", "app/YZListController.m", "app/YZDownloadsController.m",
   "app/YZSettings.m", "app/YZSettingsController.m", "app/YZStrings.m", "app/YZLocation.m", "app/YZVideoController.m",
-  "app/YZAccentEditor.m", "app/YZTintPicker.m", "app/YZMascotPreview.m", "app/YZWaveSeekBar.m", "app/YZPlayerViews.m", "app/YZStreamProxy.m", "app/YZUpdate.m", "app/YZUpdateUI.m", "app/YZMediaPlayer.m",
+  "app/YZAccentEditor.m", "app/YZTintPicker.m", "app/YZMascotPreview.m", "app/YZDnsPopup.m", "app/YZWaveSeekBar.m", "app/YZPlayerViews.m", "app/YZStreamProxy.m", "app/YZUpdate.m", "app/YZUpdateUI.m", "app/YZMediaPlayer.m",
   "app/YZFindBar.m", "app/YZSheets.m", "app/YZDialog.m", "app/YZErrorPopup.m", "app/YZShape.m", "app/YZLog.m",
   "app/YZCrash.m", "app/YZLogController.m", "app/YZSystemNotifier.m", "app/YZSitesController.m",
   "app/YZAdblockController.m", "app/YZDebugOverlay.m", "app/YZTranslation.m", "app/YZTranslateBar.m",
@@ -127,7 +127,7 @@ files = [
   "app/YZMotion.m", "app/YZSystemSheet.m", "app/YZControls.m", "app/YZFavicons.m", "app/YZStore.m", "app/YZTab.m", "app/YZHomeView.m",
   "app/YZErrorPage.m", "app/YZTabsView.m", "app/YZMenuView.m", "app/YZPopupMenu.m", "app/YZAppIcon.m", "app/YZClassic.m", "app/YZListController.m", "app/YZDownloadsController.m",
   "app/YZSettings.m", "app/YZSettingsController.m", "app/YZStrings.m", "app/YZLocation.m", "app/YZVideoController.m",
-  "app/YZAccentEditor.m", "app/YZTintPicker.m", "app/YZMascotPreview.m", "app/YZWaveSeekBar.m", "app/YZPlayerViews.m", "app/YZStreamProxy.m", "app/YZUpdate.m", "app/YZUpdateUI.m", "app/YZMediaPlayer.m",
+  "app/YZAccentEditor.m", "app/YZTintPicker.m", "app/YZMascotPreview.m", "app/YZDnsPopup.m", "app/YZWaveSeekBar.m", "app/YZPlayerViews.m", "app/YZStreamProxy.m", "app/YZUpdate.m", "app/YZUpdateUI.m", "app/YZMediaPlayer.m",
   "app/YZFindBar.m", "app/YZSheets.m", "app/YZDialog.m", "app/YZErrorPopup.m", "app/YZShape.m", "app/YZLog.m",
   "app/YZCrash.m", "app/YZLogController.m", "app/YZSystemNotifier.m", "app/YZSitesController.m",
   "app/YZAdblockController.m", "app/YZDebugOverlay.m", "app/YZTranslation.m", "app/YZTranslateBar.m",
@@ -159,7 +159,7 @@ files = [
   "app/YZMotion.m", "app/YZSystemSheet.m", "app/YZControls.m", "app/YZFavicons.m", "app/YZStore.m", "app/YZTab.m", "app/YZHomeView.m",
   "app/YZErrorPage.m", "app/YZTabsView.m", "app/YZMenuView.m", "app/YZPopupMenu.m", "app/YZAppIcon.m", "app/YZClassic.m", "app/YZListController.m", "app/YZDownloadsController.m",
   "app/YZSettings.m", "app/YZSettingsController.m", "app/YZStrings.m", "app/YZLocation.m", "app/YZVideoController.m",
-  "app/YZAccentEditor.m", "app/YZTintPicker.m", "app/YZMascotPreview.m", "app/YZWaveSeekBar.m", "app/YZPlayerViews.m", "app/YZStreamProxy.m", "app/YZUpdate.m", "app/YZUpdateUI.m", "app/YZMediaPlayer.m",
+  "app/YZAccentEditor.m", "app/YZTintPicker.m", "app/YZMascotPreview.m", "app/YZDnsPopup.m", "app/YZWaveSeekBar.m", "app/YZPlayerViews.m", "app/YZStreamProxy.m", "app/YZUpdate.m", "app/YZUpdateUI.m", "app/YZMediaPlayer.m",
   "app/YZFindBar.m", "app/YZSheets.m", "app/YZDialog.m", "app/YZErrorPopup.m", "app/YZShape.m", "app/YZLog.m",
   "app/YZCrash.m", "app/YZLogController.m", "app/YZSystemNotifier.m", "app/YZSitesController.m",
   "app/YZAdblockController.m", "app/YZDebugOverlay.m", "app/YZTranslation.m", "app/YZTranslateBar.m",
@@ -2474,6 +2474,16 @@ inputs = ["core/patches/*", "scripts/apply_core_patches.py", "tests/test_core_pa
 [test.source-inputs]
 run = ["python3", "-B", "tests/test_source_inputs.py"]
 inputs = ["core/*.json", "scripts/*.py", "tests/test_source_inputs.py"]
+
+[test.dns]
+src = ["core/yozora_dns.c", "tests/test_dns.c"]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["pthread"]
+sanitize = "address,undefined"
+
+[test.ips]
+run = ["python3", "-B", "tests/test_ips.py"]
+inputs = ["tools/yozora_ips.py", "scripts/archive_symbols.py", "tests/test_ips.py"]
 
 [test.bundle-inputs]
 run = ["python3", "-B", "tests/test_bundle_inputs.py"]

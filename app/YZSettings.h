@@ -2,6 +2,7 @@
 #include "yozora_accent.h"
 #include "yozora_address.h"
 #include "yozora_core.h"
+#include "yozora_dns.h"
 
 typedef enum {
     YZLanguageRussian,
@@ -138,5 +139,10 @@ extern NSString *const YZSettingsDidChangeNotification;
 + (NSString *)adblockRules;
 + (BOOL)setAdblockRules:(NSString *)text report:(yozora_adblock_report *)report error:(NSString **)error;
 /* hands every setting that the page core knows to it, call once at start */
+/* the server pages are resolved through, as the DNS over HTTPS address the core asks (@"" is the resolver of the system) */
++ (NSString *)dnsServer;
+/* stores what a person typed: an empty text goes back to the system, a server is normalized by the core. anything else is refused and the
+   stored server stays, the status says why */
++ (yozora_dns_status)setDnsServerText:(NSString *)text;
 + (void)applyToCore;
 @end

@@ -39,3 +39,7 @@ a response that no viewer shows, or that the server marks as an attachment, is s
 ## debug
 
 `YOZORA_LOG_REQUESTS=1` prints every request and failure, blocked ones too.
+
+## dns
+
+the settings keep one DNS server (`YZDnsServer`), or none for the resolver of the system. libcurl here is built without c-ares, so `CURLOPT_DNS_SERVERS` does nothing; the server is asked over HTTPS with `CURLOPT_DOH_URL`, and curl gives its own request to the resolver the TLS options of the page request, so the chain, the name and the dates of the resolver are meant to be checked as for any site. that was read from curl and has not been run against a real resolver yet. `core/yozora_dns.c` turns what a person types into that address and is tested on the host: an https address is kept (host, optional port and path, no user name, query or fragment), a bare address or name becomes `https://NAME/dns-query`, the plain addresses of the four known resolvers become the name of the resolver (its certificate carries the name), an `http://` address is refused (the names would travel in the clear), and a name with no dot or with a number for a last label is refused. the process holds the server behind a lock (`yozora_dns_set`, `yozora_dns_get`) and `webkit-yozora-dns.patch` makes each curl request of WebCore take it when the request starts, so a change counts for the next request and not for those under way. the name of the resolver itself is looked up with the system resolver. the translation and update requests made by the app itself do not use it.

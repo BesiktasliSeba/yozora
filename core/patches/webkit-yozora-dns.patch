@@ -1,0 +1,25 @@
+diff -ruN --no-dereference a/Source/WebCore/platform/network/curl/CurlRequest.cpp b/Source/WebCore/platform/network/curl/CurlRequest.cpp
+--- a/Source/WebCore/platform/network/curl/CurlRequest.cpp
++++ b/Source/WebCore/platform/network/curl/CurlRequest.cpp
+@@ -184,6 +184,8 @@
+         task();
+ }
+ 
++extern "C" size_t yozora_dns_get(char* out, size_t capacity);
++
+ CURL* CurlRequest::setupTransfer()
+ {
+     auto httpHeaderFields = m_request.httpHeaderFields();
+@@ -221,6 +223,12 @@
+ 
+     m_curlHandle->setTimeout(timeoutInterval());
+ 
++    // the DNS server chosen in the settings is asked over HTTPS, the libcurl of this build has no c-ares and CURLOPT_DNS_SERVERS does nothing. a request
++    // takes the server at the time it starts, none leaves the names to the resolver of the system. 256 is YOZORA_DNS_CAPACITY in core/yozora_dns.h
++    char dnsServer[256];
++    if (yozora_dns_get(dnsServer, sizeof dnsServer))
++        curl_easy_setopt(m_curlHandle->handle(), CURLOPT_DOH_URL, dnsServer);
++
+     m_performStartTime = MonotonicTime::now();
+ 
+     return m_curlHandle->handle();
