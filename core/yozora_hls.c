@@ -1,4 +1,5 @@
 #include "yozora_hls.h"
+#include "yozora_mp4.h"
 #include "yozora_ts.h"
 
 #include <pthread.h>
@@ -607,4 +608,202 @@ yozora_hls_read_status yozora_hls_read(yozora_hls *hls, const char *name, uint64
     pthread_mutex_unlock(&hls->lock);
     free(text);
     return status;
+}
+
+
+#define FMP4_MAX_OUTPUT (64u * 1024u * 1024u)
+#define FMP4_MAX_SAMPLES 262144u
+
+typedef struct {
+    int video;
+    int64_t dts, pts;
+    int sync;
+    size_t offset;
+    uint32_t size;
+} fmp4_sample;
+
+typedef struct {
+    yozora_mp4_track video, audio;
+    int has_video, has_audio;
+    uint8_t *arena;
+    size_t arena_size, arena_capacity;
+    fmp4_sample *samples;
+    size_t count, capacity;
+    yozora_fmp4_status failure;
+} fmp4_collect;
+
+typedef struct {
+    uint8_t *data;
+    size_t size, capacity;
+    int failed;
+} fmp4_output;
+
+static int fmp4_on_init(void *context, const yozora_mp4_track *tracks, unsigned count)
+{
+    fmp4_collect *c = context;
+    for (unsigned i = 0; i < count; ++i) {
+        if (tracks[i].kind == YOZORA_MP4_TRACK_VIDEO && !c->has_video) {
+            c->video = tracks[i];
+            c->has_video = 1;
+        } else if (tracks[i].kind == YOZORA_MP4_TRACK_AUDIO && !c->has_audio) {
+            c->audio = tracks[i];
+            c->has_audio = 1;
+        }
+    }
+    return 0;
+}
+
+static int fmp4_on_sample(void *context, const yozora_mp4_track *track, const yozora_mp4_sample *sample)
+{
+    fmp4_collect *c = context;
+    int video;
+    if (c->has_video && track->id == c->video.id && track->kind == YOZORA_MP4_TRACK_VIDEO)
+        video = 1;
+    else if (c->has_audio && track->id == c->audio.id && track->kind == YOZORA_MP4_TRACK_AUDIO)
+        video = 0;
+    else
+        return 0;
+    if (c->count >= FMP4_MAX_SAMPLES || sample->size > MAX_SEGMENT_BYTES || c->arena_size + sample->size > FMP4_MAX_OUTPUT) {
+        c->failure = YOZORA_FMP4_TOO_LARGE;
+        return 1;
+    }
+    if (c->count == c->capacity) {
+        size_t grown = c->capacity ? c->capacity * 2 : 256;
+        fmp4_sample *bigger = realloc(c->samples, grown * sizeof *bigger);
+        if (!bigger) {
+            c->failure = YOZORA_FMP4_NO_MEMORY;
+            return 1;
+        }
+        c->samples = bigger;
+        c->capacity = grown;
+    }
+    if (c->arena_size + sample->size > c->arena_capacity) {
+        size_t grown = (c->arena_size + sample->size) * 2;
+        uint8_t *bigger = realloc(c->arena, grown);
+        if (!bigger) {
+            c->failure = YOZORA_FMP4_NO_MEMORY;
+            return 1;
+        }
+        c->arena = bigger;
+        c->arena_capacity = grown;
+    }
+    memcpy(c->arena + c->arena_size, sample->data, sample->size);
+    uint32_t scale = track->timescale;
+    fmp4_sample *at = &c->samples[c->count++];
+    at->video = video;
+    at->dts = yozora_ts_scale(sample->dts, scale) + YOZORA_HLS_OFFSET;
+    at->pts = yozora_ts_scale(sample->pts, scale) + YOZORA_HLS_OFFSET;
+    if (at->pts < at->dts)
+        at->pts = at->dts;
+    at->sync = sample->sync;
+    at->offset = c->arena_size;
+    at->size = sample->size;
+    c->arena_size += sample->size;
+    return 0;
+}
+
+static int fmp4_sink(void *context, const uint8_t packet[YOZORA_TS_PACKET])
+{
+    fmp4_output *o = context;
+    if (o->size + YOZORA_TS_PACKET > FMP4_MAX_OUTPUT) {
+        o->failed = 1;
+        return 1;
+    }
+    if (o->size + YOZORA_TS_PACKET > o->capacity) {
+        size_t grown = o->capacity ? o->capacity * 2 : 64 * 1024;
+        uint8_t *bigger = realloc(o->data, grown);
+        if (!bigger) {
+            o->failed = 1;
+            return 1;
+        }
+        o->data = bigger;
+        o->capacity = grown;
+    }
+    memcpy(o->data + o->size, packet, YOZORA_TS_PACKET);
+    o->size += YOZORA_TS_PACKET;
+    return 0;
+}
+
+static yozora_fmp4_status fmp4_from_mp4(yozora_mp4_status status)
+{
+    switch (status) {
+    case YOZORA_MP4_OK: return YOZORA_FMP4_OK;
+    case YOZORA_MP4_UNSUPPORTED: return YOZORA_FMP4_UNSUPPORTED;
+    case YOZORA_MP4_TOO_LARGE: return YOZORA_FMP4_TOO_LARGE;
+    case YOZORA_MP4_NO_MEMORY: return YOZORA_FMP4_NO_MEMORY;
+    default: return YOZORA_FMP4_MALFORMED;
+    }
+}
+
+static size_t fmp4_next(const fmp4_collect *c, size_t index, int video)
+{
+    while (index < c->count && c->samples[index].video != video)
+        ++index;
+    return index;
+}
+
+yozora_fmp4_status yozora_fmp4_to_ts(const uint8_t *init, size_t init_size, const uint8_t *segment, size_t segment_size, uint8_t **out, size_t *out_size)
+{
+    if (out)
+        *out = NULL;
+    if (out_size)
+        *out_size = 0;
+    if (!init || !init_size || !segment || !segment_size || !out || !out_size)
+        return YOZORA_FMP4_BAD_ARGUMENT;
+    if (init_size > YOZORA_FMP4_MAX_INPUT || segment_size > YOZORA_FMP4_MAX_INPUT)
+        return YOZORA_FMP4_TOO_LARGE;
+    fmp4_collect collect;
+    memset(&collect, 0, sizeof collect);
+    fmp4_output output;
+    memset(&output, 0, sizeof output);
+    yozora_fmp4_status result = YOZORA_FMP4_OK;
+    yozora_mp4 *parser = NULL;
+    yozora_mp4_sink sink = { fmp4_on_init, fmp4_on_sample, &collect };
+    yozora_mp4_status parsed = yozora_mp4_create(&sink, &parser);
+    if (parsed != YOZORA_MP4_OK)
+        return fmp4_from_mp4(parsed);
+    parsed = yozora_mp4_feed(parser, init, init_size);
+    if (parsed == YOZORA_MP4_OK && !collect.has_video && !collect.has_audio)
+        parsed = YOZORA_MP4_MALFORMED;
+    if (parsed == YOZORA_MP4_OK)
+        parsed = yozora_mp4_feed(parser, segment, segment_size);
+    /* a cut download ends inside a box */
+    if (parsed == YOZORA_MP4_OK && yozora_mp4_pending(parser))
+        parsed = YOZORA_MP4_MALFORMED;
+    yozora_mp4_destroy(parser);
+    if (parsed != YOZORA_MP4_OK)
+        result = parsed == YOZORA_MP4_ABORTED && collect.failure ? collect.failure : fmp4_from_mp4(parsed);
+    else if (!collect.count)
+        result = YOZORA_FMP4_MALFORMED;
+    if (result == YOZORA_FMP4_OK) {
+        yozora_ts_mux mux;
+        yozora_ts_status ts = yozora_ts_init(&mux, collect.has_video ? collect.video.config : NULL, collect.has_video ? collect.video.config_size : 0,
+                                             collect.has_audio ? collect.audio.config : NULL, collect.has_audio ? collect.audio.config_size : 0, fmp4_sink, &output);
+        if (ts == YOZORA_TS_OK)
+            ts = yozora_ts_write_tables(&mux);
+        size_t v = fmp4_next(&collect, 0, 1), a = fmp4_next(&collect, 0, 0);
+        while (ts == YOZORA_TS_OK && (v < collect.count || a < collect.count)) {
+            /* interleaved by time */
+            if (a >= collect.count || (v < collect.count && collect.samples[v].dts <= collect.samples[a].pts)) {
+                const fmp4_sample *s = &collect.samples[v];
+                ts = yozora_ts_write_video(&mux, s->dts, s->pts, s->sync, collect.arena + s->offset, s->size);
+                v = fmp4_next(&collect, v + 1, 1);
+            } else {
+                const fmp4_sample *s = &collect.samples[a];
+                ts = yozora_ts_write_audio(&mux, s->pts, collect.arena + s->offset, s->size);
+                a = fmp4_next(&collect, a + 1, 0);
+            }
+        }
+        if (ts != YOZORA_TS_OK)
+            result = output.failed ? YOZORA_FMP4_TOO_LARGE : ts == YOZORA_TS_NO_MEMORY ? YOZORA_FMP4_NO_MEMORY : YOZORA_FMP4_UNSUPPORTED;
+    }
+    free(collect.arena);
+    free(collect.samples);
+    if (result != YOZORA_FMP4_OK) {
+        free(output.data);
+        return result;
+    }
+    *out = output.data;
+    *out_size = output.size;
+    return YOZORA_FMP4_OK;
 }

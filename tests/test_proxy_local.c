@@ -129,7 +129,7 @@ int main(void)
 {
     for (size_t i = 0; i < sizeof segment; ++i)
         segment[i] = (unsigned char)(i * 13 + 7);
-    yozora_proxy_config config = { "app/ca-bundle.crt", "test" };
+    yozora_proxy_config config = { "app/ca-bundle.crt", "test", 0 };
     yozora_proxy *proxy = NULL;
     CHECK(yozora_proxy_start(&config, &proxy) == YOZORA_PROXY_OK);
     if (!proxy)

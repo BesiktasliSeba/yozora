@@ -21,6 +21,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "yozora_hls.h"
 #include "yozora_playlist.h"
 
 #define MAX_REDIRECTS 5
@@ -32,6 +33,8 @@
 
 typedef struct {
     char *url;
+    /* the map file when the segment is served as a transport stream */
+    char *init;
 } entry;
 
 typedef struct {
@@ -69,6 +72,7 @@ struct yozora_proxy {
     int client_fds[YOZORA_PROXY_MAX_CONNECTIONS];
     char ca_bundle[1024];
     char user_agent[256];
+    int transmux;
 };
 
 /* helpers */
@@ -271,6 +275,7 @@ yozora_proxy_request_status yozora_proxy_parse_request(const char *head, size_t 
 
 typedef struct {
     char url[YOZORA_URL_MAX];
+    char init[YOZORA_URL_MAX];
     char cookie[YOZORA_PROXY_MAX_COOKIE + 1];
     char referer[YOZORA_PROXY_MAX_REFERER + 1];
     char host[256];
@@ -287,7 +292,10 @@ static stream *find_by_token(yozora_proxy *proxy, const char *token) {
 static void free_stream(stream *s) {
     size_t i;
     if (s->local_release) s->local_release(s->local_context);
-    for (i = 0; i < s->count; ++i) free(s->entries[i].url);
+    for (i = 0; i < s->count; ++i) {
+        free(s->entries[i].url);
+        free(s->entries[i].init);
+    }
     free(s->entries);
     free(s->cookie);
     free(s->referer);
@@ -314,17 +322,20 @@ static void extension_of(const char *url, char *out, size_t capacity) {
     out[end - dot] = '\0';
 }
 
-static int local_url(const yozora_proxy *proxy, const stream *s, size_t index, const char *origin, char *out, size_t capacity) {
+static int local_url(const yozora_proxy *proxy, const stream *s, size_t index, const char *origin, int transport_stream, char *out, size_t capacity) {
     char extension[8];
-    extension_of(origin, extension, sizeof extension);
+    /* a converted segment is a .ts whatever the fragment was called */
+    if (transport_stream) snprintf(extension, sizeof extension, ".ts");
+    else extension_of(origin, extension, sizeof extension);
     return snprintf(out, capacity, "http://127.0.0.1:%d/s/%s/%zu%s", proxy->port, s->token, index, extension) < (int)capacity;
 }
 
-/* adds an address to a live stream (once: the same address gets the same entry) and gives its proxy address; 0 on success */
-static int add_entry(yozora_proxy *proxy, stream *s, const char *url, char *out, size_t capacity) {
+/* the same address and map give the same entry, 0 on success */
+static int add_entry(yozora_proxy *proxy, stream *s, const char *url, const char *init, char *out, size_t capacity) {
     size_t i;
     for (i = 0; i < s->count; ++i)
-        if (!strcmp(s->entries[i].url, url)) return local_url(proxy, s, i, url, out, capacity) ? 0 : 1;
+        if (!strcmp(s->entries[i].url, url) && ((!init && !s->entries[i].init) || (init && s->entries[i].init && !strcmp(s->entries[i].init, init))))
+            return local_url(proxy, s, i, url, init != NULL, out, capacity) ? 0 : 1;
     if (s->count >= YOZORA_PROXY_MAX_ENTRIES) return 1;
     if (s->count == s->capacity) {
         size_t grown = s->capacity ? s->capacity * 2 : 32;
@@ -336,9 +347,14 @@ static int add_entry(yozora_proxy *proxy, stream *s, const char *url, char *out,
         s->capacity = grown;
     }
     s->entries[s->count].url = copy_string(url);
-    if (!s->entries[s->count].url) return 1;
+    s->entries[s->count].init = init ? copy_string(init) : NULL;
+    if (!s->entries[s->count].url || (init && !s->entries[s->count].init)) {
+        free(s->entries[s->count].url);
+        free(s->entries[s->count].init);
+        return 1;
+    }
     ++s->count;
-    return local_url(proxy, s, s->count - 1, url, out, capacity) ? 0 : 1;
+    return local_url(proxy, s, s->count - 1, url, init != NULL, out, capacity) ? 0 : 1;
 }
 
 yozora_proxy_status yozora_proxy_register(yozora_proxy *proxy, const char *origin_url, const char *cookie, const char *referer,
@@ -385,7 +401,7 @@ yozora_proxy_status yozora_proxy_register(yozora_proxy *proxy, const char *origi
     snprintf(s->host, sizeof s->host, "%s", host);
     s->https = https;
     s->live = 1;
-    if (!s->cookie || !s->referer || add_entry(proxy, s, origin_url, out, capacity)) {
+    if (!s->cookie || !s->referer || add_entry(proxy, s, origin_url, NULL, out, capacity)) {
         status = YOZORA_PROXY_SYSTEM;
         free_stream(s);
         out[0] = '\0';
@@ -452,6 +468,7 @@ static int copy_entry(yozora_proxy *proxy, const yozora_proxy_request *request, 
     s = find_by_token(proxy, request->token);
     if (s && request->numeric && !s->local_read && request->index < s->count) {
         snprintf(copy->url, sizeof copy->url, "%s", s->entries[request->index].url);
+        snprintf(copy->init, sizeof copy->init, "%s", s->entries[request->index].init ? s->entries[request->index].init : "");
         snprintf(copy->cookie, sizeof copy->cookie, "%s", s->cookie);
         snprintf(copy->referer, sizeof copy->referer, "%s", s->referer);
         snprintf(copy->host, sizeof copy->host, "%s", s->host);
@@ -493,6 +510,9 @@ typedef struct {
     int too_large;
     char *buffer;
     size_t buffered;
+    /* keep any body whole up to cap, for segments to convert */
+    int collect;
+    size_t cap;
 } transfer;
 
 static const char *status_text(int status) {
@@ -613,6 +633,8 @@ static size_t write_callback(char *data, size_t size, size_t count, void *user) 
     if (t->mode == MODE_UNDECIDED) {
         if ((is_redirect(t->status) && t->location[0]) || !passes_through(t->status)) {
             t->mode = MODE_DISCARD;
+        } else if (t->collect && (t->status == 200 || t->status == 206)) {
+            t->mode = MODE_BUFFER;
         } else if ((t->status == 200 || t->status == 206) && (playlist_type(t->ctype) || yozora_playlist_is((const unsigned char *)data, length))) {
             t->mode = MODE_BUFFER;
         } else {
@@ -623,7 +645,7 @@ static size_t write_callback(char *data, size_t size, size_t count, void *user) 
     if (t->mode == MODE_DISCARD) return length;
     if (t->mode == MODE_BUFFER) {
         char *bigger;
-        if (t->buffered + length > YOZORA_PROXY_PLAYLIST_MAX) {
+        if (t->buffered + length > (t->collect ? t->cap : (size_t)YOZORA_PROXY_PLAYLIST_MAX)) {
             t->too_large = 1;
             return 0;
         }
@@ -658,6 +680,8 @@ static int progress_callback(void *user, curl_off_t a, curl_off_t b, curl_off_t 
 typedef struct {
     yozora_proxy *proxy;
     unsigned stream_id;
+    /* NULL unless the segments become transport streams */
+    const char *init;
 } map_context;
 
 /* the proxy address of an address found in a playlist */
@@ -667,12 +691,86 @@ static int map_child(void *context, const char *absolute, char *out, size_t capa
     pthread_mutex_lock(&m->proxy->lock);
     for (i = 0; i < YOZORA_PROXY_MAX_STREAMS; ++i) {
         if (m->proxy->streams[i].live && m->proxy->streams[i].id == m->stream_id) {
-            result = add_entry(m->proxy, &m->proxy->streams[i], absolute, out, capacity);
+            result = add_entry(m->proxy, &m->proxy->streams[i], absolute, m->init, out, capacity);
             break;
         }
     }
     pthread_mutex_unlock(&m->proxy->lock);
     return result;
+}
+
+static int line_starts(const char *line, size_t length, const char *tag) {
+    size_t n = strlen(tag);
+    return length >= n && !memcmp(line, tag, n);
+}
+
+/* media playlist of fmp4 segments with one map, as a copy without the map and with version 3. NULL when nothing converts:
+   keys, byte ranges, parts, i-frame lists, a second map, master playlists */
+static char *strip_map(const char *text, size_t length, const char *base, char *init, size_t init_capacity, size_t *out_length) {
+    static const char *const blocked[] = { "#EXT-X-BYTERANGE", "#EXT-X-KEY", "#EXT-X-PART", "#EXT-X-PRELOAD-HINT", "#EXT-X-I-FRAMES-ONLY",
+                                           "#EXT-X-STREAM-INF", "#EXT-X-MEDIA:" };
+    static const char version[] = "#EXT-X-VERSION:3";
+    size_t position = 0, used = 0, i;
+    char *copy;
+    init[0] = '\0';
+    while (position < length) {
+        size_t line_end = position, content, line_length;
+        const char *line = text + position;
+        while (line_end < length && text[line_end] != '\n') ++line_end;
+        content = line_end;
+        if (content > position && text[content - 1] == '\r') --content;
+        line_length = content - position;
+        if (line_starts(line, line_length, "#EXT-X-MAP:")) {
+            char value[YOZORA_URL_MAX], absolute[YOZORA_URL_MAX];
+            size_t at, end;
+            int has_value = 0;
+            for (at = 0; at < line_length; ++at) {
+                if (line_length - at >= 10 && !memcmp(line + at, "BYTERANGE=", 10)) return NULL;
+                if (line_length - at >= 5 && !memcmp(line + at, "URI=\"", 5) && (line[at - 1] == ':' || line[at - 1] == ',')) {
+                    for (end = at + 5; end < line_length && line[end] != '"'; ++end) {}
+                    if (end >= line_length || end == at + 5 || end - (at + 5) >= sizeof value) return NULL;
+                    memcpy(value, line + at + 5, end - (at + 5));
+                    value[end - (at + 5)] = '\0';
+                    has_value = 1;
+                }
+            }
+            if (!has_value || yozora_url_resolve(base, value, absolute, sizeof absolute) != YOZORA_PLAYLIST_OK || strlen(absolute) >= init_capacity) return NULL;
+            if (init[0] && strcmp(init, absolute)) return NULL;
+            memcpy(init, absolute, strlen(absolute) + 1);
+        } else {
+            for (i = 0; i < sizeof blocked / sizeof blocked[0]; ++i)
+                if (line_starts(line, line_length, blocked[i])) return NULL;
+        }
+        position = line_end < length ? line_end + 1 : length;
+    }
+    if (!init[0]) return NULL;
+    copy = malloc(length + 1);
+    if (!copy) return NULL;
+    position = 0;
+    while (position < length) {
+        size_t line_end = position, content, next;
+        while (line_end < length && text[line_end] != '\n') ++line_end;
+        content = line_end;
+        if (content > position && text[content - 1] == '\r') --content;
+        next = line_end < length ? line_end + 1 : length;
+        if (line_starts(text + position, content - position, "#EXT-X-MAP:")) {
+            position = next;
+            continue;
+        }
+        if (line_starts(text + position, content - position, "#EXT-X-VERSION:")) {
+            memcpy(copy + used, version, sizeof version - 1);
+            used += sizeof version - 1;
+            memcpy(copy + used, text + content, next - content);
+            used += next - content;
+        } else {
+            memcpy(copy + used, text + position, next - position);
+            used += next - position;
+        }
+        position = next;
+    }
+    copy[used] = '\0';
+    *out_length = used;
+    return copy;
 }
 
 static int answer_playlist(transfer *t, const char *effective_url) {
@@ -682,11 +780,24 @@ static int answer_playlist(transfer *t, const char *effective_url) {
     map_context context;
     yozora_playlist_status status;
     int ok = 0;
+    char init[YOZORA_URL_MAX];
+    char *stripped = NULL;
+    const char *source = t->buffer;
+    size_t source_length = t->buffered;
     if (!rewritten) return 0;
     t->buffer[t->buffered] = '\0';
     context.proxy = t->proxy;
     context.stream_id = t->stream_id;
-    status = yozora_playlist_rewrite(t->buffer, t->buffered, effective_url, map_child, &context, rewritten, REWRITTEN_MAX, &written);
+    context.init = NULL;
+    if (t->proxy->transmux) {
+        stripped = strip_map(t->buffer, t->buffered, effective_url, init, sizeof init, &source_length);
+        if (stripped) {
+            source = stripped;
+            context.init = init;
+        }
+    }
+    status = yozora_playlist_rewrite(source, source_length, effective_url, map_child, &context, rewritten, REWRITTEN_MAX, &written);
+    free(stripped);
     if (status == YOZORA_PLAYLIST_OK) {
         snprintf(length, sizeof length, "%zu", written);
         /* a playlist that came as a range is answered whole, its length changed */
@@ -853,6 +964,85 @@ static void serve_local(int fd, const yozora_proxy_request *request, const local
     free(snapshot);
 }
 
+/* the whole body in memory with redirects followed, 0 on success */
+static int fetch_whole(transfer *t, CURL *easy, const stream_copy *copy, const char *start, size_t cap, const char *user_agent, const char *ca,
+                       char **body, size_t *length) {
+    yozora_proxy_request plain;
+    char current[YOZORA_URL_MAX], next[YOZORA_URL_MAX];
+    int hop;
+    memset(&plain, 0, sizeof plain);
+    snprintf(current, sizeof current, "%s", start);
+    t->collect = 1;
+    t->cap = cap;
+    *body = NULL;
+    *length = 0;
+    for (hop = 0; hop <= MAX_REDIRECTS; ++hop) {
+        CURLcode code = fetch_once(t, easy, &plain, copy, current, user_agent, ca);
+        if (code != CURLE_OK || t->send_failed || t->too_large) return 1;
+        if (is_redirect(t->status) && t->location[0]) {
+            if (hop == MAX_REDIRECTS || yozora_url_resolve(current, t->location, next, sizeof next) != YOZORA_PLAYLIST_OK) return 1;
+            memcpy(current, next, strlen(next) + 1);
+            continue;
+        }
+        break;
+    }
+    if (hop > MAX_REDIRECTS || t->status != 200 || t->mode != MODE_BUFFER || !t->buffer || !t->buffered) return 1;
+    *body = t->buffer;
+    *length = t->buffered;
+    t->buffer = NULL;
+    t->buffered = 0;
+    return 0;
+}
+
+static void send_memory(transfer *t, const yozora_proxy_request *request, const char *content_type, const uint8_t *data, size_t total) {
+    uint64_t first = 0, last = 0;
+    char length[24], range[96];
+    int partial = 0;
+    if (request->range[0]) {
+        if (!local_range(request->range, total, &first, &last)) {
+            send_text_answer(t->fd, 416);
+            return;
+        }
+        partial = 1;
+    } else {
+        last = total - 1;
+    }
+    snprintf(length, sizeof length, "%llu", (unsigned long long)(last - first + 1));
+    snprintf(range, sizeof range, "bytes %llu-%llu/%llu", (unsigned long long)first, (unsigned long long)last, (unsigned long long)total);
+    if (!send_head(t, partial ? 206 : 200, content_type, length, partial ? range : "", 1) || request->head_only) return;
+    if (!send_all(t->fd, (const char *)data + first, (size_t)(last - first + 1))) t->send_failed = 1;
+}
+
+/* fetch the map and the segment, convert, a failure is a 502 and a line on stderr */
+static void serve_transport_stream(yozora_proxy *proxy, transfer *t, CURL *easy, const stream_copy *copy, const yozora_proxy_request *request) {
+    char *init = NULL, *segment = NULL;
+    size_t init_size = 0, segment_size = 0, ts_size = 0;
+    uint8_t *ts = NULL;
+    yozora_fmp4_status status;
+    if (fetch_whole(t, easy, copy, copy->init, 1024 * 1024, proxy->user_agent, proxy->ca_bundle, &init, &init_size)) {
+        fprintf(stderr, "yozora: proxy: the map file of a segment from %s was not fetched\n", copy->host);
+        if (!t->head_sent && !t->send_failed) send_text_answer(t->fd, 502);
+        return;
+    }
+    if (fetch_whole(t, easy, copy, copy->url, YOZORA_FMP4_MAX_INPUT, proxy->user_agent, proxy->ca_bundle, &segment, &segment_size)) {
+        fprintf(stderr, "yozora: proxy: a segment from %s was not fetched\n", copy->host);
+        free(init);
+        if (!t->head_sent && !t->send_failed) send_text_answer(t->fd, 502);
+        return;
+    }
+    status = yozora_fmp4_to_ts((const uint8_t *)init, init_size, (const uint8_t *)segment, segment_size, &ts, &ts_size);
+    free(init);
+    free(segment);
+    if (status != YOZORA_FMP4_OK || !ts_size) {
+        fprintf(stderr, "yozora: proxy: a segment from %s is not H.264 and AAC in fragmented mp4 that can be made a transport stream (%d)\n", copy->host, (int)status);
+        free(ts);
+        send_text_answer(t->fd, 502);
+        return;
+    }
+    send_memory(t, request, "video/mp2t", ts, ts_size);
+    free(ts);
+}
+
 static void serve(yozora_proxy *proxy, int fd) {
     char head[YOZORA_PROXY_HEAD_MAX + 1];
     size_t length = 0;
@@ -915,6 +1105,10 @@ static void serve(yozora_proxy *proxy, int fd) {
     easy = curl_easy_init();
     if (!easy) {
         send_text_answer(fd, 503);
+        goto done;
+    }
+    if (copy->init[0]) {
+        serve_transport_stream(proxy, &t, easy, copy, &request);
         goto done;
     }
     snprintf(current, sizeof current, "%s", copy->url);
@@ -1061,6 +1255,7 @@ yozora_proxy_status yozora_proxy_start(const yozora_proxy_config *config, yozora
     if (!proxy) return YOZORA_PROXY_SYSTEM;
     snprintf(proxy->ca_bundle, sizeof proxy->ca_bundle, "%s", config->ca_bundle);
     snprintf(proxy->user_agent, sizeof proxy->user_agent, "%s", config->user_agent);
+    proxy->transmux = config->transmux_fmp4 ? 1 : 0;
     for (i = 0; i < YOZORA_PROXY_MAX_CONNECTIONS; ++i) proxy->client_fds[i] = -1;
     pthread_mutex_init(&proxy->lock, NULL);
     pthread_cond_init(&proxy->idle, NULL);

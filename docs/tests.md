@@ -7,7 +7,7 @@
 - c: navigation, store, address, signin, accent, playlist, mp4 and ts, hls, log, blocklist, filter, sitegrants, budget, http cache, keys, motion, zoom, debug, transfer, translate, color, clock, wait, system, macho, memory bounds, render plan, scene animation, wasm engine
 - python: sources, patches, scripts, the cli of the store and the runtime
 - the c tests run under asan and ubsan. `page-adapter-sanitize` stops in upstream wtf (`memcpy` with a null pointer and zero length) and in the css tokenizer vector, so no clean sanitizer run of the whole core is claimed
-- `meow test proxy` runs the stream proxy against local http and https servers: ranges, cookies, referers, redirects, hls chains, bad requests, a client that leaves, the stream limit, stop under load, chain and host name checks. needs libcurl and, for https, openssl
+- `meow test proxy` runs the stream proxy against local http and https servers: ranges, cookies, referers, redirects, hls chains, fragmented mp4 segments made transport streams, bad requests, a client that leaves, the stream limit, stop under load, chain and host name checks. needs libcurl and, for https, openssl
 - `meow test wasm` needs node
 
 ## core on the host
@@ -38,3 +38,4 @@ contact the providers and are not part of the suite: `python3 -B tests/probe_cap
 ## what ran where
 
 - ran on a real armv7 phone: the native compositor, corrected armv7 dfg, linked property caches, the darwin double calling convention, concurrent compilation, layer pixels, scrolling, animations while a script is blocked, local mp4 playback, the tab tray and home page reuse, the scroll snapshot
+- `meow test fmp4-ts` converts an init segment and a fragment to a transport stream (packets, tables, key frames, time order, refusals of cuts and other codecs); with a directory as argument it rewrites the fixtures of `tests/data`

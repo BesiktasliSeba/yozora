@@ -2083,6 +2083,24 @@ cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "
 libs = ["sqlite3", "m"]
 sanitize = "address,undefined"
 
+[test.fmp4-ts]
+src = [
+  "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
+  "core/yozora_accent.c", "core/yozora_playlist.c", "core/yozora_mp4.c", "core/yozora_ts.c", "core/yozora_hls.c",
+  "core/yozora_log.c", "core/yozora_blocklist.c", "core/yozora_filter.c", "core/yozora_sitegrants.c",
+  "core/yozora_budget.c", "core/yozora_translate.c", "core/yozora_httpcache.c", "core/yozora_keys.c",
+  "core/yozora_motion.c", "core/yozora_zoom.c", "core/yozora_debug.c", "core/yozora_transfer.c", "core/yozora_color.c",
+  "core/yozora_render_plan.c", "core/core/yozora_scene_animation.c", "tests/test_fmp4_ts.c",
+]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+libs = ["sqlite3", "m"]
+sanitize = "address,undefined"
+
+[test.release]
+src = ["core/yozora_release.c", "tests/test_release.c"]
+cflags = ["-std=c99", "-Wall", "-Wextra", "-Werror", "-pedantic", "-O1", "-g", "-Icore"]
+sanitize = "address,undefined"
+
 [test.hls]
 src = [
   "core/yozora_types.c", "core/yozora_navigation.c", "core/yozora_store.c", "core/yozora_address.c",
@@ -2373,7 +2391,7 @@ inputs = ["scripts/check_text_woff2.sh", "tests/test_text_woff2_check.py"]
 [test.proxy]
 run = ["bash", "scripts/host_tool_test.sh", "proxy", "tests/test_stream_proxy.py"]
 env = { HOST_CC = "${MEOW_HOST_CC}" }
-inputs = ["core/yozora_stream_proxy.*", "core/yozora_playlist.*", "tools/yozora_proxy_cli.c", "tests/test_stream_proxy.py", "tests/test_proxy_local.c"]
+inputs = ["core/yozora_stream_proxy.*", "core/yozora_playlist.*", "core/yozora_mp4.*", "core/yozora_ts.*", "core/yozora_hls.*", "tools/yozora_proxy_cli.c", "tests/test_stream_proxy.py", "tests/test_proxy_local.c"]
 
 # the numeric instructions of the wasm interpreter against V8, needs node
 [test.wasm]

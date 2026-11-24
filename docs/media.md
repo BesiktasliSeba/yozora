@@ -41,6 +41,18 @@ a stream is fetched through a proxy on the loopback address (`core/yozora_stream
 
 hls playlists, found by content type or by `#EXTM3U`, are rewritten by `core/yozora_playlist.c` (rfc 3986 resolution against the final address, every line that is not a tag, every `URI="..."`, line endings kept) so that segments, keys, maps and renditions come back to the proxy.
 
+## fragmented mp4 in hls
+
+AVPlayer plays fragmented mp4 segments (`#EXT-X-MAP`, `.m4s`, cmaf) from ios 10, on ios 5 to 9 such a stream ends in error -11800 and the page gets an `error` event. where the player lacks `setAutomaticallyWaitsToMinimizeStalling:` (the same release) `YZStreamProxy` starts the proxy with `transmux_fmp4`:
+
+- a media playlist with one map file is answered without the `EXT-X-MAP` line and with `#EXT-X-VERSION:3`, the addresses of its segments end in `.ts`
+- a request for such a segment fetches the map file and the segment, `yozora_fmp4_to_ts` (`core/yozora_hls.c`, over the mp4 parser and the ts muxer of the mediasource) cuts the samples into 188 byte packets in time order, and the answer is `video/mp2t`. the times keep the `tfdt` of the segment, so the segments of one playlist follow each other. ranges and HEAD work on the result
+- H.264 and AAC-LC only. hevc, ac-3 and the rest are refused with a 502, and the stderr of the app (the log) says `a segment from HOST is not H.264 and AAC in fragmented mp4 …` with the status of the conversion
+- left as they are, so they fail on ios 9 and earlier as before: playlists with `#EXT-X-KEY` (encrypted), `#EXT-X-BYTERANGE`, `#EXT-X-PART`, `#EXT-X-PRELOAD-HINT`, `#EXT-X-I-FRAMES-ONLY`, a second map file or a map with a byte range, and master playlists (their media playlists are converted when the player asks for them)
+- a segment and its map file are held whole in memory, up to 24 MiB and 1 MiB, the result up to 64 MiB. the continuity counters of the packets start again at each segment
+
+tested on the host (`tests/test_fmp4_ts.c`, the proxy group in `tests/test_stream_proxy.py` with fixtures made by the first). not tried on an ios 6 or ios 9 device: whether AVPlayer there accepts the segments, the timestamps and the counters of the result is not known.
+
 ## mediasource
 
 the system has no mediasource, so the page's fragmented mp4 is turned into something the system can play:

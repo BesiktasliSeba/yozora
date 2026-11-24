@@ -14,6 +14,10 @@
 /* the address AVPlayer opens for a stream a page's MediaSource made (core/yozora_hls.h), held by the core
    under the player id. nil when the core has none or the proxy cannot run */
 - (NSURL *)localURLForMediaID:(unsigned)mediaID core:(yozora_core *)core stream:(unsigned *)stream generation:(unsigned *)generation;
+/* the address of any http or https address through the proxy, with the checks of its trust store and no cookie */
+- (NSURL *)proxiedURLForAddress:(NSString *)address stream:(unsigned *)stream generation:(unsigned *)generation;
+/* files of this app under the address that is returned (ending in a slash), by name. the paths are fixed for as long as the stream lives */
+- (NSURL *)localURLForFiles:(NSDictionary *)files stream:(unsigned *)stream generation:(unsigned *)generation;
 /* forgets a stream; a stream of an older proxy is left alone, ids start again with every proxy */
 - (void)releaseStream:(unsigned)stream generation:(unsigned)generation;
 @end

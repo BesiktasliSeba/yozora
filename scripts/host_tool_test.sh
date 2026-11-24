@@ -24,9 +24,9 @@ case "${1:?tool}" in
         yozora_curl_cflags="$(pkg-config --cflags libcurl)"
         yozora_curl_libs="$(pkg-config --libs libcurl)"
         # shellcheck disable=SC2086
-        "${yozora_cc}" "${yozora_flags[@]}" ${yozora_curl_cflags} tools/yozora_proxy_cli.c core/yozora_stream_proxy.c core/yozora_playlist.c ${yozora_curl_libs} -lpthread -o "${yozora_out}/yozora-proxy-cli"
+        "${yozora_cc}" "${yozora_flags[@]}" ${yozora_curl_cflags} tools/yozora_proxy_cli.c core/yozora_stream_proxy.c core/yozora_playlist.c core/yozora_mp4.c core/yozora_ts.c core/yozora_hls.c ${yozora_curl_libs} -lpthread -o "${yozora_out}/yozora-proxy-cli"
         # shellcheck disable=SC2086
-        "${yozora_cc}" "${yozora_flags[@]}" ${yozora_curl_cflags} tests/test_proxy_local.c core/yozora_stream_proxy.c core/yozora_playlist.c ${yozora_curl_libs} -lpthread -o "${yozora_out}/test_proxy_local"
+        "${yozora_cc}" "${yozora_flags[@]}" ${yozora_curl_cflags} tests/test_proxy_local.c core/yozora_stream_proxy.c core/yozora_playlist.c core/yozora_mp4.c core/yozora_ts.c core/yozora_hls.c ${yozora_curl_libs} -lpthread -o "${yozora_out}/test_proxy_local"
         python3 -B "${2:?test}" "${yozora_out}/yozora-proxy-cli"
         "${yozora_out}/test_proxy_local"
         ;;

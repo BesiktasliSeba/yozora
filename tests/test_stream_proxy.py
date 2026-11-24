@@ -19,6 +19,12 @@ import time
 CLI = os.path.abspath(sys.argv[1])
 VIDEO = bytes((i * 7 + 3) & 255 for i in range(200000))
 SEGMENT = bytes((i * 11 + 5) & 255 for i in range(30000))
+DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+# made by tests/test_fmp4_ts.c: avc1 and mp4a tracks, three video samples and two audio frames
+FMP4_INIT = open(os.path.join(DATA, "fmp4-init.mp4"), "rb").read()
+FMP4_SEGMENT = open(os.path.join(DATA, "fmp4-segment.m4s"), "rb").read()
+FMP4_PLAYLIST = (b"#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:6\n#EXT-X-MAP:URI=\"init.mp4\"\n"
+                 b"#EXTINF:6.0,\nseg0.m4s\n#EXTINF:6.0,\nseg1.m4s\n#EXT-X-ENDLIST\n")
 KEY = bytes(range(16))
 COOKIE = "sid=abc"
 REFERER = "http://page.example/"
@@ -104,6 +110,18 @@ class Origin(http.server.BaseHTTPRequestHandler):
             if not self.allowed():
                 return self.reply(403)
             return self.ranged(SEGMENT, "video/mp2t")
+        if path == "/fm/index.m3u8":
+            return self.reply(200, FMP4_PLAYLIST, "application/vnd.apple.mpegurl")
+        if path == "/fm/keyed.m3u8":
+            return self.reply(200, FMP4_PLAYLIST.replace(b"#EXT-X-MAP", b"#EXT-X-KEY:METHOD=AES-128,URI=\"k.key\"\n#EXT-X-MAP"), "application/vnd.apple.mpegurl")
+        if path == "/fm/init.mp4":
+            return self.reply(200, FMP4_INIT, "video/mp4")
+        if path in ("/fm/seg0.m4s", "/fm/seg1.m4s"):
+            return self.reply(200, FMP4_SEGMENT, "video/iso.segment")
+        if path == "/fm/bad.m3u8":
+            return self.reply(200, FMP4_PLAYLIST.replace(b"init.mp4", b"bad.mp4"), "application/vnd.apple.mpegurl")
+        if path == "/fm/bad.mp4":
+            return self.reply(200, b"not an mp4 at all", "video/mp4")
         if path == "/k.key":
             if not self.allowed():
                 return self.reply(403)
@@ -168,8 +186,12 @@ def serve(handler, tls=None):
 
 
 class Proxy:
-    def __init__(self, ca):
-        self.process = subprocess.Popen([CLI, ca], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1)
+    def __init__(self, ca, transmux=False):
+        environment = dict(os.environ)
+        environment.pop("YOZORA_PROXY_TRANSMUX", None)
+        if transmux:
+            environment["YOZORA_PROXY_TRANSMUX"] = "1"
+        self.process = subprocess.Popen([CLI, ca], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, bufsize=1, env=environment)
         kind, port = self.process.stdout.readline().rstrip("\n").split("\t")
         assert kind == "port", kind
         self.port = int(port)
@@ -327,6 +349,37 @@ def main():
     status, headers, body = proxy.get(proxy.register(base + "/empty")[0])
     check(status == 200 and body == b"" and headers["content-length"] == "0", "empty")
     passed.append("unsized streams, statuses, empty bodies")
+
+    # fmp4 hls for a player without it: segments become transport streams, what cannot convert is left or refused
+    plain = Proxy(ca)
+    playlist, _ = plain.register(base + "/fm/index.m3u8")
+    status, headers, body = plain.get(playlist)
+    check(status == 200 and b"#EXT-X-MAP" in body and b"#EXT-X-VERSION:7" in body and b".ts" not in body, "map kept without the switch: %r" % body)
+    plain.stop()
+    mux = Proxy(ca, transmux=True)
+    playlist, _ = mux.register(base + "/fm/index.m3u8")
+    status, headers, body = mux.get(playlist)
+    text = body.decode()
+    check(status == 200 and "EXT-X-MAP" not in text and "#EXT-X-VERSION:3\n" in text and "init.mp4" not in text, "playlist of fmp4: %r" % text)
+    segments = re.findall(r"http://127\.0\.0\.1:%d/s/[0-9a-f]{32}/\d+\.ts" % mux.port, text)
+    check(len(segments) == 2 and segments[0] != segments[1], text)
+    status, headers, ts = mux.get(segments[0])
+    check(status == 200 and headers["content-type"] == "video/mp2t" and headers["content-length"] == str(len(ts)), "segment %d %s" % (status, headers))
+    check(len(ts) > 0 and len(ts) % 188 == 0 and all(ts[i] == 0x47 for i in range(0, len(ts), 188)), "transport stream packets")
+    check(mux.get(segments[1])[2] == ts, "the same fragment gives the same segment")
+    status, headers, part = mux.get(segments[0], headers={"Range": "bytes=188-375"})
+    check(status == 206 and part == ts[188:376] and headers["content-range"] == "bytes 188-375/%d" % len(ts), "range of a segment %d" % status)
+    check(mux.get(segments[0], headers={"Range": "bytes=%d-" % len(ts)})[0] == 416, "range past the end of a segment")
+    status, headers, head = mux.get(segments[0], method="HEAD")
+    check(status == 200 and head == b"" and headers["content-length"] == str(len(ts)), "head of a segment")
+    keyed, _ = mux.register(base + "/fm/keyed.m3u8")
+    status, headers, body = mux.get(keyed)
+    check(status == 200 and b"#EXT-X-MAP" in body and b".ts" not in body, "encrypted playlist is left as it is: %r" % body)
+    broken, _ = mux.register(base + "/fm/bad.m3u8")
+    broken_segment = re.findall(r"http://127\.0\.0\.1:%d/s/[0-9a-f]{32}/\d+\.ts" % mux.port, mux.get(broken)[2].decode())[0]
+    check(mux.get(broken_segment)[0] == 502, "a map that is not mp4")
+    mux.stop()
+    passed.append("fragmented mp4 segments as transport streams")
 
     # what a client may send: only what the proxy answers
     path = url[url.index("/s/"):]

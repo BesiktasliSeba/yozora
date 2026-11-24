@@ -42,7 +42,7 @@ every number here is in the code, the file is named so it can be changed. a limi
 
 - decoded audio: 16 million samples, 64 MB of floats
 - mediasource: 8 MB of samples may wait for the other track, 24 MB per segment and 24 MB pending, 8192 segments, a segment of up to 60 seconds, a box of up to 24 MB, 8 tracks, 512 bytes of codec config
-- formats are what the system decodes, see [media](media.md)
+- formats are what the system decodes, see [media](media.md). before ios 10 hls with fragmented mp4 segments is converted to transport streams in the proxy, h264 and aac only, without encryption or byte ranges
 
 ## webassembly
 

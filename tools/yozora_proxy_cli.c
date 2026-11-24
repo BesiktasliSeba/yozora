@@ -17,8 +17,10 @@ int main(int argc, char **argv) {
         fprintf(stderr, "usage: yozora-proxy-cli CA_BUNDLE\n");
         return 2;
     }
+    memset(&config, 0, sizeof config);
     config.ca_bundle = argv[1];
     config.user_agent = "yozora-proxy-test/1";
+    config.transmux_fmp4 = getenv("YOZORA_PROXY_TRANSMUX") != NULL;
     if (yozora_proxy_start(&config, &proxy) != YOZORA_PROXY_OK) {
         fprintf(stderr, "the proxy did not start\n");
         return 1;

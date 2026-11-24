@@ -76,6 +76,18 @@ typedef enum {
 yozora_hls_read_status yozora_hls_read(yozora_hls *hls, const char *name, uint64_t offset, uint8_t *out, size_t capacity, size_t *got, uint64_t *total,
                                        const char **content_type);
 
+/* one fragmented mp4 media segment as an mpeg-ts segment, h264 and aac only, the caller frees *out */
+typedef enum {
+    YOZORA_FMP4_OK = 0,
+    YOZORA_FMP4_BAD_ARGUMENT,
+    YOZORA_FMP4_MALFORMED,
+    YOZORA_FMP4_UNSUPPORTED,
+    YOZORA_FMP4_TOO_LARGE,
+    YOZORA_FMP4_NO_MEMORY
+} yozora_fmp4_status;
+#define YOZORA_FMP4_MAX_INPUT (24u * 1024u * 1024u)
+yozora_fmp4_status yozora_fmp4_to_ts(const uint8_t *init, size_t init_size, const uint8_t *segment, size_t segment_size, uint8_t **out, size_t *out_size);
+
 #ifdef __cplusplus
 }
 #endif

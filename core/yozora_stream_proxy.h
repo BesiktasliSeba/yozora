@@ -30,6 +30,8 @@ typedef struct {
     /* the file of root certificates, required: the proxy never falls back to another trust store and never turns the checks off */
     const char *ca_bundle;
     const char *user_agent;
+    /* 1 for avplayer before ios 10: playlists with ext-x-map lose it and their segments become mpeg-ts, h264 and aac only */
+    int transmux_fmp4;
 } yozora_proxy_config;
 
 #define YOZORA_PROXY_MAX_STREAMS 16
