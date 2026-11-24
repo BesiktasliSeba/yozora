@@ -2538,7 +2538,8 @@ inputs = ["core/wasm/*", "tests/test_wasm.py"]
 [step.deb]
 run = [["bash", "scripts/build_deb.sh"]]
 needs = ["ipa"]
-inputs = ["packaging/DEBIAN/*", "scripts/build_deb.sh", "app/Info.plist"]
+env = { YOZORA_TC = "${TC}" }
+inputs = ["packaging/DEBIAN/*", "scripts/build_deb.sh", "app/Info.plist", "tools/yozora-jit.entitlements"]
 outputs = ["build/ipa/Yozora-v${field:packaging/DEBIAN/control:Version}.deb"]
 
 [step.core-fetch]

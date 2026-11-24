@@ -40,6 +40,17 @@ rm -rf "${STAGE}/unpacked"
 cp "${CONTROL}" "${ROOT}/packaging/DEBIAN/postinst" "${ROOT}/packaging/DEBIAN/postrm" "${STAGE}/DEBIAN/"
 
 APP="${STAGE}/var/jb/Applications/Yozora.app"
+# github refuses a file over 100 MiB and the repository serves this package from there: the pictures are recoded smaller, every pixel stays
+if command -v oxipng >/dev/null 2>&1; then
+    find "${APP}" -name '*.png' -exec oxipng -q -o6 --zopfli --strip safe {} +
+else
+    echo "yozora: oxipng is missing, the pictures keep their size and the package can pass the 100 MiB of github" >&2
+fi
+# the symbol table (some 24 thousand names nothing on the phone reads: a crash report is read with the map kept under the uuid of the binary)
+# is dropped too, 667 KB of package. strip takes the signature off, ldid puts it back with the entitlements of the app
+TC="${YOZORA_TC:?run through meow, which sets YOZORA_TC}"
+"${TC}/strip" "${APP}/Yozora" 2> >(grep -v "invalidate the code signature" >&2)
+"${TC}/ldid" -S"${ROOT}/tools/yozora-jit.entitlements" "${APP}/Yozora"
 find "${APP}" -type d -exec chmod 755 {} +
 find "${APP}" -type f -exec chmod 644 {} +
 chmod 755 "${APP}/Yozora" "${STAGE}/DEBIAN/postinst" "${STAGE}/DEBIAN/postrm"
