@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <spawn.h>
+#include <sys/stat.h>
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -87,6 +88,24 @@ YZAppIconMode YZAppIconCurrentMode(void) {
     return YZAppIconCanRewrite() ? YZAppIconRewrite : YZAppIconUnavailable;
 }
 
+static NSError *YZIconFailure(NSInteger code, NSString *reason);
+
+// cocoa 513 names no file, so the path, owners and modes go in the error
+static NSError *YZIconWriteFailure(NSString *path, NSError *cause) {
+    struct stat info;
+    NSString *folder = [path stringByDeletingLastPathComponent];
+    NSString *state = stat([path fileSystemRepresentation], &info) == 0
+        ? [NSString stringWithFormat:@"file uid %u mode %o", (unsigned)info.st_uid, (unsigned)info.st_mode & 0777]
+        : @"file absent";
+    NSString *folderState = stat([folder fileSystemRepresentation], &info) == 0
+        ? [NSString stringWithFormat:@"folder uid %u mode %o", (unsigned)info.st_uid, (unsigned)info.st_mode & 0777]
+        : @"folder absent";
+    NSString *text = [NSString stringWithFormat:@"%@ was not written (%@, %@, process uid %u): %@", [path lastPathComponent], state, folderState, (unsigned)getuid(),
+        cause ? [cause localizedDescription] : @"no reason given"];
+    NSLog(@"yozora: icon: %@", text);
+    return YZIconFailure(cause ? [cause code] : 3, text);
+}
+
 static NSError *YZIconFailure(NSInteger code, NSString *reason) {
     return [NSError errorWithDomain:YZIconErrorDomain code:code userInfo:[NSDictionary dictionaryWithObject:reason forKey:NSLocalizedDescriptionKey]];
 }
@@ -158,7 +177,7 @@ static NSError *YZWriteBundlePlist(NSDictionary *plist) {
     if (!out)
         return error ? error : YZIconFailure(2, @"the Info.plist could not be made");
     if (![out writeToFile:YZBundlePlistPath() options:NSDataWritingAtomic error:&error])
-        return error ? error : YZIconFailure(3, @"the Info.plist could not be written");
+        return YZIconWriteFailure(YZBundlePlistPath(), error);
     return nil;
 }
 
@@ -328,7 +347,7 @@ static NSError *YZWriteUserIconFiles(NSString *name) {
         if (!data)
             return YZIconFailure(9, @"the app icon could not be prepared");
         if (![data writeToFile:[bundle stringByAppendingPathComponent:file] options:NSDataWritingAtomic error:&error])
-            return error ? error : YZIconFailure(9, @"the app icon could not be written");
+            return YZIconWriteFailure([bundle stringByAppendingPathComponent:file], error);
     }
     return nil;
 }
