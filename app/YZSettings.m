@@ -36,6 +36,7 @@ static NSString *const YZPrivateAccentBrightnessKey = @"YZPrivateAccentBrightnes
 static NSString *const YZDebugOverlayKey = @"YZDebugOverlay";
 static NSString *const YZLoggingKey = @"YZLogging";
 static NSString *const YZZombiesKey = @"YZZombies";
+static NSString *const YZUnlockDesignsKey = @"YZUnlockDesigns";
 static NSString *const YZJitKey = @"YZJit";
 // set while a launch with the jit has not reached the browser yet
 static NSString *const YZJitStartingKey = @"YZJitStarting";
@@ -105,12 +106,22 @@ static YZLanguage YZDeviceLanguage(void) {
 + (void)setLanguage:(YZLanguage)language { [self storeInteger:language forKey:YZLanguageKey]; }
 
 // the classic design is the system look of ios 5 to 7 and nothing else: a later system draws bars and controls flat, so
-// there it is never offered and a stored classic choice is ignored. an unset choice is the modern design everywhere.
+// there the option is shown locked and a stored classic choice is ignored, unless the developer switch unlocks it. an unset choice is the modern design everywhere.
 // kept in memory because every color of the interface asks for it
 static NSInteger YZDesignCurrent = -1;
 
++ (BOOL)unlockAllDesigns { return [self boolForKey:YZUnlockDesignsKey defaultValue:NO]; }
++ (void)setUnlockAllDesigns:(BOOL)enabled {
+    [self storeBool:enabled forKey:YZUnlockDesignsKey];
+    YZDesignCurrent = -1;
+}
+
 + (BOOL)classicDesignAvailable {
-    return [[[UIDevice currentDevice] systemVersion] floatValue] < 8.0f;
+    return [[[UIDevice currentDevice] systemVersion] floatValue] < 8.0f || [self unlockAllDesigns];
+}
+
++ (BOOL)flatDesignAvailable {
+    return [[[UIDevice currentDevice] systemVersion] floatValue] < 16.0f || [self unlockAllDesigns];
 }
 
 + (YZDesign)design {

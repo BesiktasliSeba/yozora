@@ -51,6 +51,7 @@ typedef enum {
     YZRowLogging,
     YZRowLogOpen,
     YZRowZombies,
+    YZRowUnlockDesigns,
     YZRowJit,
     YZRowJitState,
     YZRowAbout
@@ -217,6 +218,9 @@ static CGFloat YZRowHeight(NSString *title, NSString *detail, CGFloat tableWidth
     UILabel *detail;
     UIImageView *accessory;
     YZToggle *toggle;
+    // the dark veil and the lock of an option that this system cannot take, built when the first locked option asks
+    UIView *veil;
+    UIImageView *lock;
     // the hairlines of a row of the flat design: under it (from the text, or the whole width at the end of a group) and over the first
     UIView *lineBelow;
     UIView *lineAbove;
@@ -296,6 +300,28 @@ static CGFloat YZRowHeight(NSString *title, NSString *detail, CGFloat tableWidth
     return toggle && !toggle.hidden;
 }
 
+- (void)setLocked:(BOOL)locked {
+    if (!locked && !veil)
+        return;
+    if (!veil) {
+        veil = [[UIView alloc] initWithFrame:CGRectZero];
+        veil.opaque = NO;
+        veil.userInteractionEnabled = NO;
+        lock = [[UIImageView alloc] initWithFrame:CGRectZero];
+        lock.contentMode = UIViewContentModeCenter;
+        [card addSubview:veil];
+        [card addSubview:lock];
+    }
+    veil.hidden = lock.hidden = !locked;
+    if (locked) {
+        [YZTheme stretchImage:YZCardImage(position, [UIColor colorWithWhite:0 alpha:0.5f]) caps:YZGroupRadius onView:veil];
+        lock.image = [YZTheme icon:YZIconLock size:26 color:[UIColor whiteColor]];
+        [card bringSubviewToFront:veil];
+        [card bringSubviewToFront:lock];
+    }
+    [self setNeedsLayout];
+}
+
 // the card is the picture of its place in the group in the given color
 - (void)showCardColor:(UIColor *)color {
     if ([YZTheme isFlat]) {
@@ -360,6 +386,8 @@ static CGFloat YZRowHeight(NSString *title, NSString *detail, CGFloat tableWidth
     }
     if (accessory.image)
         accessory.frame = CGRectMake(cw - 12 - 24, (ch - 24) / 2, 24, 24);
+    veil.frame = card.bounds;
+    lock.frame = card.bounds;
     CGFloat textWidth = YZRowTextWidth(width, withDisc, [self showsSwitch], accessory.image != nil);
     CGFloat left = withDisc ? 16 + 40 + 14 : 16;
     CGFloat titleHeight = YZMeasureHeight(title.text, title.font, textWidth);
@@ -408,6 +436,8 @@ static CGFloat YZRowHeight(NSString *title, NSString *detail, CGFloat tableWidth
     lineBelow.hidden = NO;
     lineBelow.frame = ends ? CGRectMake(0, ch - line, cw, line) : CGRectMake(left, ch - line, MAX((CGFloat)0, cw - left), line);
     lineAbove.backgroundColor = lineBelow.backgroundColor = [YZTheme separatorColor];
+    veil.frame = card.bounds;
+    lock.frame = card.bounds;
 }
 
 - (void)dealloc {
@@ -421,6 +451,8 @@ static CGFloat YZRowHeight(NSString *title, NSString *detail, CGFloat tableWidth
     [detail release];
     [accessory release];
     [toggle release];
+    [veil release];
+    [lock release];
     [restColor release];
     [savedTitleColor release];
     [savedDetailColor release];
@@ -441,6 +473,7 @@ static UIColor *YZMarkGround(void) {
 static void YZConfigureCell(YZSettingsCell *cell, NSString *title, NSString *detail, YZIcon glyph, UIImage *picture, BOOL hasGlyph, BOOL bare,
                             BOOL destructive, YZPosition position, UIColor *plate, BOOL chevron) {
     cell->position = position;
+    [cell setLocked:NO];
     cell->withDisc = hasGlyph || picture;
     cell->bareMark = bare && picture;
     [cell->savedTitleColor release];
@@ -1240,7 +1273,7 @@ static NSArray *YZEngineTints(void) {
         [NSArray arrayWithObjects:YZT(@"Приватность и безопасность"), row(YZRowBlockTrackers), row(YZRowAdblockRules), row(YZRowSitePermissions), row(YZRowBlockThirdPartyCookies),
          row(YZRowSaveHistory), row(YZRowClearHistory), row(YZRowClearSiteData), nil],
         [NSArray arrayWithObjects:YZT(@"Страницы"), row(YZRowJavascript), row(YZRowEconomy), row(YZRowCrispScrolling), row(YZRowReduceMotion), row(YZRowHideBars), row(YZRowWebFonts), nil],
-        [NSArray arrayWithObjects:YZT(@"Для разработчиков"), row(YZRowDebug), row(YZRowLogging), row(YZRowLogOpen), row(YZRowZombies), row(YZRowJit), row(YZRowJitState), nil],
+        [NSArray arrayWithObjects:YZT(@"Для разработчиков"), row(YZRowDebug), row(YZRowLogging), row(YZRowLogOpen), row(YZRowZombies), row(YZRowUnlockDesigns), row(YZRowJit), row(YZRowJitState), nil],
         [NSArray arrayWithObjects:YZT(@"О программе"), row(YZRowAbout), nil],
         nil];
 }
@@ -1568,6 +1601,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowLogging: return YZT(@"Логирование");
     case YZRowLogOpen: return YZT(@"Логи");
     case YZRowZombies: return YZT(@"Зомби-объекты");
+    case YZRowUnlockDesigns: return YZT(@"Все оформления");
     case YZRowJit: return @"JIT";
     case YZRowJitState: return YZT(@"Состояние JIT");
     case YZRowAbout: return YZT(@"Об Yozora");
@@ -1599,6 +1633,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowLogging: return YZT(@"Копить журнал приложения и страниц");
     case YZRowLogOpen: return [YZLog capturing] ? YZT(@"Терминал с записями, захват идёт") : YZT(@"Терминал с записями, захват выключен");
     case YZRowZombies: return YZT(@"Называет класс освобождённого, но использованного объекта, нужен перезапуск и больше памяти");
+    case YZRowUnlockDesigns: return YZT(@"Оформления, которых нет для этой версии iOS, возможны баги");
     case YZRowJit: return YZT(@"Нужен перезапуск приложения");
     case YZRowJitState: return _jitText ? _jitText : [self jitStateText];
     default: return nil;
@@ -1633,6 +1668,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowDebug: return YZIconBugReport;
     case YZRowLogging: return YZIconTerminal;
     case YZRowZombies: return YZIconBugReport;
+    case YZRowUnlockDesigns: return YZIconSwap;
     case YZRowLogOpen: return YZIconReceiptLong;
     case YZRowJit: return YZIconBolt;
     case YZRowJitState: return YZIconMemory;
@@ -1645,7 +1681,7 @@ static NSArray *YZEngineLogos(void) {
 - (BOOL)isSwitch:(YZRow)kind {
     return kind == YZRowBlockTrackers || kind == YZRowBlockThirdPartyCookies || kind == YZRowSaveHistory
         || kind == YZRowJavascript || kind == YZRowEconomy || kind == YZRowCrispScrolling || kind == YZRowMascotGlow || kind == YZRowReduceMotion || kind == YZRowHideBars || kind == YZRowWebFonts
-        || kind == YZRowDebug || kind == YZRowLogging || kind == YZRowZombies || kind == YZRowJit;
+        || kind == YZRowDebug || kind == YZRowLogging || kind == YZRowZombies || kind == YZRowUnlockDesigns || kind == YZRowJit;
 }
 
 - (BOOL)switchValue:(YZRow)kind {
@@ -1663,6 +1699,7 @@ static NSArray *YZEngineLogos(void) {
     case YZRowDebug: return [YZSettings debugOverlay];
     case YZRowLogging: return [YZSettings logging];
     case YZRowZombies: return [YZSettings zombies];
+    case YZRowUnlockDesigns: return [YZSettings unlockAllDesigns];
     case YZRowJit: return [YZSettings jit];
     default: return NO;
     }
@@ -1704,12 +1741,37 @@ static NSArray *YZEngineLogos(void) {
         }
         [self refreshAfterSwitch];
         break;
+    case YZRowUnlockDesigns:
+        if (on)
+            [self confirmUnlockDesigns:toggle];
+        else {
+            [YZSettings setUnlockAllDesigns:NO];
+            [_settingsDelegate settingsControllerDidChange:self];
+        }
+        break;
     case YZRowJit:
         [YZSettings setJit:on];
         [self refreshAfterSwitch];
         break;
     default: break;
     }
+}
+
+- (void)confirmUnlockDesigns:(YZToggle *)toggle {
+    YZSettingsController *me = self;
+    YZDialog *dialog = [YZDialog dialogWithTitle:YZT(@"Открыть все оформления?")
+                                         message:YZT(@"Оформления, которых нет для вашей версии iOS, могут работать с багами и недоработками. Включая это, вы соглашаетесь с тем, что можете с ними столкнуться.")
+                                     cancelTitle:YZT(@"Отмена") confirmTitle:YZT(@"Согласен") destructive:NO handler:^(NSInteger index, NSArray *texts) {
+        (void)texts;
+        if (index == 1) {
+            [YZSettings setUnlockAllDesigns:YES];
+            [me->_settingsDelegate settingsControllerDidChange:me];
+        } else {
+            [toggle setOn:NO animated:YES];
+        }
+    }];
+    dialog.picture = [YZTheme mascotImage:@"error"];
+    [dialog showInView:self.navigationController.view];
 }
 
 // rows that read from the switch (the state of the jit, the line of the log) change once the switch has finished moving
@@ -1933,6 +1995,10 @@ static NSArray *YZEngineLogos(void) {
         choice.tints = nil;
         choice.bareMarks = NO;
         choice.selected = [YZSettings design];
+        choice.locked = [NSArray arrayWithObjects:[NSNumber numberWithBool:NO], [NSNumber numberWithBool:![YZSettings classicDesignAvailable]],
+                         [NSNumber numberWithBool:![YZSettings flatDesignAvailable]], nil];
+        choice.lockedMessages = [NSArray arrayWithObjects:@"", YZT(@"Классическое оформление поддерживается на iOS с 5 по 7"),
+                                 YZT(@"Плоское оформление поддерживается на iOS с 5 по 15"), nil];
         break;
     case YZRowTabsLayout:
         choice.heading = YZT(@"Вид вкладок");
@@ -2074,6 +2140,8 @@ static NSArray *YZEngineLogos(void) {
 @synthesize bareMarks = _bareMarks;
 @synthesize selected = _selected;
 @synthesize mascotPreview = _mascotPreview;
+@synthesize locked = _locked;
+@synthesize lockedMessages = _lockedMessages;
 @synthesize refill = _refill;
 
 - (id)initWithTitle:(NSString *)title options:(NSArray *)titles selected:(NSInteger)selected choose:(void (^)(NSInteger index))choose {
@@ -2094,6 +2162,8 @@ static NSArray *YZEngineLogos(void) {
     [_preview release];
     [_heading release];
     [_titles release];
+    [_locked release];
+    [_lockedMessages release];
     [_details release];
     [_pictures release];
     [_tints release];
@@ -2176,6 +2246,10 @@ static NSArray *YZEngineLogos(void) {
     return row < (NSInteger)[_details count] ? [_details objectAtIndex:row] : nil;
 }
 
+- (BOOL)lockedAt:(NSInteger)row {
+    return row < (NSInteger)[_locked count] && [[_locked objectAtIndex:row] boolValue];
+}
+
 - (CGFloat)tableView:(UITableView *)table heightForRowAtIndexPath:(NSIndexPath *)path {
     return YZRowHeight([_titles objectAtIndex:path.row], [self detailAt:path.row], table.bounds.size.width, [self markAt:path.row] != nil, NO, NO);
 }
@@ -2196,6 +2270,7 @@ static NSArray *YZEngineLogos(void) {
     // the address under a name is a half-seen line
     cell->detail.textColor = [[YZTheme subtleTextColor] colorWithAlphaComponent:0.7f];
     cell->toggle.hidden = YES;
+    [cell setLocked:[self lockedAt:path.row]];
     return cell;
 }
 
@@ -2203,6 +2278,11 @@ static NSArray *YZEngineLogos(void) {
 // screen does too, with a cross fade so a new theme does not snap
 - (void)tableView:(UITableView *)table didSelectRowAtIndexPath:(NSIndexPath *)path {
     [table deselectRowAtIndexPath:path animated:NO];
+    if ([self lockedAt:path.row]) {
+        [[YZDialog dialogWithTitle:YZT(@"Недоступно") message:path.row < (NSInteger)[_lockedMessages count] ? [_lockedMessages objectAtIndex:path.row] : nil cancelTitle:nil confirmTitle:YZT(@"Готово") destructive:NO handler:nil]
+            showInView:self.navigationController.view];
+        return;
+    }
     if (path.row == _selected)
         return;
     _selected = path.row;

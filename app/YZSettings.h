@@ -104,6 +104,9 @@ extern NSString *const YZSettingsDidChangeNotification;
 + (void)setLogging:(BOOL)enabled;
 /* freed objects are kept and named when a message reaches one: read at launch, a change counts at the next one */
 + (BOOL)zombies;
+/* the designs of other systems work here too, with the bugs that come with it: a developer switch */
++ (BOOL)unlockAllDesigns;
++ (void)setUnlockAllDesigns:(BOOL)enabled;
 + (void)setZombies:(BOOL)enabled;
 + (BOOL)jit;
 + (void)setJit:(BOOL)enabled;

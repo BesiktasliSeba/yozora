@@ -11,6 +11,13 @@ static NSDictionary *YZEnglish(void) {
         @"White bars and a gray address field, as in Safari on iOS 7, in the colors of Yozora", @"Белые панели и серое поле адреса, как в Safari на iOS 7, в цветах Yozora",
         @"The flat design is supported on iOS 5 to 15", @"Плоское оформление поддерживается на iOS с 5 по 15",
         @"Private", @"Приватный",
+        @"All designs", @"Все оформления",
+        @"Designs that do not exist for this version of iOS, bugs are likely", @"Оформления, которых нет для этой версии iOS, возможны баги",
+        @"Unlock all designs?", @"Открыть все оформления?",
+        @"Designs that do not exist for your version of iOS can work with bugs and rough edges. By turning this on you agree that you may run into them.", @"Оформления, которых нет для вашей версии iOS, могут работать с багами и недоработками. Включая это, вы соглашаетесь с тем, что можете с ними столкнуться.",
+        @"I agree", @"Согласен",
+        @"Unavailable", @"Недоступно",
+        @"The classic design is supported on iOS 5 to 7", @"Классическое оформление поддерживается на iOS с 5 по 7",
         @"Wikipedia", @"Википедия",
         @"Tabs", @"Вкладки",
         @"Tabs were not saved", @"Вкладки не сохранены",
@@ -631,6 +638,13 @@ static NSDictionary *YZJapanese(void) {
         @"iOS 7のSafariのような白いバーとグレーのアドレス欄を、Yozoraの配色で", @"Белые панели и серое поле адреса, как в Safari на iOS 7, в цветах Yozora",
         @"フラットデザインはiOS 5〜15で対応しています", @"Плоское оформление поддерживается на iOS с 5 по 15",
         @"プライベート", @"Приватный",
+        @"すべてのデザイン", @"Все оформления",
+        @"クラシックデザインはiOS 5〜7でのみ対応しています", @"Классическое оформление поддерживается на iOS с 5 по 7",
+        @"利用できません", @"Недоступно",
+        @"すべてのデザインを開放しますか？", @"Открыть все оформления?",
+        @"お使いのiOSのバージョンに存在しないデザインは、不具合や未完成の部分を伴って動作することがあります。オンにすると、それらに遭遇する可能性があることに同意したものとみなされます。", @"Оформления, которых нет для вашей версии iOS, могут работать с багами и недоработками. Включая это, вы соглашаетесь с тем, что можете с ними столкнуться.",
+        @"このiOSに存在しないデザイン。不具合が起きることがあります", @"Оформления, которых нет для этой версии iOS, возможны баги",
+        @"同意する", @"Согласен",
         nil];
     return table;
 }

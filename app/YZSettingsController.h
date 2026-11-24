@@ -43,6 +43,8 @@
     NSInteger _selected;
     BOOL _bareMarks;
     BOOL _mascotPreview;
+    NSArray *_locked;
+    NSArray *_lockedMessages;
     YZMascotPreview *_preview;
     YZBarFill *_barFill;
     void (^_choose)(NSInteger index);
@@ -59,6 +61,10 @@
 @property(nonatomic, assign) NSInteger selected;
 /* the pages of the chosen mascot stand under the list, the options are the mascots in the order of YZMascot */
 @property(nonatomic, assign) BOOL mascotPreview;
+/* options this system cannot take, as NSNumber booleans one for each: a dark veil and a lock stand on them and a tap says why in the
+   text of lockedMessages at the same place */
+@property(nonatomic, retain) NSArray *locked;
+@property(nonatomic, retain) NSArray *lockedMessages;
 /* called after a choice, sets the screen's texts and marks again from the settings */
 @property(nonatomic, copy) void (^refill)(YZChoiceController *screen);
 - (id)initWithTitle:(NSString *)title options:(NSArray *)titles selected:(NSInteger)selected choose:(void (^)(NSInteger index))choose;
