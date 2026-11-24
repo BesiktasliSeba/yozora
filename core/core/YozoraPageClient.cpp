@@ -33,6 +33,7 @@
 #include "EditorClient.h"
 #include "EmptyClients.h"
 #include "ViewportArguments.h"
+#include "yozora_zoom.h"
 #include "EmptyFrameLoaderClient.h"
 #include "FileChooser.h"
 #include "FrameDestructionObserverInlines.h"
@@ -235,7 +236,7 @@ public:
     // (webkitEnterFullscreen) or the fullscreen api of the video or of a script player's container. the
     // interface player presents itself and tells the core when closed. called for the main document each time
     // its viewport tag is read, also for one with none (width is auto then)
-    void dispatchViewportPropertiesDidChange(const ViewportArguments& arguments) const final { core_viewport_changed(m_core, arguments.width); }
+    void dispatchViewportPropertiesDidChange(const ViewportArguments& arguments) const final { core_viewport_changed(m_core, yozora_zoom_viewport_width(static_cast<int>(m_core.width), arguments.width, arguments.zoom, arguments.minZoom, arguments.maxZoom)); }
     bool supportsVideoFullscreen(HTMLMediaElementEnums::VideoFullscreenMode mode) final { return mode == HTMLMediaElementEnums::VideoFullscreenModeStandard; }
     bool canEnterVideoFullscreen(HTMLVideoElement& video, HTMLMediaElementEnums::VideoFullscreenMode) const final { return yozora_media_can_fullscreen(video); }
     void enterVideoFullscreenForVideoElement(HTMLVideoElement& video, HTMLMediaElementEnums::VideoFullscreenMode, bool) final

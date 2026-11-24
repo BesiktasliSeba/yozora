@@ -22,6 +22,13 @@ int yozora_zoom_clamp_fit(int percent);
    the view (device-width, auto, a narrower page) */
 int yozora_zoom_for_viewport(int view_width, double meta_width);
 
+/* unset values and device-width as ViewportArguments holds them */
+#define YOZORA_VIEWPORT_AUTO (-1)
+#define YOZORA_VIEWPORT_DEVICE_WIDTH (-2)
+
+/* layout width Safari gives a page with a viewport tag, 0 when it sets neither a width nor an initial scale */
+double yozora_zoom_viewport_width(int view_width, double width, double initial_scale, double min_scale, double max_scale);
+
 /* the scroll position that keeps the page row under focal (a distance from the view top) under it after the
    zoom changed from old_percent to new_percent, held between minimum and maximum, the page limits at the new
    zoom */

@@ -12,6 +12,7 @@ between tasks the thread sleeps in the webcore run loop. page timers and network
 - a quiet page publishes its state every 100 ms, a rendering invalidation or an interface command brings the next pass forward
 - an unchanged page skips layout and recording, raster work never enters webcore
 - a repeated viewport size keeps the recordings and the raster cache
+- a viewport tag sets the zoom the way Safari lays the page out: width, initial-scale, minimum-scale and maximum-scale together (`yozora_zoom_viewport_width`, `core/yozora_zoom.c`), so `width=device-width, initial-scale=0.5, maximum-scale=0.5` lays out 2 x the view and shows at 50 percent. a tag with neither a width nor an initial scale, and a page with no tag, stay at 100 percent. only a page wider than the view is scaled down, a scale above 100 percent is not applied
 - the interface polls a quiet page every two display frames and a moving one at display rate, and applies only the layer properties that changed
 - dragging and flinging do not suspend timers, animation frames or queued tasks, there is no separate throttle on layout while a page loads
 

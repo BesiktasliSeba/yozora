@@ -34,6 +34,19 @@ int main(void)
     CHECK(yozora_zoom_for_viewport(320, 5000) == YOZORA_ZOOM_FIT_MIN);
     CHECK(yozora_zoom_for_viewport(320, 1e300) == YOZORA_ZOOM_FIT_MIN);
 
+    /* neoalpha.net: the later width=device-width wins, scale 0.5 */
+    CHECK(yozora_zoom_viewport_width(320, YOZORA_VIEWPORT_DEVICE_WIDTH, 0.5, YOZORA_VIEWPORT_AUTO, 0.5) == 640);
+    CHECK(yozora_zoom_for_viewport(320, yozora_zoom_viewport_width(320, YOZORA_VIEWPORT_DEVICE_WIDTH, 0.5, YOZORA_VIEWPORT_AUTO, 0.5)) == 50);
+    CHECK(yozora_zoom_viewport_width(390, YOZORA_VIEWPORT_DEVICE_WIDTH, 0.5, YOZORA_VIEWPORT_AUTO, 0.5) == 780);
+    CHECK(yozora_zoom_viewport_width(320, YOZORA_VIEWPORT_AUTO, 0.5, YOZORA_VIEWPORT_AUTO, YOZORA_VIEWPORT_AUTO) == 640);
+    CHECK(yozora_zoom_viewport_width(320, YOZORA_VIEWPORT_DEVICE_WIDTH, 1, YOZORA_VIEWPORT_AUTO, YOZORA_VIEWPORT_AUTO) == 320);
+    CHECK(yozora_zoom_viewport_width(320, YOZORA_VIEWPORT_DEVICE_WIDTH, YOZORA_VIEWPORT_AUTO, YOZORA_VIEWPORT_AUTO, YOZORA_VIEWPORT_AUTO) == 320);
+    CHECK(yozora_zoom_viewport_width(320, 850, YOZORA_VIEWPORT_AUTO, YOZORA_VIEWPORT_AUTO, YOZORA_VIEWPORT_AUTO) == 850);
+    CHECK(yozora_zoom_for_viewport(320, yozora_zoom_viewport_width(320, 850, YOZORA_VIEWPORT_AUTO, YOZORA_VIEWPORT_AUTO, YOZORA_VIEWPORT_AUTO)) == 37);
+    CHECK(yozora_zoom_viewport_width(320, YOZORA_VIEWPORT_AUTO, YOZORA_VIEWPORT_AUTO, 1, 3) == 0);
+    CHECK(yozora_zoom_viewport_width(0, 640, 0.5, 0.5, 0.5) == 0);
+    CHECK(yozora_zoom_viewport_width(320, NAN, NAN, NAN, NAN) == 0);
+
     /* the row under the finger stays under it */
     CHECK(yozora_zoom_anchor_scroll(0, 0, 100, 200, 0, 5000) == 0);
     CHECK(yozora_zoom_anchor_scroll(1000, 300, 100, 200, 0, 5000) == 2300);

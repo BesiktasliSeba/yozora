@@ -21,6 +21,46 @@ int yozora_zoom_for_viewport(int view_width, double meta_width)
     return yozora_zoom_clamp_fit((int)((double)view_width * 100.0 / meta_width));
 }
 
+static double scale_value(double scale)
+{
+    if (!(scale > 0))
+        return YOZORA_VIEWPORT_AUTO;
+    return scale < 0.1 ? 0.1 : scale > 10 ? 10 : scale;
+}
+
+/* the steps of webkit ViewportArguments::resolve */
+double yozora_zoom_viewport_width(int view_width, double width, double initial_scale, double min_scale, double max_scale)
+{
+    if (view_width <= 0)
+        return 0;
+    double view = view_width;
+    double zoom = scale_value(initial_scale);
+    double minimum = scale_value(min_scale);
+    double maximum = scale_value(max_scale);
+    if (width == YOZORA_VIEWPORT_DEVICE_WIDTH)
+        width = view;
+    else if (width > 0)
+        width = width > 10000 ? 10000 : width < 1 ? 1 : width;
+    else
+        width = YOZORA_VIEWPORT_AUTO;
+    if (width == YOZORA_VIEWPORT_AUTO && zoom == YOZORA_VIEWPORT_AUTO)
+        return 0;
+    minimum = minimum == YOZORA_VIEWPORT_AUTO ? 0.25 : minimum;
+    if (maximum == YOZORA_VIEWPORT_AUTO) {
+        maximum = 5;
+        minimum = minimum < 5 ? minimum : 5;
+    }
+    if (maximum < minimum)
+        maximum = minimum;
+    double scale = zoom == YOZORA_VIEWPORT_AUTO ? view / width : zoom;
+    scale = scale < minimum ? minimum : scale > maximum ? maximum : scale;
+    if (width == YOZORA_VIEWPORT_AUTO)
+        width = view / scale;
+    /* the layout fills the view at the opening scale */
+    double filled = view / scale;
+    return width > filled ? width : filled;
+}
+
 int yozora_zoom_clamp(int percent)
 {
     if (percent < YOZORA_ZOOM_MIN)
