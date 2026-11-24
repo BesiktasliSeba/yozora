@@ -27,6 +27,7 @@
 
 ## on a phone
 
+- `tests/test_crash_record.py`: `tools/yozora_record.py` names the app frames of a crash record from a hand made map, passes a block of an unknown build through with a note and leaves other images alone. the recorder itself (`app/YZCrash.m`) needs a phone, only its date and number formatting was run on the host
 - `tests/jit_device.sh`: normal jit, forced baseline, synchronous and concurrent dfg against the c loop, and a requirement that optimized compilation happens in the property cache, double abi and map and set iterator regressions
 - `tests/site_stress_device.sh`: loads real sites
 - `tests/stack_device.py`: pages that recurse until the stack is full, with several stack limits, with and without the jit

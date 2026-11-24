@@ -113,9 +113,12 @@ def main():
             current["frames"].append((line.split()[0], "???", "0", "0", "0"))
     threads.sort(key=lambda t: (not t["crashed"], t["number"]))
     for thread in threads:
-        if not thread["crashed"] and thread["number"] != 0:
+        # a thread that sits at address 0 or in generated code is where the fault was even when the report names another thread: a signal
+        # sent with raise() reaches the main thread, which is how the report of ios 8 blamed the idle main thread
+        faulted = bool(thread["frames"]) and thread["frames"][0][1] == "???"
+        if not thread["crashed"] and thread["number"] != 0 and not faulted:
             continue
-        print("\nthread %d%s%s" % (thread["number"], " " + thread["name"] if thread["name"] else "", " crashed" if thread["crashed"] else ""))
+        print("\nthread %d%s%s" % (thread["number"], " " + thread["name"] if thread["name"] else "", " crashed" if thread["crashed"] else (" at no image, the likely fault" if faulted else "")))
         for index, image, address, base, offset in thread["frames"]:
             if image == "???":
                 print("  %3s  generated code or unmapped memory" % index)
