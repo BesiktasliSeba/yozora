@@ -143,6 +143,10 @@ static void YZDownloadObserver(unsigned identifier, int state, void *context);
         yozora_flush_http_cache();
         yozora_flush_bytecode_cache();
         yozora_flush_site_data();
+        // the hit rate of the bytecode cache is what says whether a bigger cache or a lower size floor would pay, it is read here once per leave
+        unsigned long long loaded = 0, stale = 0, stored = 0, bytes = 0;
+        yozora_bytecode_cache_statistics(&loaded, &stale, &stored, &bytes);
+        NSLog(@"yozora: bytecode cache, %llu scripts loaded from it, %llu replaced as stale, %llu stored, %llu bytes written", loaded, stale, stored, bytes);
         dispatch_async(dispatch_get_main_queue(), finish);
     });
 }

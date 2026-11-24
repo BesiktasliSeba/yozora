@@ -27,7 +27,7 @@ developer settings show a jit switch and a line with what javascriptcore reports
 
 ## bytecode cache
 
-a script of 16 KB or more keeps its bytecode in `Library/Caches/YozoraBytecode`, 64 MB. a script that loads again skips the parser and the generator. the key is the text of the script and the host, not the address, so a script served from a changing url still hits.
+a script of 16 KB or more keeps its bytecode in `Library/Caches/YozoraBytecode`, 64 MB. a script that loads again skips the parser and the generator. the key is the text of the script and the host, not the address, so a script served from a changing url still hits. when the app leaves the foreground the log gets one line with the scripts loaded from the cache, the stale ones replaced, the files stored and the bytes written (`yozora: bytecode cache, ...`), which is the hit rate on a phone.
 
 - a separate writer thread owns the disk, the page never waits for it
 - pending bytes are capped by the memory tier of the phone (6 MB at 512 MB and below)
