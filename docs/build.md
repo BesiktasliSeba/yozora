@@ -56,8 +56,8 @@ nothing is read from a fixed path, every root can be set:
 - compilers: `YOZORA_CORE_CC`, `YOZORA_CORE_CXX`, `YOZORA_CORE_AR`, `YOZORA_CORE_RANLIB`, flags in `YOZORA_CORE_CFLAGS_RELEASE`, `YOZORA_CORE_CXXFLAGS_RELEASE`, `YOZORA_CORE_LINK_FLAGS`
 - trees: `YOZORA_CORE_BUILD`, `YOZORA_CORE_IOS_BUILD`, `YOZORA_WEBCORE_BUILD`, `YOZORA_WEBCORE_IOS_BUILD`, `YOZORA_TEXT_BUILD`, `YOZORA_WEB_DEPS_BUILD`, `YOZORA_TOOLS_BUILD`
 - sources and caches: `YOZORA_WEBKIT_SRC`, `YOZORA_CORE_SOURCES`, `YOZORA_CORE_CACHE`, `YOZORA_WEB_CACHE`, `YOZORA_ICU_SRC`, `YOZORA_LLVM_SRC`, `YOZORA_FREETYPE_SRC`, `YOZORA_HARFBUZZ_SRC`, `YOZORA_SQLITE_SRC`
-- jobs: `YOZORA_CORE_JOBS`, `YOZORA_FETCH_JOBS`
-- the webcore tree meow links the app against: `YOZORA_WEBCORE_IOS_BUILD` (the jit tree `build/core/webcore-ios-jit` by default)
+- jobs: `YOZORA_CORE_JOBS` (1 to 8, the compile jobs of ninja; a heavy bundle of webcore or javascriptcore peaks near 1.5 GB, so 8 jobs want about 8 GB free), `YOZORA_FETCH_JOBS`
+- the webcore tree meow links the app against: `YOZORA_WEBCORE_IOS_BUILD` (`build/core/webcore-ios-jit-fresh` by default, the one configured under this path; a tree configured under another path is refused with a message, since cmake trees cannot move. a change in the sources of the engine rebuilds what ninja finds changed in that tree and nothing else (an armv7 relink after a few changed files took 12 seconds); unified builds compile up to 8 sources together, so one edited webkit file recompiles its bundle)
 - features: `YOZORA_WASM` (keeps the webassembly of javascriptcore on arm64), `YOZORA_ARMV7_JIT=0` (builds the c loop instead of the jit)
 
 a script that needs one of them and does not find it stops with the name.
@@ -80,6 +80,15 @@ every archive is fetched once and checked by sha-256 against `core/*.json` befor
 - `tools/make_home_art.py`: the cut out sticker and the wordmark mask of the start page
 - `tools/make_launch_images.py`: launch images for every iphone and ipad screen and the `UILaunchImages` entries
 - `tools/make_ui_icons.py`: interface glyph masks from `tools/material-symbols` and the marks of the search engines from `tools/logos`, needs `rsvg-convert` and pillow
+
+## the webcore tree
+
+cmake keeps the absolute path it was configured under, and the directory of the sources it was configured for. a tree cannot move, and a tree made for one WebKit directory cannot be pointed at another. `scripts/build_webcore_ios.sh` reads `CMAKE_CACHEFILE_DIR` and `CMAKE_HOME_DIRECTORY` of `<tree>/<slice>/CMakeCache.txt` before it calls cmake and stops with a message when either differs, so a wrong tree fails at once and is never rebuilt from nothing by accident.
+
+- `meow.toml` names the tree in `WEB` (`build/core/webcore-ios-jit-fresh`, overridden by `YOZORA_WEBCORE_IOS_BUILD`) and the two webcore steps hand it to the script. `scripts/export_link_line.py` reads the same tree for the link line of the app
+- inside a tree ninja decides what is stale, so a change in a webkit or `core/` source rebuilds the objects that depend on it and the archives. one armv7 relink after a few changed files took 12 seconds, `meow build ipa-armv7` end to end 25 seconds. unified builds compile up to 8 sources together (`WEBKIT_MAX_BUNDLE_SIZE=8`), so one edited webkit file recompiles its bundle
+- the step runs when meow finds its inputs changed, which is cheap: it ends in "no work to do" when ninja has nothing to do
+- a slice is made by naming it: `YOZORA_SLICES=armv7` or `arm64` (the script builds both when it is unset), each slice has its own subdirectory of the tree. a tree for the second slice is a full build
 
 ## updating webkit
 

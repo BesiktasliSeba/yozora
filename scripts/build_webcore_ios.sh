@@ -88,6 +88,24 @@ for YOZORA_SLICE in ${yozora_slices}; do
         yozora_js_options="-DENABLE_C_LOOP=OFF -DENABLE_JIT=ON -DENABLE_DFG_JIT=ON -DENABLE_FTL_JIT=OFF"
         yozora_flags="${yozora_flags} -mcpu=apple-a7"
     fi
+    # a cmake tree keeps the absolute path it was configured under and cannot be moved: after the project moved, cmake fails or a new tree
+    # is built from nothing, so say it here
+    yozora_cache="${yozora_build}/${YOZORA_SLICE}/CMakeCache.txt"
+    if [[ -f "${yozora_cache}" ]]; then
+        yozora_recorded="$(sed -n 's/^CMAKE_CACHEFILE_DIR:INTERNAL=//p' "${yozora_cache}")"
+        [[ "${yozora_recorded}" == "${yozora_build}/${YOZORA_SLICE}" ]] || {
+            echo "yozora: ${yozora_cache} was configured for ${yozora_recorded}, a cmake tree cannot be moved" >&2
+            echo "yozora: point YOZORA_WEBCORE_IOS_BUILD at a tree made under this path, or at a new directory (a full build)" >&2
+            exit 1
+        }
+        # the same goes for the sources: a tree made for another WebKit version or source directory is not reused
+        yozora_home="$(sed -n 's/^CMAKE_HOME_DIRECTORY:INTERNAL=//p' "${yozora_cache}")"
+        [[ "${yozora_home}" == "${yozora_source}" ]] || {
+            echo "yozora: ${yozora_cache} was configured for the sources in ${yozora_home}, not ${yozora_source}" >&2
+            echo "yozora: point YOZORA_WEBCORE_IOS_BUILD at a new directory (a full build) when the WebKit version changes" >&2
+            exit 1
+        }
+    fi
     cmake -S "${yozora_source}" -B "${yozora_build}/${YOZORA_SLICE}" -G Ninja \
         -DCMAKE_TOOLCHAIN_FILE="${yozora_root}/core/IOSToolchain.cmake" -DPORT=Yozora -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CXX_FLAGS="${yozora_flags}" \
