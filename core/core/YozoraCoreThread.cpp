@@ -157,6 +157,12 @@ void dispatchQueued()
 
 void* thread_main(void*)
 {
+    // the crash and hang records name every thread, and the system report of ios 8 shows this one as a bare number
+#if defined(__APPLE__)
+    pthread_setname_np("yozora.core");
+#elif defined(__linux__)
+    pthread_setname_np(pthread_self(), "yozora.core");
+#endif
     auto& s = state();
     // the first queued pass creates the first core, which starts WTF on this thread and attaches its run
     // loop, until then the queue has a wait of its own

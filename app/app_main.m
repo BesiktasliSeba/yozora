@@ -104,7 +104,7 @@ static void YZDownloadObserver(unsigned identifier, int state, void *context);
 }
 - (void)applicationDidEnterBackground:(UIApplication *)application {
     (void)application;
-    [YZCrash note:@"background"];
+    [YZCrash applicationDidEnterBackground];
     [_browser saveTabsAndWait];
     [self flushCachesInBackground:application];
     // pages do not run while the app is hidden, the thread resumes with the app. queued work, the flush above included, still runs
@@ -113,7 +113,7 @@ static void YZDownloadObserver(unsigned identifier, int state, void *context);
 }
 - (void)applicationWillEnterForeground:(UIApplication *)application {
     (void)application;
-    [YZCrash note:@"foreground"];
+    [YZCrash applicationWillEnterForeground];
     [self endBackgroundTask];
     yozora_set_background(0);
     for (NSNumber *identifier in _pausedForBackground)
@@ -253,6 +253,7 @@ static void YZDownloadObserver(unsigned identifier, int state, void *context);
 
 - (void)applicationWillTerminate:(UIApplication *)application {
     (void)application;
+    [YZCrash applicationWillTerminate];
     [_browser saveTabsAndWait];
     yozora_flush_http_cache();
     yozora_flush_bytecode_cache();
