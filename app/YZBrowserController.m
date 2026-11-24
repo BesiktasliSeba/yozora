@@ -1558,20 +1558,21 @@ static const CGFloat YZTabStripHeight = 44;
     CGFloat covered = (_pageEditing || [self findBarOpen]) ? MAX(reserved, _keyboardHeight) : reserved;
     // with the address bar gone the page starts under the status strip, which stays
     CGFloat pageTop = (_pageReservesTop || wide) ? toolTop + bar : top;
-    CGRect page = CGRectMake(0, pageTop, width, MAX((CGFloat)0, height - pageTop - covered));
+    // the page stands between the notch insets, the bars keep the full width
+    CGRect page = CGRectMake(insets.left, pageTop, MAX((CGFloat)0, inner), MAX((CGFloat)0, height - pageTop - covered));
     _home.frame = page;
     _errorPage.frame = page;
-    _banner.frame = CGRectMake(12, pageTop + 8, MAX((CGFloat)0, width - 24), 44);
+    _banner.frame = CGRectMake(insets.left + 12, pageTop + 8, MAX((CGFloat)0, inner - 24), 44);
     if (_debugOverlay) {
         // the corner of the page, under the bar, off the notch of a phone on its side
         CGSize overlay = [YZDebugOverlay preferredSize];
         _debugOverlay.frame = CGRectMake(MAX((CGFloat)0, width - overlay.width - 8 - insets.right), pageTop + 8, overlay.width, overlay.height);
     }
     // the card of the translation stands at the bottom of the page, a column on a wide screen
-    CGFloat barWidth = MIN(MAX((CGFloat)0, width - 24), (CGFloat)560);
+    CGFloat barWidth = MIN(MAX((CGFloat)0, inner - 24), (CGFloat)560);
     // the card follows the bottom edge of the page with a slide so it does not jump by the bar height. placed
     // by bounds and center, its anchor is the bottom edge
-    CGPoint translateBottom = CGPointMake(floor((width - barWidth) / 2) + barWidth / 2, CGRectGetMaxY(page) - 10);
+    CGPoint translateBottom = CGPointMake(insets.left + floor((inner - barWidth) / 2) + barWidth / 2, CGRectGetMaxY(page) - 10);
     CGRect translateBounds = CGRectMake(0, 0, barWidth, [YZTranslateBar height]);
     if (!CGPointEqualToPoint(_translateBar.center, translateBottom) || !CGRectEqualToRect(_translateBar.bounds, translateBounds)) {
         BOOL slides = _translateBarShown && !_translateBar.hidden && _translateBar.bounds.size.width == barWidth && [YZTheme animationsEnabled];
@@ -1585,7 +1586,7 @@ static const CGFloat YZTabStripHeight = 44;
             place();
     }
     CGFloat suggestionsBottom = MAX((CGFloat)0, _keyboardHeight);
-    _suggestionsTable.frame = CGRectMake(0, pageTop, width, MAX((CGFloat)0, height - pageTop - suggestionsBottom));
+    _suggestionsTable.frame = CGRectMake(insets.left, pageTop, MAX((CGFloat)0, inner), MAX((CGFloat)0, height - pageTop - suggestionsBottom));
     if (_findBar) {
         // on a phone the bar covers the strip under the status bar too, on a wide screen the tabs stay visible above it
         if (wide)

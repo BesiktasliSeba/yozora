@@ -48,6 +48,10 @@ two fingers enlarge the picture of the page the way safari does, the layout keep
 
 the core keeps it (`yozora_core_set_desktop`): the user agent of safari on a mac and a layout 980 points wide. the menu has no entry for it, the interface cannot switch it on. the mode belongs to the tab and a page in it neither reads nor writes the disk cache.
 
+## notch
+
+on a phone with a notch, rounded corners or a home indicator the bars take `safeAreaInsets` and run the whole width, and the page, the home screen, the error page, the suggestions and the cards stand between the left and right insets (`layoutChrome`), so a landscape page does not run under the notch. the strips beside the page show the surface color, not the background of the page. `viewport-fit=cover` is not honored and `env(safe-area-inset-*)` is 0 for a page: a page always gets the safe area as a margin. the video screen reads the insets on its own. not seen on a device yet.
+
 ## ipad
 
 all four orientations. a window of 700 points or more shows the tabs as a strip above one toolbar (back, forward, address, bookmark, tabs, menu), the bottom bar is gone and the menu hangs from the toolbar. a narrower window (slide over, half of a split view) keeps the phone layout. split view and slide over need ios 9 and a launch storyboard.
