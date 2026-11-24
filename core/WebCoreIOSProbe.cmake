@@ -47,3 +47,28 @@ function(yozora_add_ios_page)
 endfunction()
 
 cmake_language(DEFER CALL yozora_add_ios_page)
+
+# code that pages seldom run is built for size, the engine keeps -O3 where a page spends its time. the unified bundles are named after their
+# directory (UnifiedSource-inspector-3.cpp), so a directory is cold or hot as a whole and a bundle never mixes the two. the flag comes after -O3
+# in the command line and wins. clang refuses a precompiled header made at another optimization level, so these bundles skip the prefix header
+function(yozora_size_optimize_cold_bundles)
+    # the bundles of webcore sit in several targets, it is split by directory. javascriptcore keeps -O3: its patched jit headers lean on the prefix
+    # header (InlineCacheCompiler.h names CCallHelpers without including it), which a bundle without it does not have
+    set(yozora_cold "Modules|inspector|accessibility|automation|plugins|history|bridge|crypto|contentextensions|fileapi|worklets|xml|mathml")
+    set(yozora_cold_total 0)
+    foreach (yozora_target IN ITEMS WebCore WebCoreDOMAndRendering WebCoreStyle WebCoreInspector WebCoreJSBindings)
+        if (NOT TARGET ${yozora_target})
+            continue ()
+        endif ()
+        get_target_property(yozora_sources ${yozora_target} SOURCES)
+        list(FILTER yozora_sources INCLUDE REGEX "unified-sources/UnifiedSource-(${yozora_cold})-[0-9]+\\.cpp$")
+        list(LENGTH yozora_sources yozora_count)
+        if (yozora_count)
+            set_source_files_properties(${yozora_sources} TARGET_DIRECTORY ${yozora_target} PROPERTIES COMPILE_OPTIONS "-Os" SKIP_PRECOMPILE_HEADERS ON)
+            math(EXPR yozora_cold_total "${yozora_cold_total} + ${yozora_count}")
+        endif ()
+    endforeach ()
+    message(STATUS "yozora: ${yozora_cold_total} cold bundles are built for size")
+endfunction()
+
+cmake_language(DEFER CALL yozora_size_optimize_cold_bundles)

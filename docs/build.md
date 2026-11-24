@@ -104,6 +104,13 @@ building it:
 - new directory, new tree: `meow build` makes a tree for `build/sources/webkitgtk-X.Y.Z` and builds all of webcore, the cost of a first build of that slice
 - keeping the tree: `python3 scripts/sync_core_source.py OLD NEW --apply` copies into the old, already patched directory only the files whose content differs from the new patched one, adds the new ones and removes the ones that are gone; the rest keep their time stamps. then `YOZORA_WEBKIT_SRC=OLD meow build ipa-armv7` builds what ninja finds changed. without `--apply` the script only reports (2.54.1 to 2.54.3: 2750 files changed, about 430 of them in WebCore, JavaScriptCore and WTF, 45 added, 46 removed). the new tree is the verified one, and the old tree stays the one cmake was configured for
 
+## the engine flags of a build
+
+- `-O3`, `-mthumb` on armv7, `-std=c++23`, neon on (`__ARM_NEON`, the vectorizer uses `vld1` and `vadd` on armv7)
+- bundles of directories pages seldom run are built with `-Os` (`yozora_size_optimize_cold_bundles` in `core/WebCoreIOSProbe.cmake`): in WebCore `Modules`, `inspector`, `accessibility`, `automation`, `plugins`, `history`, `bridge`, `crypto`, `contentextensions`, `fileapi`, `worklets`, `xml` and `mathml`, 141 bundles. WebCore is split into several cmake targets, the function walks all of them. the unified bundles are named after their directory (`UnifiedSource-inspector-3.cpp`), so a bundle is cold or hot as a whole. the flag comes after `-O3` on the command line and wins. clang refuses a precompiled header made at another optimization level (`OptimizationLevel differs in precompiled file`), so these bundles skip the prefix header (`SKIP_PRECOMPILE_HEADERS`)
+- javascriptcore stays at `-O3`: its patched jit headers (`InlineCacheCompiler.h` names `CCallHelpers`) lean on the prefix header, which a bundle without it does not have
+- no link time optimization. the libraries are compiled by the host clang (23), the app is linked by the old ld64 of the toolchain with `libLTO` 11, which cannot read the bitcode of clang 23 (`ignoring file ... unsupported file format`), and `ld64.lld` of this host has no `-arch armv7`
+
 ## the c files built into the app
 
 some of the c code is used by the app only and is compiled with it (`meow.toml`, the lists of `app`, `app-armv7`, `app-arm64`) instead of into `libYozoraCore`, which needs a webkit build:
