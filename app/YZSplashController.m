@@ -1,5 +1,6 @@
 #import "YZSplashController.h"
 #import "YZMotion.h"
+#import "YZCompat.h"
 #import "YZTheme.h"
 
 @implementation YZSplashController
@@ -48,6 +49,10 @@
 - (void)viewDidAppear:(BOOL)animated {
     [super viewDidAppear:animated];
     [self play];
+}
+
+- (UIInterfaceOrientation)preferredInterfaceOrientationForPresentation {
+    return YZRootOrientation();
 }
 
 - (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)orientation {

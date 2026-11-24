@@ -341,6 +341,10 @@ static UILabel *YZToastLabel(void) {
 
 - (BOOL)prefersStatusBarHidden { return YES; }
 
+- (UIInterfaceOrientation)preferredInterfaceOrientationForPresentation {
+    return YZPresentedOrientation();
+}
+
 - (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)orientation {
     (void)orientation;
     return YES;

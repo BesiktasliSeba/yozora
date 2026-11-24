@@ -32,6 +32,9 @@ static void YZDownloadObserver(unsigned identifier, int state, void *context);
 @synthesize window = _window;
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)options {
     (void)options;
+    // uidevice reports nothing before this
+    [[UIDevice currentDevice] beginGeneratingDeviceOrientationNotifications];
+    NSLog(@"yozora: launch orientation device %d interface %d", (int)[[UIDevice currentDevice] orientation], (int)[application statusBarOrientation]);
     _backgroundTask = UIBackgroundTaskInvalid;
     _pausedForBackground = [[NSMutableSet alloc] init];
     yozora_downloads_set_observer(YZDownloadObserver, self);

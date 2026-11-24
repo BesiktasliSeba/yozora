@@ -67,3 +67,17 @@ static inline void YZSetPlaceholder(UITextField *field, NSString *text, UIColor 
     id string = [[[attributed alloc] performSelector:NSSelectorFromString(@"initWithString:attributes:") withObject:text withObject:attributes] autorelease];
     [field performSelector:setter withObject:string];
 }
+
+/* ios 10 with the rotation lock opens a root screen in portrait, so it follows the way the device is held */
+static inline UIInterfaceOrientation YZRootOrientation(void) {
+    UIDeviceOrientation held = [[UIDevice currentDevice] orientation];
+    BOOL pad = UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad;
+    if (UIDeviceOrientationIsLandscape(held) || held == UIDeviceOrientationPortrait || (pad && held == UIDeviceOrientationPortraitUpsideDown))
+        return (UIInterfaceOrientation)held;
+    return [[UIApplication sharedApplication] statusBarOrientation];
+}
+
+/* a presented screen follows the window, its default is portrait */
+static inline UIInterfaceOrientation YZPresentedOrientation(void) {
+    return [[UIApplication sharedApplication] statusBarOrientation];
+}

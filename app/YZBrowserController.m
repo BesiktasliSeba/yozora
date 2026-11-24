@@ -89,6 +89,22 @@ static UIImage *YZThumbnailFromView(UIView *view) {
 - (void)viewSafeAreaInsetsDidChange;
 @end
 
+// a plain navigation controller opened the panels in portrait on ios 10
+@interface YZPanelNavigationController : UINavigationController
+@end
+
+@implementation YZPanelNavigationController
+- (UIInterfaceOrientation)preferredInterfaceOrientationForPresentation {
+    return YZPresentedOrientation();
+}
+
+// before ios 6 the default is portrait only and the panel screens never answer, so they opened sideways
+- (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)orientation {
+    (void)orientation;
+    return YES;
+}
+@end
+
 @interface YZBrowserController ()
 - (YZTab *)currentTab;
 - (void)layoutChrome;
@@ -126,7 +142,7 @@ static UIImage *YZThumbnailFromView(UIView *view) {
 - (void)wobbleChrome;
 - (void)styleBarButton:(UIButton *)button icon:(YZIcon)icon;
 - (void)styleField;
-- (void)presentPanel:(UINavigationController *)navigation;
+- (void)presentPanel:(YZPanelNavigationController *)navigation;
 - (void)styleCancelButton;
 - (void)restoreTabs;
 - (void)openSiteData;
@@ -2251,7 +2267,7 @@ static const CGFloat YZTabStripHeight = 44;
 
 // the lists, the downloads and the settings stand as a card in the middle of an ipad, a column of 540 points. full width
 // rows over a screen of 1024 points are a line the eye cannot follow. a phone has them over the whole screen
-- (void)presentPanel:(UINavigationController *)navigation {
+- (void)presentPanel:(YZPanelNavigationController *)navigation {
     if ([YZTheme isPad])
         navigation.modalPresentationStyle = UIModalPresentationFormSheet;
     [self presentViewController:navigation animated:YES completion:nil];
@@ -2260,7 +2276,7 @@ static const CGFloat YZTabStripHeight = 44;
 - (void)presentList:(YZListKind)kind {
     YZListController *list = [[YZListController alloc] initWithStore:_store kind:kind];
     list.listDelegate = self;
-    UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:list];
+    YZPanelNavigationController *navigation = [[YZPanelNavigationController alloc] initWithRootViewController:list];
     [self presentPanel:navigation];
     [navigation release];
     [list release];
@@ -2286,7 +2302,7 @@ static const CGFloat YZTabStripHeight = 44;
     case YZMenuDownloads: {
         YZDownloadsController *downloads = [[YZDownloadsController alloc] init];
         downloads.downloadsDelegate = self;
-        UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:downloads];
+        YZPanelNavigationController *navigation = [[YZPanelNavigationController alloc] initWithRootViewController:downloads];
         [self presentPanel:navigation];
         [navigation release];
         [downloads release];
@@ -2366,7 +2382,7 @@ static const CGFloat YZTabStripHeight = 44;
 - (YZSettingsController *)presentSettings {
     YZSettingsController *settings = [[[YZSettingsController alloc] initWithStore:_store] autorelease];
     settings.settingsDelegate = self;
-    UINavigationController *navigation = [[UINavigationController alloc] initWithRootViewController:settings];
+    YZPanelNavigationController *navigation = [[YZPanelNavigationController alloc] initWithRootViewController:settings];
     navigation.view.backgroundColor = [YZTheme surfaceColor];
     [self presentPanel:navigation];
     [navigation release];
@@ -2998,9 +3014,26 @@ typedef enum {
 
 #pragma mark system
 
+- (UIInterfaceOrientation)preferredInterfaceOrientationForPresentation {
+    return YZRootOrientation();
+}
+
 - (BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)orientation {
     (void)orientation;
     return YES;
+}
+
+// ios 5 launched in landscape keeps the launch orientation for the status bar and keyboard after the browser replaces the splash
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    if ([UIViewController instancesRespondToSelector:NSSelectorFromString(@"preferredInterfaceOrientationForPresentation")])
+        return;
+    UIApplication *application = [UIApplication sharedApplication];
+    UIInterfaceOrientation shown = (UIInterfaceOrientation)[[self valueForKey:@"interfaceOrientation"] integerValue];
+    if (shown == application.statusBarOrientation)
+        return;
+    NSLog(@"yozora: the application is in orientation %d and the screen in %d, the application follows the screen", (int)application.statusBarOrientation, (int)shown);
+    [application setStatusBarOrientation:shown animated:NO];
 }
 
 - (void)didRotateFromInterfaceOrientation:(UIInterfaceOrientation)orientation {
