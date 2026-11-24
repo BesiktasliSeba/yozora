@@ -20,7 +20,12 @@ static NSString *const YZCurrentTabDefaultsKey = @"YZCurrentTab";
 static const NSUInteger YZTabLimit = 24;
 static const NSInteger YZBottomSkirtTag = 7701;
 static const NSUInteger YZSuggestionLimit = 6;
-static const CGFloat YZThumbnailPixels = 280;
+// the tray shows a page as wide as the screen in the stack of the flat design: the preview is as wide as the screen in pixels (at most 800),
+// 280 was enough for the cards of the grid and was stretched to twice its size here
+static CGFloat YZThumbnailPixels(void) {
+    UIScreen *screen = [UIScreen mainScreen];
+    return MIN((CGFloat)800, round(screen.bounds.size.width * screen.scale));
+}
 
 // the display link retains its target, this one holds the controller without retaining it
 @interface YZCoreLinkTarget : NSObject {
@@ -55,7 +60,8 @@ static UIImage *YZThumbnailFromView(UIView *view) {
     CGSize size = view.bounds.size;
     if (size.width < 1 || size.height < 1)
         return nil;
-    CGFloat captureScale = MIN((CGFloat)1, (CGFloat)2048 / MAX(size.width, size.height));
+    // the page is drawn at the density of the screen, at 1 its text came out at half the pixels the preview needs
+    CGFloat captureScale = MIN([[UIScreen mainScreen] scale], (CGFloat)2048 / MAX(size.width, size.height));
     UIGraphicsBeginImageContextWithOptions(CGSizeMake(size.width * captureScale, size.height * captureScale), YES, 1);
     CGContextRef context = UIGraphicsGetCurrentContext();
     if (!context) {
@@ -68,7 +74,7 @@ static UIImage *YZThumbnailFromView(UIView *view) {
     UIGraphicsEndImageContext();
     if (!capture)
         return nil;
-    CGFloat scale = MIN((CGFloat)1, YZThumbnailPixels / size.width);
+    CGFloat scale = MIN(captureScale, YZThumbnailPixels() / size.width);
     UIGraphicsBeginImageContextWithOptions(CGSizeMake(size.width * scale, size.height * scale), YES, 1);
     context = UIGraphicsGetCurrentContext();
     if (!context) {
@@ -2438,6 +2444,11 @@ static const CGFloat YZTabStripHeight = 44;
         [self switchToTab:index];
 }
 
+- (CGRect)tabsViewPageFrame:(YZTabsView *)view {
+    (void)view;
+    return [view convertRect:_pageView.frame fromView:self.view];
+}
+
 - (void)tabsView:(YZTabsView *)view didCloseIndex:(NSUInteger)index {
     (void)view;
     [self closeTabAtIndex:index];
@@ -2445,8 +2456,10 @@ static const CGFloat YZTabStripHeight = 44;
 
 - (void)tabsViewDidRequestNewTab:(YZTabsView *)view {
     (void)view;
-    [YZTheme setView:_tabsView shown:NO scale:1];
     [self addBlankTab];
+    // the flat stack brings the new page in and opens it, the others fade out as they did
+    if (![_tabsView presentNewTab:_tabs selected:_current])
+        [YZTheme setView:_tabsView shown:NO scale:1];
 }
 
 - (void)tabsView:(YZTabsView *)view didChooseIncognito:(BOOL)incognito {

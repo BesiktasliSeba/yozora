@@ -2008,6 +2008,8 @@ static NSArray *YZEngineLogos(void) {
         choice.tints = nil;
         choice.bareMarks = NO;
         choice.selected = [YZSettings tabsLayout];
+        choice.locked = [NSArray arrayWithObjects:[NSNumber numberWithBool:NO], [NSNumber numberWithBool:[YZSettings design] == YZDesignModern], nil];
+        choice.lockedMessages = [NSArray arrayWithObjects:@"", YZT(@"Страницы есть в классическом и плоском оформлении, в современном только сетка"), nil];
         break;
     case YZRowMascot:
         choice.heading = YZT(@"Маскот");

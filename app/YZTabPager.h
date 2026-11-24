@@ -4,7 +4,7 @@
 
 /* the pages view of the tab tray: one page of each tab, paged sideways with its neighbours showing at the edges, the title and
    the address of the page in front above it, a close badge on its corner and the dots of the system (UIPageControl) under it, as
-   the page switcher of Safari. the classic design draws it the way ios 5 and 6 did, the modern one with flat cards */
+   the page switcher of Safari. the classic design draws it the way ios 5 and 6 did */
 @interface YZTabPager : UIView <UIScrollViewDelegate> {
     id<YZTabPagerDelegate> _delegate;
     UILabel *_title;
@@ -37,4 +37,7 @@
 - (void)tabPager:(YZTabPager *)pager didCloseIndex:(NSUInteger)index;
 /* the person paged past the last tab, or tapped the page that stands there */
 - (void)tabPagerDidRequestNewTab:(YZTabPager *)pager;
+@optional
+/* where the page of the browser stands, only its shape counts. CGRectNull for none */
+- (CGRect)tabPagerPageFrame:(YZTabPager *)pager;
 @end

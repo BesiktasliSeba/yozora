@@ -153,8 +153,9 @@ static UIImage *YZBadgeImage(void) {
     open.frame = bounds;
     UIImage *preview = picture.image;
     if (preview && preview.size.width > 0 && preview.size.height > 0) {
-        // the picture fills the page: scaled until it covers the width and the height, its top at the top of the page and what is below the
-        // page cut off. a picture that is shorter than the page left the foot of it bare
+        // the picture is the top of the page at the width of the card, what does not fit is cut at the foot. one that is too short for the card
+        // is scaled up until it fills it and cut at the sides, so no bare plate shows beside or under it (a page kept in another shape used to
+        // leave a white strip)
         CGFloat scale = MAX(bounds.size.width / preview.size.width, bounds.size.height / preview.size.height);
         CGFloat width = ceil(preview.size.width * scale), height = ceil(preview.size.height * scale);
         picture.frame = CGRectMake(floor((bounds.size.width - width) / 2), 0, width, height);
@@ -362,22 +363,41 @@ static UIImage *YZBadgeImage(void) {
     _dots.frame = CGRectMake(0, height - YZDotsHeight - 6, width, YZDotsHeight);
     CGFloat top = CGRectGetMaxY(_address.frame) + (wide ? 14 : 24), bottom = CGRectGetMinY(_dots.frame) - 12;
     CGFloat area = MAX((CGFloat)60, bottom - top);
-    CGFloat pageWidth = MIN(floor(width * 0.6f), floor(area * 0.77f));
-    CGFloat stride = pageWidth + YZPageGap;
+    // a page has the shape of the page of the browser, so its picture fits it as it is
+    CGFloat aspect = [self pageAspect];
+    CGFloat gap = YZPageGap;
+    CGFloat pageWidth = MIN(floor(width * 0.6f), floor(area / aspect));
+    CGFloat pageHeight = MIN(area, ceil(pageWidth * aspect));
+    CGFloat pageTop = floor((area - pageHeight) / 2);
+    CGFloat stride = pageWidth + gap;
     // the scroll view is as wide as one step and stands in the middle: pages beyond its edges show because it does not clip
     _scroll.frame = CGRectMake(floor((width - stride) / 2), top, stride, area);
     // one page more than the tabs: the empty one that opens a new tab
     _scroll.contentSize = CGSizeMake(stride * (CGFloat)([_pages count] + 1), area);
-    _plus.frame = CGRectMake(stride * (CGFloat)[_pages count] + YZPageGap / 2, 0, pageWidth, area);
-    _plusIcon.frame = CGRectMake(0, area / 2 - 56, pageWidth, 72);
-    _plusCaption.frame = CGRectMake(8, area / 2 + 22, pageWidth - 16, 22);
+    CGRect plateBounds = CGRectMake(0, 0, pageWidth, pageHeight);
+    _plus.bounds = plateBounds;
+    _plus.center = CGPointMake(stride * (CGFloat)[_pages count] + gap / 2 + pageWidth / 2, pageTop + pageHeight / 2);
+    _plusIcon.frame = CGRectMake(0, pageHeight / 2 - 56, pageWidth, 72);
+    _plusCaption.frame = CGRectMake(8, pageHeight / 2 + 22, pageWidth - 16, 22);
     [[_plus viewWithTag:5] setFrame:_plus.bounds];
     for (NSUInteger i = 0; i < [_pages count]; ++i) {
         YZPagerPage *page = [_pages objectAtIndex:i];
-        page.frame = CGRectMake(stride * (CGFloat)i + YZPageGap / 2, 0, pageWidth, area);
+        page.bounds = plateBounds;
+        page.center = CGPointMake(stride * (CGFloat)i + gap / 2 + pageWidth / 2, pageTop + pageHeight / 2);
     }
     if (_current >= 0 && !_scroll.dragging && !_scroll.decelerating)
         _scroll.contentOffset = CGPointMake(stride * (CGFloat)_current, 0);
+}
+
+// the proportions of the page of the browser, height over width, or those of a phone page when it does not say
+- (CGFloat)pageAspect {
+    CGFloat aspect = 0;
+    if ([_delegate respondsToSelector:@selector(tabPagerPageFrame:)]) {
+        CGRect page = [_delegate tabPagerPageFrame:self];
+        if (!CGRectIsNull(page) && page.size.width > 0)
+            aspect = page.size.height / page.size.width;
+    }
+    return aspect > 0 ? MIN(MAX(aspect, (CGFloat)0.5), (CGFloat)2.2) : (CGFloat)1.5;
 }
 
 // a touch beside the middle page, on a neighbour or on the empty room between, pages the view as well. a view that is hidden or takes
@@ -437,15 +457,16 @@ static UIImage *YZBadgeImage(void) {
     if ([_tabs indexOfObjectIdenticalTo:tab] == NSNotFound)
         return;
     button.userInteractionEnabled = NO;
-    // the page rises and fades with the animation of the system, then the tab is closed and the pages close up
-    [UIView animateWithDuration:0.25 delay:0 options:UIViewAnimationOptionCurveEaseIn animations:^{
-        page.alpha = 0;
-        page.transform = CGAffineTransformMakeTranslation(0, -40);
-    } completion:^(BOOL finished) {
+    void (^remove)(BOOL) = ^(BOOL finished) {
         (void)finished;
         NSUInteger index = [_tabs indexOfObjectIdenticalTo:tab];
         if (index != NSNotFound)
             [_delegate tabPager:self didCloseIndex:index];
-    }];
+    };
+    // the page rises and fades with the animation of the system, then the tab is closed and the pages close up
+    [UIView animateWithDuration:0.25 delay:0 options:UIViewAnimationOptionCurveEaseIn animations:^{
+        page.alpha = 0;
+        page.transform = CGAffineTransformMakeTranslation(0, -40);
+    } completion:remove];
 }
 @end

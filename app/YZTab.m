@@ -79,7 +79,7 @@ static NSString *YZNewIdentifier(void) {
     }
     _thumbnailOnDisk = YES;
     NSString *path = YZThumbnailPath(_identifier);
-    NSData *data = path ? UIImageJPEGRepresentation(thumbnail, 0.7f) : nil;
+    NSData *data = path ? UIImageJPEGRepresentation(thumbnail, 0.82f) : nil;
     if (!data)
         return;
     // the block keeps the path and the bytes until the file is written

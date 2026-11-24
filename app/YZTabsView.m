@@ -205,15 +205,29 @@ static void YZPlaceView(UIView *view, CGRect frame) {
     // done only: a new page is made by the page with the plus at the end of the row
     _toolbar.items = [NSArray arrayWithObjects:space, _toolbarDone, nil];
     [self addSubview:_toolbar];
-    _pagesBar = [[UIView alloc] initWithFrame:CGRectZero];
-    _pagesBar.hidden = YES;
-    [self addSubview:_pagesBar];
-    _pagesBarLine = [[UIView alloc] initWithFrame:CGRectZero];
-    [_pagesBar addSubview:_pagesBarLine];
-    _pagesDone = [[YZStateButton buttonWithType:UIButtonTypeCustom] retain];
-    [(YZStateButton *)_pagesDone setPillInsets:UIEdgeInsetsMake(6, 4, 6, 4)];
-    [_pagesDone addTarget:self action:@selector(donePressed) forControlEvents:UIControlEventTouchUpInside];
-    [_pagesBar addSubview:_pagesDone];
+    _stack = [[YZTabStack alloc] initWithFrame:CGRectZero];
+    _stack.delegate = self;
+    _stack.hidden = YES;
+    [self addSubview:_stack];
+    _stackBar = [[UIView alloc] initWithFrame:CGRectZero];
+    _stackBar.hidden = YES;
+    [self addSubview:_stackBar];
+    for (NSUInteger i = 0; i < 2; ++i) {
+        UISwipeGestureRecognizer *swipe = [[[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(stackBarSwiped:)] autorelease];
+        swipe.direction = i ? UISwipeGestureRecognizerDirectionRight : UISwipeGestureRecognizerDirectionLeft;
+        [_stackBar addGestureRecognizer:swipe];
+    }
+    _stackPrivate = [[UIButton buttonWithType:UIButtonTypeCustom] retain];
+    [_stackPrivate addTarget:self action:@selector(stackPrivatePressed) forControlEvents:UIControlEventTouchUpInside];
+    _stackNew = [[UIButton buttonWithType:UIButtonTypeCustom] retain];
+    _stackNew.accessibilityLabel = YZT(@"Новая вкладка");
+    [_stackNew addTarget:self action:@selector(newTabPressed) forControlEvents:UIControlEventTouchUpInside];
+    _stackDone = [[UIButton buttonWithType:UIButtonTypeCustom] retain];
+    [_stackDone addTarget:self action:@selector(donePressed) forControlEvents:UIControlEventTouchUpInside];
+    for (UIButton *button in [NSArray arrayWithObjects:_stackPrivate, _stackNew, _stackDone, nil]) {
+        YZMotionAttachBounce(button, 0.05f);
+        [_stackBar addSubview:button];
+    }
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(iconLoaded:) name:YZFaviconDidLoadNotification object:nil];
     [self applyTheme];
     return self;
@@ -222,15 +236,89 @@ static void YZPlaceView(UIView *view, CGRect frame) {
 // the setting can change between two openings of the tray: what each layout needs is shown or hidden here
 - (void)applyLayoutMode {
     BOOL pages = [self showsPages], bar = [self usesToolbar];
-    if (_pager.hidden != !pages || _toolbar.hidden != !bar || _pagesBar.hidden != ![self usesPagesBar])
+    if (_pager.hidden != (!pages || [self showsStack]) || _stack.hidden != ![self showsStack] || _toolbar.hidden != !bar)
         [self applyTheme];
 }
 
 - (BOOL)showsPages { return [YZSettings tabsLayout] == YZTabsLayoutPages; }
-// the classic pages stand over the toolbar of the system, the modern ones keep the header and the floating button
+// the classic pages stand over the toolbar of the system
 - (BOOL)usesToolbar { return [self showsPages] && [YZTheme isClassic]; }
-// the modern pages stand over a flat bar of two buttons instead of the floating button
-- (BOOL)usesPagesBar { return [self showsPages] && ![YZTheme isClassic]; }
+// the flat pages are the stack of ios 7 over a bar of their own
+- (BOOL)showsStack { return [self showsPages] && [YZTheme isFlat]; }
+
+- (void)tabStack:(YZTabStack *)stack didSelectIndex:(NSUInteger)index {
+    (void)stack;
+    [_delegate tabsView:self didSelectIndex:index];
+}
+
+- (CGRect)tabStackPageFrame:(YZTabStack *)stack {
+    if (![_delegate respondsToSelector:@selector(tabsViewPageFrame:)])
+        return CGRectNull;
+    CGRect page = [_delegate tabsViewPageFrame:self];
+    return CGRectIsNull(page) ? page : [stack convertRect:page fromView:self];
+}
+
+// the ground and the bar of the stack take the color of the bars of the browser while the page grows, so the bars that show when the
+// tray leaves are the ones already there and are not swapped in
+- (void)tabStackWillOpenPage:(YZTabStack *)stack {
+    (void)stack;
+    UIColor *bars = [YZTheme toolbarColor];
+    self.backgroundColor = bars;
+    _stackBar.backgroundColor = bars;
+    for (UIView *button in _stackBar.subviews)
+        button.alpha = 0;
+}
+
+- (void)tabStack:(YZTabStack *)stack didCloseIndex:(NSUInteger)index {
+    (void)stack;
+    [_delegate tabsView:self didCloseIndex:index];
+}
+
+// the private tabs and the normal ones are one switch, the button is its flat form
+- (void)stackPrivatePressed { [self chooseIncognito:!_incognito]; }
+
+- (void)chooseIncognito:(BOOL)incognito {
+    if (incognito == _incognito)
+        return;
+    _incognito = incognito;
+    [self styleStackBar];
+    if ([_delegate respondsToSelector:@selector(tabsView:didChooseIncognito:)])
+        [_delegate tabsView:self didChooseIncognito:_incognito];
+}
+
+// the normal tabs and the private ones are two pages side by side: a finger moving left goes on to the private ones, right comes back
+- (void)stackBarSwiped:(UISwipeGestureRecognizer *)swipe {
+    if (swipe.state == UIGestureRecognizerStateEnded)
+        [self chooseIncognito:swipe.direction == UISwipeGestureRecognizerDirectionLeft];
+}
+
+- (void)tabStack:(YZTabStack *)stack didSwipeToward:(NSInteger)direction {
+    (void)stack;
+    [self chooseIncognito:direction < 0];
+}
+
+- (void)styleStackBar {
+    UIColor *ink = [UIColor whiteColor];
+    // the bar is three glyphs: the mask of the private tabs (in the accent while they are shown), a new tab, a check for done
+    [_stackPrivate setTitle:nil forState:UIControlStateNormal];
+    [_stackPrivate setImage:[YZTheme icon:YZIconIncognito size:28 color:_incognito ? [YZTheme accentColor] : ink] forState:UIControlStateNormal];
+    _stackPrivate.accessibilityLabel = YZT(@"Приватный");
+    _stackPrivate.accessibilityValue = _incognito ? @"1" : @"0";
+    [_stackDone setTitle:nil forState:UIControlStateNormal];
+    [_stackDone setImage:[YZTheme icon:YZIconCheck size:30 color:ink] forState:UIControlStateNormal];
+    _stackDone.accessibilityLabel = YZT(@"Готово");
+    [_stackNew setImage:[YZTheme icon:YZIconPlus size:30 color:ink] forState:UIControlStateNormal];
+    _stackBar.backgroundColor = [UIColor colorWithWhite:0 alpha:0.28f];
+    for (UIView *button in _stackBar.subviews)
+        button.alpha = 1;
+}
+
+- (CGRect)tabPagerPageFrame:(YZTabPager *)pager {
+    if (![_delegate respondsToSelector:@selector(tabsViewPageFrame:)])
+        return CGRectNull;
+    CGRect page = [_delegate tabsViewPageFrame:self];
+    return CGRectIsNull(page) ? page : [pager convertRect:page fromView:self];
+}
 
 - (void)tabPager:(YZTabPager *)pager didSelectIndex:(NSUInteger)index {
     (void)pager;
@@ -254,14 +342,18 @@ static void YZPlaceView(UIView *view, CGRect frame) {
     for (YZTabCard *card in _cards)
         [card updateSelected:card->open.tab == selected];
     [_pager refreshThumbnails];
+    [_stack refreshThumbnails];
 }
 
 - (void)setIncognito:(BOOL)incognito {
     _incognito = incognito;
+    [self styleStackBar];
     [(YZSegmentedPill *)_modes setSelectedSegment:incognito ? 1 : 0 animated:self.window != nil && !self.hidden];
 }
 
 - (CGPoint)modeSwitchCenterInView:(UIView *)view {
+    if ([self showsStack])
+        return [view convertPoint:CGPointMake(CGRectGetMidX(_stackPrivate.bounds), CGRectGetMidY(_stackPrivate.bounds)) fromView:_stackPrivate];
     // the circle opens from the segment that was chosen, not from the middle of the switch
     CGRect segment = _modes.bounds;
     segment.size.width /= 2;
@@ -276,23 +368,20 @@ static void YZPlaceView(UIView *view, CGRect frame) {
 }
 
 - (void)applyTheme {
-    self.backgroundColor = [YZTheme isClassic] ? [YZTheme screenColor] : [YZTheme backdropColor];
-    BOOL pages = [self showsPages], bar = [self usesToolbar];
+    self.backgroundColor = [YZTheme isClassic] ? [YZTheme screenColor] : [self showsStack] ? [YZTabStack groundColor] : [YZTheme backdropColor];
+    BOOL pages = [self showsPages], bar = [self usesToolbar], stack = [self showsStack];
     _scroll.hidden = pages;
-    _pager.hidden = !pages;
-    BOOL pagesBar = [self usesPagesBar];
+    _pager.hidden = !pages || stack;
+    _stack.hidden = !stack;
+    _stackBar.hidden = !stack;
+    _header.hidden = stack;
+    if (stack)
+        [self styleStackBar];
+    [_stack applyTheme];
     _toolbar.hidden = !bar;
-    _pagesBar.hidden = !pagesBar;
-    // the header's done button and the floating plus belong to the grid, the pages have their own two buttons
+    // the header's done button and the floating plus belong to the grid, the pages have their own
     _done.hidden = pages;
     _newTab.hidden = pages;
-    if (pagesBar) {
-        _pagesBar.backgroundColor = [YZTheme toolbarColor];
-        _pagesBarLine.backgroundColor = [YZTheme separatorColor];
-        [_pagesDone setTitle:YZT(@"Готово") forState:UIControlStateNormal];
-        [_pagesDone setTitleColor:[YZTheme accentColor] forState:UIControlStateNormal];
-        _pagesDone.titleLabel.font = [YZTheme boldSystemFontOfSize:15];
-    }
     if (bar) {
         // the ground behind the pages of ios 5 and 6: blue grey, lighter at the top
         if (!_ground) {
@@ -354,7 +443,12 @@ static void YZPlaceView(UIView *view, CGRect frame) {
 }
 
 - (void)newTabPressed { [_delegate tabsViewDidRequestNewTab:self]; }
-- (void)donePressed { [_delegate tabsViewDidFinish:self]; }
+- (void)donePressed {
+    if ([self showsStack] && !_stack.hidden)
+        [_stack openSelected];
+    else
+        [_delegate tabsViewDidFinish:self];
+}
 
 - (void)cardPressed:(YZCardButton *)button {
     NSUInteger index = [_tabs indexOfObjectIdenticalTo:button.tab];
@@ -380,6 +474,10 @@ static void YZPlaceView(UIView *view, CGRect frame) {
 
 - (void)present {
     [self layoutIfNeeded];
+    if ([self showsStack]) {
+        [_stack present];
+        return;
+    }
     if ([self showsPages]) {
         [_pager focusSelected];
         return;
@@ -397,6 +495,14 @@ static void YZPlaceView(UIView *view, CGRect frame) {
     YZMotionAnimateEnter(_newTab, CGAffineTransformMakeScale(0.4f, 0.4f), 0, YOZORA_MOTION_WOBBLE, 0.1);
 }
 
+- (BOOL)presentNewTab:(NSArray *)tabs selected:(NSUInteger)selected {
+    if (![self showsStack] || _stack.hidden)
+        return NO;
+    [self showTabs:tabs selected:selected];
+    [_stack presentNewPage];
+    return YES;
+}
+
 - (void)showTabs:(NSArray *)tabs selected:(NSUInteger)selected {
     [self applyLayoutMode];
     if ([self showsPages]) {
@@ -409,7 +515,14 @@ static void YZPlaceView(UIView *view, CGRect frame) {
         [_tabs release];
         _tabs = tabs;
         _selected = selected;
-        [_pager showTabs:tabs selected:selected];
+        if ([self showsStack]) {
+            // an opening page left the ground and the bar in the colors of the browser's bars
+            self.backgroundColor = [YZTabStack groundColor];
+            [self styleStackBar];
+            [_stack showTabs:tabs selected:selected];
+        }
+        else
+            [_pager showTabs:tabs selected:selected];
         [self setNeedsLayout];
         return;
     }
@@ -471,13 +584,16 @@ static void YZPlaceView(UIView *view, CGRect frame) {
         _ground.frame = self.bounds;
         [CATransaction commit];
     }
-    CGFloat pagesBarHeight = 52 + _edgeInsets.bottom;
-    if ([self usesPagesBar]) {
-        _pagesBar.frame = CGRectMake(0, height - pagesBarHeight, width, pagesBarHeight);
-        _pagesBarLine.frame = CGRectMake(0, 0, width, 1);
-        _pagesDone.frame = CGRectMake(width - _edgeInsets.right - 88, 0, 80, 52);
+    CGFloat stackBarHeight = 46 + _edgeInsets.bottom;
+    if ([self showsStack]) {
+        _stackBar.frame = CGRectMake(0, height - stackBarHeight, width, stackBarHeight);
+        CGFloat third = floor((width - _edgeInsets.left - _edgeInsets.right) / 3);
+        _stackPrivate.frame = CGRectMake(_edgeInsets.left, 0, third, 46);
+        _stackNew.frame = CGRectMake(_edgeInsets.left + third, 0, third, 46);
+        _stackDone.frame = CGRectMake(_edgeInsets.left + 2 * third, 0, third, 46);
+        _stack.frame = CGRectMake(0, _edgeInsets.top, width, height - _edgeInsets.top - stackBarHeight);
     }
-    CGFloat below = [self usesToolbar] ? barHeight : ([self usesPagesBar] ? pagesBarHeight : 0);
+    CGFloat below = [self usesToolbar] ? barHeight : 0;
     _pager.frame = CGRectMake(0, scrollTop, width, height - scrollTop - below);
     // the cards scroll under the button of a new tab and can still be lifted clear of it
     CGFloat fabClearance = YZFabSize + 32;
@@ -512,11 +628,14 @@ static void YZPlaceView(UIView *view, CGRect frame) {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
     _pager.delegate = nil;
     [_pager release];
+    _stack.delegate = nil;
+    [_stack release];
+    [_stackBar release];
+    [_stackPrivate release];
+    [_stackNew release];
+    [_stackDone release];
     [_toolbar release];
     [_toolbarDone release];
-    [_pagesBar release];
-    [_pagesBarLine release];
-    [_pagesDone release];
     [_ground release];
     [_scroll release];
     [_header release];

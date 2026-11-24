@@ -48,6 +48,7 @@ extern NSString *const YZSettingsDidChangeNotification;
 + (YZDesign)design;
 + (void)setDesign:(YZDesign)design;
 /* an unset choice is the pages of Safari in the classic design and the grid of Firefox in the modern one */
+/* the grid in the modern design whatever was chosen: the pages exist in the classic and the flat one */
 + (YZTabsLayout)tabsLayout;
 + (void)setTabsLayout:(YZTabsLayout)layout;
 + (YZMascot)mascot;

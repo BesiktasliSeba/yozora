@@ -148,7 +148,10 @@ static NSInteger YZDesignCurrent = -1;
 + (void)setMascot:(YZMascot)mascot { [self storeInteger:mascot forKey:YZMascotKey]; }
 
 + (YZTabsLayout)tabsLayout {
-    YZTabsLayout fallback = [self design] == YZDesignClassic ? YZTabsLayoutPages : YZTabsLayoutGrid;
+    // the pages are the Safari look of the classic and the flat design, the modern one has the grid only. the choice stays stored for the others
+    if ([self design] == YZDesignModern)
+        return YZTabsLayoutGrid;
+    YZTabsLayout fallback = [self design] != YZDesignModern ? YZTabsLayoutPages : YZTabsLayoutGrid;
     return [self integerForKey:YZTabsLayoutKey defaultValue:fallback] == YZTabsLayoutPages ? YZTabsLayoutPages : YZTabsLayoutGrid;
 }
 + (void)setTabsLayout:(YZTabsLayout)layout { [self storeInteger:layout forKey:YZTabsLayoutKey]; }
