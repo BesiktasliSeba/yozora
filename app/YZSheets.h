@@ -69,6 +69,7 @@
     NSString *_accept;
     CGFloat _bottomInset;
     id _picker;
+    CFAbsoluteTime _documentsOpenedAt;
     UIPopoverController *_popover;
     void (^_completion)(NSArray *paths);
 }

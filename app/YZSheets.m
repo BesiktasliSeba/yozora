@@ -717,9 +717,21 @@ typedef enum { YZFileSourcePhotos, YZFileSourceDownloads, YZFileSourceDocuments,
 
 - (BOOL)hasDocumentPicker { return NSClassFromString(@"UIDocumentPickerViewController") != nil; }
 
+// ios 8 to 10 have no Files app, the picker opens on iCloud Drive
+- (NSString *)documentSourceTitle {
+    Class pickerClass = NSClassFromString(@"UIDocumentPickerViewController");
+    BOOL files = [pickerClass instancesRespondToSelector:NSSelectorFromString(@"setAllowsMultipleSelection:")];
+    return files ? YZT(@"Файлы") : @"iCloud Drive";
+}
+
 - (void)present {
     // the picker is its own owner until it has answered
     [self retain];
+    [self showSources];
+}
+
+// comes back when the system picker closes without a file, a sideload has no icloud entitlement and the picker can close at once
+- (void)showSources {
     NSMutableArray *titles = [NSMutableArray array], *sources = [NSMutableArray array];
     if (YZAcceptsPhotos(_accept) && [UIImagePickerController isSourceTypeAvailable:UIImagePickerControllerSourceTypePhotoLibrary]) {
         [titles addObject:YZT(@"Фото")];
@@ -734,9 +746,10 @@ typedef enum { YZFileSourcePhotos, YZFileSourceDownloads, YZFileSourceDocuments,
         [sources addObject:[NSNumber numberWithInt:YZFileSourceStorage]];
     }
     if ([self hasDocumentPicker]) {
-        [titles addObject:YZT(@"Файлы")];
+        [titles addObject:[self documentSourceTitle]];
         [sources addObject:[NSNumber numberWithInt:YZFileSourceDocuments]];
     }
+    NSLog(@"yozora: file chooser, accept \"%@\", multiple %d, sources: %@", _accept, (int)_multiple, [titles componentsJoinedByString:@", "]);
     if (![titles count]) {
         [self finishWithPaths:nil];
         return;
@@ -756,12 +769,46 @@ typedef enum { YZFileSourcePhotos, YZFileSourceDownloads, YZFileSourceDocuments,
     }] retain];
 }
 
+// webkit takes a repeated path as no change and fires cancel, so each pick gets a copy in a new folder
+- (void)finishWithFreshCopiesOf:(NSArray *)paths {
+    if (![paths count]) {
+        [self finishWithPaths:nil];
+        return;
+    }
+    NSArray *sources = [paths copy];
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+        NSFileManager *files = [NSFileManager defaultManager];
+        NSString *directory = YZUploadDirectory();
+        YZPruneUploads(directory);
+        static unsigned counter;
+        NSMutableArray *results = [NSMutableArray array];
+        for (NSString *source in sources) {
+            NSString *folder = [directory stringByAppendingPathComponent:[NSString stringWithFormat:@"%lld-%u", (long long)([[NSDate date] timeIntervalSince1970] * 1000), counter++]];
+            NSString *target = [folder stringByAppendingPathComponent:[source lastPathComponent]];
+            NSError *error = nil;
+            if ([files createDirectoryAtPath:folder withIntermediateDirectories:YES attributes:nil error:&error] && [files copyItemAtPath:source toPath:target error:&error]) {
+                [results addObject:target];
+            } else {
+                NSLog(@"yozora: file chooser: %@ was not copied, it goes on under its own path: %@", [source lastPathComponent], error);
+                [results addObject:source];
+            }
+        }
+        [sources release];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self finishWithPaths:results];
+        });
+        [pool drain];
+    });
+}
+
 - (void)finishWithPaths:(NSArray *)paths {
     if (!_completion) {
         return;
     }
     void (^completion)(NSArray *) = _completion;
     _completion = nil;
+    NSLog(@"yozora: file chooser answered with %lu file(s)", (unsigned long)[paths count]);
     completion(paths ? paths : [NSArray array]);
     [completion release];
     [self release];
@@ -901,7 +948,7 @@ typedef enum { YZFileSourcePhotos, YZFileSourceDownloads, YZFileSourceDocuments,
             [self finishWithPaths:nil];
             return;
         }
-        [self finishWithPaths:[NSArray arrayWithObject:[[entries objectAtIndex:index] objectForKey:@"path"]]];
+        [self finishWithFreshCopiesOf:[NSArray arrayWithObject:[[entries objectAtIndex:index] objectForKey:@"path"]]];
     }] retain];
 }
 
@@ -968,7 +1015,7 @@ typedef enum { YZFileSourcePhotos, YZFileSourceDownloads, YZFileSourceDocuments,
         else if ([[entry objectForKey:@"directory"] boolValue])
             [self openStorageAt:[entry objectForKey:@"path"]];
         else
-            [self finishWithPaths:[NSArray arrayWithObject:[entry objectForKey:@"path"]]];
+            [self finishWithFreshCopiesOf:[NSArray arrayWithObject:[entry objectForKey:@"path"]]];
     }] retain];
 }
 
@@ -981,6 +1028,7 @@ typedef enum { YZFileSourcePhotos, YZFileSourceDownloads, YZFileSourceDocuments,
     SEL initializer = NSSelectorFromString(@"initWithDocumentTypes:inMode:");
     id picker = [pickerClass alloc];
     if (!pickerClass || ![picker respondsToSelector:initializer]) {
+        NSLog(@"yozora: file chooser: the document picker cannot be made on this system");
         [picker release];
         [self finishWithPaths:nil];
         return;
@@ -988,6 +1036,7 @@ typedef enum { YZFileSourcePhotos, YZFileSourceDownloads, YZFileSourceDocuments,
     // the import mode copies the file into the app, so the page reads a file that stays
     picker = ((id (*)(id, SEL, NSArray *, NSInteger))(void *)objc_msgSend)(picker, initializer, [NSArray arrayWithObject:@"public.item"], 0);
     [picker setValue:self forKey:@"delegate"];
+    _documentsOpenedAt = CFAbsoluteTimeGetCurrent();
     if (_multiple && [picker respondsToSelector:NSSelectorFromString(@"setAllowsMultipleSelection:")])
         [picker setValue:[NSNumber numberWithBool:YES] forKey:@"allowsMultipleSelection"];
     [self presentPicker:[picker autorelease]];
@@ -999,9 +1048,11 @@ typedef enum { YZFileSourcePhotos, YZFileSourceDownloads, YZFileSourceDocuments,
     for (NSURL *url in urls) {
         if ([url isFileURL])
             [paths addObject:[url path]];
+        else
+            NSLog(@"yozora: file chooser: the document picker gave %@, which is not a file", url);
     }
     [self closeEverything];
-    [self finishWithPaths:paths];
+    [self finishWithFreshCopiesOf:paths];
 }
 
 // the single selection of ios 8 to 10
@@ -1011,7 +1062,8 @@ typedef enum { YZFileSourcePhotos, YZFileSourceDownloads, YZFileSourceDocuments,
 
 - (void)documentPickerWasCancelled:(id)picker {
     (void)picker;
+    NSLog(@"yozora: file chooser: the document picker was closed without a file after %.1f s", CFAbsoluteTimeGetCurrent() - _documentsOpenedAt);
     [self closeEverything];
-    [self finishWithPaths:nil];
+    [self showSources];
 }
 @end
