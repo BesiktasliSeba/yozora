@@ -6,7 +6,7 @@
 
 <p align="center"><b>the modern web on the iphone that apple stopped updating. an own webkit port, a real jit, webgl, webassembly, mediasource, one ipa, ios 5 to today</b></p>
 
-an old phone is not slow, its browser is old. yozora throws the browser away and brings the engine: webkit 2.54.1, ported by hand to a platform it was never meant for, linked into one binary, pinned to the byte. no system webview, no remote render, no proxy that draws the page somewhere else. the page runs on the phone, in your hand.
+an old phone is not slow, its browser is old. yozora throws the browser away and brings the engine: webkit 2.54.3, ported by hand to a platform it was never meant for, linked into one binary, pinned to the byte. no system webview, no remote render, no proxy that draws the page somewhere else. the page runs on the phone, in your hand.
 
 ## devices
 
@@ -16,7 +16,7 @@ an old phone is not slow, its browser is old. yozora throws the browser away and
 
 ## engine
 
-- webkit 2.54.1, webcore and javascriptcore from one revision, one process, no gpu process
+- webkit 2.54.3, webcore and javascriptcore from one revision, one process, no gpu process
 - javascript: baseline, dfg and regexp jit on armv7 and arm64 (on arm64 a new install starts with the jit switch off, see [docs/javascript.md](docs/javascript.md)), the assembler interpreter of the same binary when the system refuses executable memory or the switch is off
 - graphics: retained skia recordings per layer, a raster thread of its own, a native core animation layer tree, so scrolling and transform animations go on while a script holds the page
 - text: freetype, harfbuzz, icu 78.3, site fonts in ttf, otf, woff and woff2, color emoji

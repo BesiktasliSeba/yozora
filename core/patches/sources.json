@@ -59,8 +59,8 @@
     },
     {
       "path": "Source/WTF/wtf/CMakeLists.txt",
-      "before": "e14a8eb44e6aa57326c6ca6b0efa8b4491bf7b23f617da4781171976fae1153c",
-      "after": "6e66f1b9198945802185dc7278758b8cc67513287294b87fa31201ab3d4116da"
+      "before": "52da48b2c4c0ffc413468bd0fed7b72e719fc2d30de6825dd77cca871f55b201",
+      "after": "a7b743dd991e21215980717c8413f2adba45d0eea6d0b5d14c93e73156346cfb"
     },
     {
       "path": "Source/WTF/wtf/CurrentTime.cpp",
@@ -69,8 +69,8 @@
     },
     {
       "path": "Source/WTF/wtf/PlatformJSCOnly.cmake",
-      "before": "ee7d82832a685b2b5176d519c44cadf516e6c4e817a89bf7c676c181f1e5185b",
-      "after": "e34626850215447020dcaf90ac991e63933e6034d9713b0efeed9c85e1cea363"
+      "before": "b12832bc3368bf59afca5fff7d776d760c149e72bdebb27afccb105c8a1f862f",
+      "after": "005bda0e53842ce4039b966c48b072d6645d265697a9ba768e35b3cc170ccaf1"
     },
     {
       "path": "Source/WTF/wtf/RandomDevice.cpp",
@@ -131,6 +131,16 @@
       "path": "Source/cmake/WebKitFS.cmake",
       "before": "fe54f2be7da0703e076d02730caacb14dbca95c27b856daafdde0018dda9e971",
       "after": "1685f136028acafa877c17bb5ee23d1e6949326b869b7167d7c44d1dac481015"
+    },
+    {
+      "path": "Source/WebCore/dom/ScriptDisallowedScope.h",
+      "before": "258ce5effd85f12a4c681d4d9ccf65b9ca80ca873da8998d22007a10e807f9a6",
+      "after": "7c53166b4b1d232c15266a5805ce3d2d5e2be4ced94c1cc07f050e124a71bff9"
+    },
+    {
+      "path": "Source/WebCore/dom/ContainerNode.cpp",
+      "before": "ab5354414aff03858a0705606c195e242abbf5d6c5789d0f50269d4fa2900743",
+      "after": "b43bf512ba11076b30312a994dd6611758bd80a846b6a70211b832a843778eff"
     }
   ],
   "webkit-yozora": [
@@ -201,8 +211,8 @@
     },
     {
       "path": "Source/JavaScriptCore/dfg/DFGSpeculativeJIT.cpp",
-      "before": "3a40d39d6294fa75c017130c8356349ba5c0941afd54be2063361ae9f04ce815",
-      "after": "11d1aa286df2b774b3bde68410e366daad7db7a5e44b86d95b7aa80527d6e4d2"
+      "before": "91687bb86e924e325b1e95457f614b0dcfc378e0743e01e3d55bba25c66978f4",
+      "after": "04dd1160f6b24fb167c882105c9e304203e44074f627e61fa45d717ebd13f5f3"
     },
     {
       "path": "Source/JavaScriptCore/interpreter/VMEntryRecord.h",
@@ -251,13 +261,13 @@
     },
     {
       "path": "Source/JavaScriptCore/llint/LowLevelInterpreter32_64.asm",
-      "before": "1e4b401cf2a6f2e58c286d5ab9142f1898b1644021330978f6f32da3f900558e",
-      "after": "dfdd953eb1d61711161d85aa314d79b627f2f5b71d4735a94059c6fce4b127e5"
+      "before": "b4ca916b63053ec294d54e31c8633d390836c8324782eb107001a06277b305a9",
+      "after": "ec74fa589e73a14afdaf4bf3d7442241c8baee7f31fb925de4f76310348c7b3a"
     },
     {
       "path": "Source/JavaScriptCore/llint/LowLevelInterpreter64.asm",
-      "before": "3d501d5bffd0b5410627d8914465d6cf514bda79016aba9b23c75f73b91e556a",
-      "after": "48fbf0d1971d9b1dfd6c3641bc0b7ed7412dec93c6478a10f75d0e151be8194a"
+      "before": "a39238add0d38a2059615fd58c305ee565870bc3f51d072a97b20087e203a621",
+      "after": "f7363f5ca67ab3ccad954ced21dcec8f6dcfb75cedcdcca83d5d8b857404e5ae"
     },
     {
       "path": "Source/JavaScriptCore/llint/LowLevelInterpreter.cpp",
@@ -276,8 +286,8 @@
     },
     {
       "path": "Source/JavaScriptCore/runtime/JSCJSValue.h",
-      "before": "8fae92e4d4d4ba03b843b6457c45244932db370a86a82c5dece5f91eb3385487",
-      "after": "71aba92a96e0f40566e853f1e15e863c5cd5602b0646f44b3759b5585fe64f8e"
+      "before": "e7ba35958fb35da84de6727ff5fb23a50758f059169a318b44087532a3d6949a",
+      "after": "da2ef74c015f148923e976ca13e736dc71628d2047d1881a1cb2145fa2a76df7"
     },
     {
       "path": "Source/JavaScriptCore/runtime/MachineContext.h",
@@ -296,8 +306,8 @@
     },
     {
       "path": "Source/ThirdParty/skia/CMakeLists.txt",
-      "before": "571da2e001441b9f990e2cf6ce4009d0f722bdcc1b43730e609b7af20098fd54",
-      "after": "81cf0c2e539f85837e6fb298e3767d0f8266b9f9150c258d3a69b185862e481a"
+      "before": "8825849612e04bb5936ee0523a6c2befcf923e87fb3c707d325de0391069028b",
+      "after": "ad7f3a6d83565c5af6b161f952732ccf33506b1c37882780df70f8993ad15ee6"
     },
     {
       "path": "Source/ThirdParty/skia/src/core/SkStrikeCache.cpp",
@@ -331,8 +341,8 @@
     },
     {
       "path": "Source/WebCore/dom/Document.cpp",
-      "before": "d417cb73f8ae4f895bd887f172e67dd3e32c9a147681734dad95c9dbfccd7d11",
-      "after": "6446134e2dfc1ec9895704b8adb0e3c1ce4585e2680e2fb624e973c867b3a9d7"
+      "before": "885c057df95a6968bc131593c71bc368b76415e20b0e4d178dfc306f3cd2d12e",
+      "after": "2efa1288ebb5dfda1faa457b6d9eda96a81161ec88857fc9902ae059a2e9d444"
     },
     {
       "path": "Source/WebCore/editing/WebContentReader.cpp",
@@ -366,8 +376,8 @@
     },
     {
       "path": "Source/WebCore/page/ChromeClient.h",
-      "before": "619783769453b47305b90a067f8a904c7a342db82523be7ac27b23798aa39bee",
-      "after": "fa2f505b5d43e896829cdcf7f88b1e705d012a853fc5cf2faeae8272c9cd22a8"
+      "before": "ae8ccdcfc1c571c16d33001bbad05ef650c7c552b2ab232bf25f4b50820d3874",
+      "after": "7e41542990619dc552c0a4aa261ac9175ff18f5da0bd1970112942cfa1a77598"
     },
     {
       "path": "Source/WebCore/page/DeprecatedGlobalSettings.h",
@@ -416,8 +426,8 @@
     },
     {
       "path": "Source/WebCore/platform/graphics/FontCache.h",
-      "before": "e7346885e843b7d32b938a4aa249d5c24868a14e77ac9f8e416d3d208aba15f5",
-      "after": "861c0aebc58b764b97188349aa9d86bc13b4e7e4224597e5aea93b312f429087"
+      "before": "ec237de7a3cb20087f18de695fb6f92b6c914a3f58afdf8b5281aa51f5b704ff",
+      "after": "aa59f8bcee2aac1d2c6a0e56e40da2bc073c0361530243b7f3c2b920a28d6ff2"
     },
     {
       "path": "Source/WebCore/platform/graphics/ImageBackingStore.h",
@@ -426,13 +436,13 @@
     },
     {
       "path": "Source/WebCore/platform/graphics/ImageBuffer.cpp",
-      "before": "abbc196a39f74f11f0cd0218b0b348e0605c098e337f37c6730cd6487d9da9e5",
-      "after": "2d526132fb2bd789897e1e838ce5d7132dbcaeeba3d80395ed0b35179521d0c1"
+      "before": "7add5f6711ad9eb0c374f8b0eeb73552f2dca9cf76e0d2bbc74f7153b640faa1",
+      "after": "43e7eb356eea06f308da15781c81e8b798d499b29f6f27aa47a78e9af9de41e9"
     },
     {
       "path": "Source/WebCore/platform/graphics/MediaPlayer.h",
-      "before": "aae8b4d8b2e72f749a672dd5c70e8f29118de8fa277524c87ca8179ee7009b0a",
-      "after": "bffd19a2213ab84e124284f3ed63262eddfdbaaae8ed3825d1a4d309f1c12569"
+      "before": "07a888b7b0e293e867771c89f53fe43e800da76792b8e26e1e4da9a2bc8dc621",
+      "after": "66ccc388451975fd65d924b604660c2205b9ab46890273962db638dbf1fc33b6"
     },
     {
       "path": "Source/WebCore/platform/graphics/NativeImage.cpp",
@@ -486,13 +496,13 @@
     },
     {
       "path": "Source/WebCore/platform/graphics/skia/SkiaUtilities.cpp",
-      "before": "663bf2f3adb6f44443bb95609dbe45f23b04904fe3c2b3f0e8ed0259cceaed3d",
-      "after": "19b5ff241e9e74300aea4dc637bf1ab55ed0f1217d768540cb90a55f81447240"
+      "before": "81e5ab156efb56a2245adfd8a746d46a4828c2b0b86af7671e236c9c8bbdfa8a",
+      "after": "35684095bae5549d7209081010db13cc62e2b9e14fc44961cebd9a329f1cf20f"
     },
     {
       "path": "Source/WebCore/platform/graphics/skia/SkiaUtilities.h",
-      "before": "46ac93e1e0cb3b6a72b6db4c6e7f6babdb5da11c80afe9a23dd84fdd661418a3",
-      "after": "6630a9ada9d74e67a1c5d032f66bc4df31c130ba7596dca0e947daefee033141"
+      "before": "d81e1a5b218b6fdc59a0b216a544de6ee7ccfc8b547f22edc39de9810d204fea",
+      "after": "63b402e6c923bcab72a9b7ee0d15e5984ac8ef3fc4c0aa18c4657afec9309f2b"
     },
     {
       "path": "Source/WebCore/platform/image-decoders/jpeg/JPEGImageDecoder.cpp",
@@ -596,8 +606,8 @@
     },
     {
       "path": "Source/WebCore/rendering/RenderLayerCompositor.cpp",
-      "before": "4ad35c961a734c2d995bbb6b9b3f5fee0791b04d9bf71a57b86f911b9c551d63",
-      "after": "53b35a3a4318beaf36d90e09e87a440a2139075818d814b402246631662c6d5f"
+      "before": "0bad972350a584ef6dc4929b76315d551caf5c7d48f93a5942a45891caac7585",
+      "after": "e1b94d438ad0778c68506fe4d7a1ab564462b12c3e01c0fb322d4409a5f6dda0"
     },
     {
       "path": "Source/WebCore/SourcesYozora.txt",

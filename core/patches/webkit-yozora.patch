@@ -3626,12 +3626,16 @@ diff -ruN --no-dereference a/Source/WebCore/platform/graphics/skia/SkiaSystemFal
 diff -ruN --no-dereference a/Source/WebCore/platform/graphics/skia/SkiaUtilities.cpp b/Source/WebCore/platform/graphics/skia/SkiaUtilities.cpp
 --- a/Source/WebCore/platform/graphics/skia/SkiaUtilities.cpp
 +++ b/Source/WebCore/platform/graphics/skia/SkiaUtilities.cpp
-@@ -28,12 +28,13 @@
+@@ -28,15 +28,19 @@
  
  #if USE(SKIA)
  
 +#include "GraphicsTypes.h"
++#include "IntSize.h"
 +#include "NotImplemented.h"
++WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
++#include <skia/core/SkBitmap.h>
++WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
 +#if USE(SKIA_GPU)
  #include "BitmapTexture.h"
  #include "ColorSpaceSkia.h"
@@ -3641,8 +3645,11 @@ diff -ruN --no-dereference a/Source/WebCore/platform/graphics/skia/SkiaUtilities
 -#include "NotImplemented.h"
  #include "PlatformDisplay.h"
  WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
+-#include <skia/core/SkBitmap.h>
  #include <skia/gpu/ganesh/SkImageGanesh.h>
-@@ -51,10 +52,12 @@
+ #include <skia/gpu/ganesh/SkSurfaceGanesh.h>
+ #include <skia/gpu/ganesh/gl/GrGLBackendSurface.h>
+@@ -52,10 +56,12 @@
  #else
  #include <GLES3/gl3.h>
  #endif
@@ -3655,7 +3662,7 @@ diff -ruN --no-dereference a/Source/WebCore/platform/graphics/skia/SkiaUtilities
  GrBackendTexture createBackendTexture(const BitmapTexture& texture)
  {
      RELEASE_ASSERT(texture.id());
-@@ -128,6 +131,7 @@
+@@ -129,6 +135,7 @@
      grContext->flush();
      return createFenceAfterFlush(grContext);
  }
@@ -3663,7 +3670,7 @@ diff -ruN --no-dereference a/Source/WebCore/platform/graphics/skia/SkiaUtilities
  
  SkBlendMode toSkiaBlendMode(BlendMode blendMode, std::optional<CompositeOperator> operation)
  {
-@@ -205,6 +209,7 @@
+@@ -206,6 +213,7 @@
      return SkBlendMode::kSrcOver;
  }
  
@@ -3671,14 +3678,15 @@ diff -ruN --no-dereference a/Source/WebCore/platform/graphics/skia/SkiaUtilities
  class PromiseImageContext {
      WTF_MAKE_TZONE_ALLOCATED_INLINE(PromiseImageContext);
  public:
-@@ -285,6 +290,7 @@
-             std::unique_ptr<PromiseImageContext> context(static_cast<PromiseImageContext*>(userData));
+@@ -290,6 +298,8 @@
          }, context.release());
  }
-+#endif
  
- } // namespace SkiaUtilities
- } // namespace WebCore
++#endif
++
+ sk_sp<SkImage> scaleImagePixels(const sk_sp<SkImage>& image, const IntSize& scaledSize)
+ {
+     auto imageInfo = SkImageInfo::Make(scaledSize.width(), scaledSize.height(), image->imageInfo().colorType(), image->imageInfo().alphaType());
 diff -ruN --no-dereference a/Source/WebCore/platform/graphics/skia/SkiaUtilities.h b/Source/WebCore/platform/graphics/skia/SkiaUtilities.h
 --- a/Source/WebCore/platform/graphics/skia/SkiaUtilities.h
 +++ b/Source/WebCore/platform/graphics/skia/SkiaUtilities.h
@@ -3694,7 +3702,7 @@ diff -ruN --no-dereference a/Source/WebCore/platform/graphics/skia/SkiaUtilities
  WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
  #include <wtf/MathExtras.h>
  
-@@ -84,6 +86,7 @@
+@@ -85,6 +87,7 @@
      return samplingOptionsForMatrix(matrix);
  }
  
@@ -3702,7 +3710,7 @@ diff -ruN --no-dereference a/Source/WebCore/platform/graphics/skia/SkiaUtilities
  // Creates a GrBackendTexture from a BitmapTexture's GL texture.
  GrBackendTexture createBackendTexture(const BitmapTexture&);
  
-@@ -113,10 +116,13 @@
+@@ -114,10 +117,13 @@
  // synchronization. Falls back to synchronous submit if fences are not
  // supported or creation fails, and returns nullptr.
  std::unique_ptr<GLFence> flushAndSubmitWithFence(GrDirectContext*);
@@ -3714,8 +3722,8 @@ diff -ruN --no-dereference a/Source/WebCore/platform/graphics/skia/SkiaUtilities
  sk_sp<SkImage> createPromiseImageIfNeeded(const sk_sp<SkImage>&, const sk_sp<GrContextThreadSafeProxy>&);
 +#endif
  
- } // namespace SkiaUtilities
- } // namespace WebCore
+ sk_sp<SkImage> scaleImagePixels(const sk_sp<SkImage>&, const IntSize& scaledSize);
+ 
 diff -ruN --no-dereference a/Source/WebCore/platform/image-decoders/jpeg/JPEGImageDecoder.cpp b/Source/WebCore/platform/image-decoders/jpeg/JPEGImageDecoder.cpp
 --- a/Source/WebCore/platform/image-decoders/jpeg/JPEGImageDecoder.cpp
 +++ b/Source/WebCore/platform/image-decoders/jpeg/JPEGImageDecoder.cpp

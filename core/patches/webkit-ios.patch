@@ -659,3 +659,58 @@
      set(USE_FRAMEWORK_BUNDLES ON)
      if (PORT STREQUAL Mac)
          set(_version "Versions/A/")
+diff -ruN --no-dereference a/Source/WebCore/dom/ScriptDisallowedScope.h b/Source/WebCore/dom/ScriptDisallowedScope.h
+--- a/Source/WebCore/dom/ScriptDisallowedScope.h
++++ b/Source/WebCore/dom/ScriptDisallowedScope.h
+@@ -39,6 +39,9 @@
+     // This variant is expensive. Use ScriptDisallowedScope::InMainThread whenever possible.
+     ScriptDisallowedScope()
+     {
++        // armv7 on ios before 9 has no thread local storage: only the main thread counts, as in webkit 2.54.1 before the count became per thread
++        if (!isMainThread())
++            return;
+         ++s_count;
+     }
+ 
+@@ -49,6 +52,8 @@
+ 
+     ~ScriptDisallowedScope()
+     {
++        if (!isMainThread())
++            return;
+         ASSERT(s_count);
+         s_count--;
+     }
+@@ -63,9 +68,10 @@
+         return !isInWebProcess() || !isMainThread() || !s_count;
+     }
+ 
++    // a thread other than the main one has no count here, so it is always allowed
+     static bool isScriptAllowedInCurrentThread()
+     {
+-        return !isInWebProcess() || !s_count;
++        return isScriptAllowedInMainThread();
+     }
+ 
+     class InMainThread {
+@@ -171,7 +177,7 @@
+     };
+ 
+ private:
+-    WEBCORE_EXPORT static thread_local unsigned s_count;
++    WEBCORE_EXPORT static unsigned s_count;
+ };
+ 
+ } // namespace WebCore
+diff -ruN --no-dereference a/Source/WebCore/dom/ContainerNode.cpp b/Source/WebCore/dom/ContainerNode.cpp
+--- a/Source/WebCore/dom/ContainerNode.cpp
++++ b/Source/WebCore/dom/ContainerNode.cpp
+@@ -89,7 +89,7 @@
+ static void dispatchChildInsertionEvents(Node&);
+ static void dispatchChildRemovalEvents(Ref<Node>&);
+ 
+-thread_local unsigned ScriptDisallowedScope::s_count = 0;
++unsigned ScriptDisallowedScope::s_count = 0;
+ #if ASSERT_ENABLED
+ ScriptDisallowedScope::EventAllowedScope* ScriptDisallowedScope::EventAllowedScope::s_currentScope = nullptr;
+ #endif

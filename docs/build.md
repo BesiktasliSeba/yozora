@@ -81,6 +81,20 @@ every archive is fetched once and checked by sha-256 against `core/*.json` befor
 - `tools/make_launch_images.py`: launch images for every iphone and ipad screen and the `UILaunchImages` entries
 - `tools/make_ui_icons.py`: interface glyph masks from `tools/material-symbols` and the marks of the search engines from `tools/logos`, needs `rsvg-convert` and pillow
 
+## updating webkit
+
+a new version is a change of pins and of patches, then one of two ways to build it.
+
+1. `core/source.json`: `version`, `archive`, `url`, `directory`, `size` and `sha256` of the tarball (webkitgtk.org publishes the sums beside the release, `webkitgtk-X.Y.Z.tar.xz.sums`) and `upstream_commit`, the commit the tag `webkitgtk-X.Y.Z` of the WebKit repository points at. `YozoraWebKitVersion` of `app/Info.plist` is the version the about screen shows: it has to be the same string, `tests/test_core_source.py` fails when it is not `scripts/fetch_core.py` refuses an archive whose size or hash differs
+2. `core/darwin-sources.json` and `core/network-sources.json` list files that are not in the tarball and come from the WebKit repository at `upstream_commit`: path, size, sha-256. fetch every file at the new commit, compare, and write the new commit and any changed hashes. 2.54.1 to 2.54.3 changed none of the 90 files
+3. the patches. `webkit-ios`, `webkit-yozora`, `webkit-yozora-ios` and `webkit-yozora-dns` are applied in that order to the new tree with `patch --fuzz=0`. a file that upstream changed under a hunk fails the dry run: rebase that hunk by hand on a copy of the pristine file, write the diff of the two files back into the patch and run the four groups again. `python3 scripts/record_patch_hashes.py TREE` applies the four groups in order to a pristine tree (the sources and the fetched files of step 2 in it) and rewrites `core/patches/sources.json` with the hash of every file before and after each group; a group that does not apply stops it with the output of patch and leaves `sources.json` alone. from 2.54.1 to 2.54.3 two files of `webkit-ios` and thirteen of `webkit-yozora` had to move their hashes, and the changes of the new version are in [webkit](webkit.md)
+4. check it the way a clean machine does it: a new `YOZORA_CORE_SOURCES` directory, `scripts/fetch_core.py`, `scripts/fetch_darwin_sources.py`, `scripts/fetch_network_sources.py`, then `scripts/apply_core_patches.py DIR GROUP` for the four groups, which verifies every hash
+
+building it:
+
+- new directory, new tree: `meow build` makes a tree for `build/sources/webkitgtk-X.Y.Z` and builds all of webcore, the cost of a first build of that slice
+- keeping the tree: `python3 scripts/sync_core_source.py OLD NEW --apply` copies into the old, already patched directory only the files whose content differs from the new patched one, adds the new ones and removes the ones that are gone; the rest keep their time stamps. then `YOZORA_WEBKIT_SRC=OLD meow build ipa-armv7` builds what ninja finds changed. without `--apply` the script only reports (2.54.1 to 2.54.3: 2750 files changed, about 430 of them in WebCore, JavaScriptCore and WTF, 45 added, 46 removed). the new tree is the verified one, and the old tree stays the one cmake was configured for
+
 ## the c files built into the app
 
 some of the c code is used by the app only and is compiled with it (`meow.toml`, the lists of `app`, `app-armv7`, `app-arm64`) instead of into `libYozoraCore`, which needs a webkit build:

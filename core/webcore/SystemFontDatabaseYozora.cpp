@@ -2,15 +2,8 @@
 #include "SystemFontDatabase.h"
 
 #include "WebKitFontFamilyNames.h"
-#include <wtf/NeverDestroyed.h>
 
 namespace WebCore {
-
-SystemFontDatabase& SystemFontDatabase::singleton()
-{
-    static NeverDestroyed<SystemFontDatabase> database = SystemFontDatabase();
-    return database;
-}
 
 auto SystemFontDatabase::platformSystemFontShorthandInfo(FontShorthand shorthand) -> SystemFontShorthandInfo
 {

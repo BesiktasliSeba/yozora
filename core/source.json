@@ -1,9 +1,9 @@
 {
-  "version": "2.54.1",
-  "upstream_commit": "628d6ce1850e17225185a5807a9d0aa375bae2be",
-  "archive": "webkitgtk-2.54.1.tar.xz",
-  "url": "https://webkitgtk.org/releases/webkitgtk-2.54.1.tar.xz",
-  "size": 49729412,
-  "sha256": "ea0bbb02dbdbc596874a4e7ad35b66645b3e0a232bd0e4081de5ed92eb0a397d",
-  "directory": "webkitgtk-2.54.1"
+  "version": "2.54.3",
+  "upstream_commit": "eb74cd57254e5b9738fbaa5ad13df320a68a7119",
+  "archive": "webkitgtk-2.54.3.tar.xz",
+  "url": "https://webkitgtk.org/releases/webkitgtk-2.54.3.tar.xz",
+  "size": 50038244,
+  "sha256": "2779c1b46f88762e8400650271ba14452dc4e30b37059981552d8b562b7d0862",
+  "directory": "webkitgtk-2.54.3"
 }

@@ -3,7 +3,7 @@ set -euo pipefail
 
 yozora_root="$(cd "$(dirname "$0")/.." && pwd)"
 yozora_sources="${YOZORA_CORE_SOURCES:-${yozora_root}/build/sources}"
-yozora_source="${YOZORA_WEBKIT_SRC:-${yozora_sources}/webkitgtk-2.54.1}"
+yozora_source="${YOZORA_WEBKIT_SRC:-${yozora_sources}/webkitgtk-2.54.3}"
 yozora_deps="${YOZORA_CORE_DEPS:-${yozora_root}/build/core/deps}"
 yozora_build="${YOZORA_CORE_IOS_BUILD:-${yozora_root}/build/core/ios}"
 yozora_jobs="${YOZORA_CORE_JOBS:-2}"
