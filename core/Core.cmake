@@ -15,6 +15,7 @@ function(yozora_add_core)
         "${yozora_root}/core/core/YozoraWebSocketChannel.cpp"
         "${yozora_root}/core/core/YozoraDownloads.cpp"
         "${yozora_root}/core/core/YozoraIDB.cpp"
+        "${yozora_root}/core/core/YozoraCacheStorage.cpp"
         "${yozora_root}/core/core/YozoraControls.cpp"
         "${yozora_root}/core/core/YozoraGeolocation.cpp"
         "${yozora_root}/core/core/YozoraNotifications.cpp"

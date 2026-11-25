@@ -56,7 +56,7 @@ forms, indexeddb, cookies and history are never cleared to free memory.
 
 ## indexeddb and storage
 
-indexeddb runs on a thread of its own in the process, its databases go with the site data. local storage is kept as a text file, 5 MB per origin. a 401 with basic or digest asks for a name and a password, kept for the run per origin and realm and cleared with the site data, only the page itself asks and not its pictures.
+indexeddb runs on a thread of its own in the process, its databases go with the site data. local storage is kept as a text file, 5 MB per origin. the cache storage api (`caches`, `YozoraCacheStorage.cpp`) keeps its caches in memory on the core thread, 32 MB for the bodies of all of them, cleared with the site data, the private session has its own. a 401 with basic or digest asks for a name and a password, kept for the run per origin and realm and cleared with the site data, only the page itself asks and not its pictures.
 
 ## c code of the app
 

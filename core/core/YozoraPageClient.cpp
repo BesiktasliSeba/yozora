@@ -11,6 +11,8 @@
 #include "YozoraStorage.h"
 #include "YozoraWebSocketChannel.h"
 #include "YozoraAdblock.h"
+#include "YozoraCacheStorage.h"
+#include "CacheStorageProvider.h"
 #include "UserContentController.h"
 #if defined(YOZORA_WASM_ENGINE)
 #include "YozoraWasm.h"
@@ -575,6 +577,9 @@ PageConfiguration yozora_page_configuration(yozora_core& core)
 {
     auto configuration = pageConfigurationWithEmptyClients(PageIdentifier::generate(), PAL::SessionID::defaultSessionID());
     configuration.socketProvider = adoptRef(*new YozoraSocketProvider);
+    // the provider of the default configuration rejects every call, the engine of YozoraCacheStorage.cpp answers
+    // window.caches and the caches of workers
+    configuration.cacheStorageProvider = YozoraCacheStorage::provider();
     // the sheet that hides ad slots reaches every document of the page through the provider, the empty one of
     // the default configuration ignores it
     configuration.userContentProvider = UserContentController::create();

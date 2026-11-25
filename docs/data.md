@@ -8,6 +8,7 @@
 - `cookies.db`
 - `local-storage.txt`: 5 MB per origin
 - `IndexedDB/`
+- the cache storage api (`caches`) keeps nothing here, its caches live in memory and end with the app, see [limits](limits.md)
 - `geolocation.txt`, `notifications.txt`, `adblock-sites.txt`: decisions of sites, see [permissions](permissions.md)
 - `adblock-rules.txt`: the rules of the person, see [adblock](adblock.md)
 
