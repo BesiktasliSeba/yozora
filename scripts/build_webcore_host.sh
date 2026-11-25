@@ -47,6 +47,7 @@ python3 -B "${yozora_root}/scripts/fetch_network_sources.py"
 python3 -B "${yozora_root}/scripts/apply_core_patches.py" "${yozora_source}" webkit-ios
 python3 -B "${yozora_root}/scripts/apply_core_patches.py" "${yozora_source}" webkit-yozora
 python3 -B "${yozora_root}/scripts/apply_core_patches.py" "${yozora_source}" webkit-yozora-dns
+python3 -B "${yozora_root}/scripts/apply_core_patches.py" "${yozora_source}" webkit-yozora-gcm
 
 cmake -S "${yozora_source}" -B "${yozora_build}" -G Ninja \
     -DPORT=Yozora -DCMAKE_BUILD_TYPE=Release \

@@ -1,0 +1,41 @@
+diff -ruN --no-dereference a/Source/WebCore/crypto/openssl/CryptoAlgorithmAESGCMOpenSSL.cpp b/Source/WebCore/crypto/openssl/CryptoAlgorithmAESGCMOpenSSL.cpp
+--- a/Source/WebCore/crypto/openssl/CryptoAlgorithmAESGCMOpenSSL.cpp
++++ b/Source/WebCore/crypto/openssl/CryptoAlgorithmAESGCMOpenSSL.cpp
+@@ -64,14 +64,14 @@
+     if (!(ctx = EvpCipherCtxPtr(EVP_CIPHER_CTX_new())))
+         return std::nullopt;
+ 
+-    // Disable padding
+-    if (1 != EVP_CIPHER_CTX_set_padding(ctx.get(), 0))
+-        return std::nullopt;
+-
+     // Initialize the encryption operation
+     if (1 != EVP_EncryptInit_ex(ctx.get(), algorithm, nullptr, nullptr, nullptr))
+         return std::nullopt;
+ 
++    // Disable padding
++    if (1 != EVP_CIPHER_CTX_set_padding(ctx.get(), 0))
++        return std::nullopt;
++
+     // Set IV length
+     if (1 != EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_IVLEN, iv.size(), nullptr))
+         return std::nullopt;
+@@ -120,14 +120,14 @@
+     if (!(ctx = EvpCipherCtxPtr(EVP_CIPHER_CTX_new())))
+         return std::nullopt;
+ 
+-    // Disable padding
+-    if (1 != EVP_CIPHER_CTX_set_padding(ctx.get(), 0))
+-        return std::nullopt;
+-
+     // Initialize the encryption operation
+     if (1 != EVP_DecryptInit_ex(ctx.get(), algorithm, nullptr, nullptr, nullptr))
+         return std::nullopt;
+ 
++    // Disable padding
++    if (1 != EVP_CIPHER_CTX_set_padding(ctx.get(), 0))
++        return std::nullopt;
++
+     // Set IV length
+     if (1 != EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_IVLEN, iv.size(), nullptr))
+         return std::nullopt;

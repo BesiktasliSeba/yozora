@@ -2,9 +2,9 @@
 
 usage: record_patch_hashes.py SOURCE [GROUP ...]
 SOURCE is a freshly unpacked tree with the files of core/darwin-sources.json and core/network-sources.json fetched into it. the groups default to
-webkit-ios, webkit-yozora, webkit-yozora-ios and webkit-yozora-dns, the order the build applies them in. a group whose dry run fails (upstream changed
-a file under a hunk) stops the run with the output of patch and leaves core/patches/sources.json as it was: rebase the hunk, then start again
-from a new tree. after a good run `apply_core_patches.py` accepts the groups on a new tree, check that with a clean extraction
+webkit-ios, webkit-yozora, webkit-yozora-ios, webkit-yozora-dns and webkit-yozora-gcm, the order the build applies them in. a group whose dry run
+fails (upstream changed a file under a hunk) stops the run with the output of patch and leaves core/patches/sources.json as it was: rebase the
+hunk, then start again from a new tree. after a good run `apply_core_patches.py` accepts the groups on a new tree, check that with a clean extraction
 """
 import hashlib
 import json
@@ -13,7 +13,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parent.parent
-GROUPS = ["webkit-ios", "webkit-yozora", "webkit-yozora-ios", "webkit-yozora-dns"]
+GROUPS = ["webkit-ios", "webkit-yozora", "webkit-yozora-ios", "webkit-yozora-dns", "webkit-yozora-gcm"]
 
 
 def digest(path):
