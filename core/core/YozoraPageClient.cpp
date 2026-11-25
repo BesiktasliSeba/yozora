@@ -371,6 +371,25 @@ public:
     }
     bool canShowMIMETypeAsHTML(const String& type) const final { return type == "text/html"_s || type == "application/xhtml+xml"_s; }
     String userAgent(const URL&) const final { return String::fromUTF8(m_core.desktop ? yozora_desktop_user_agent() : yozora_user_agent()); }
+    // a page of the desktop site read "iPhone" from navigator.platform, the value NavigatorBase has for the port, next
+    // to the user agent of Safari on a Mac above, so a site that reads both saw two devices. a document loader carries
+    // a custom platform for this, which the desktop website mode of Safari on the iPad sets to MacIntel as well. the
+    // loader of the main frame answers for its frames, workers and the phone site keep the platform of the port, and
+    // the loaders are made as the empty client makes them
+    Ref<DocumentLoader> createDocumentLoader(ResourceRequest&& request, SubstituteData&& substituteData, ResourceRequest&& originalRequest) final
+    {
+        return withPlatform(DocumentLoader::create(WTF::move(request), WTF::move(substituteData), WTF::move(originalRequest)));
+    }
+    Ref<DocumentLoader> createDocumentLoader(ResourceRequest&& request, SubstituteData&& substituteData) final
+    {
+        return withPlatform(DocumentLoader::create(WTF::move(request), WTF::move(substituteData), { }));
+    }
+    Ref<DocumentLoader> withPlatform(Ref<DocumentLoader>&& loader) const
+    {
+        if (m_core.desktop)
+            loader->setCustomNavigatorPlatform("MacIntel"_s);
+        return WTF::move(loader);
+    }
     void dispatchDecidePolicyForNavigationAction(const NavigationAction& action, const ResourceRequest& request, const ResourceResponse&, FormState*, const String&, std::optional<NavigationIdentifier>, std::optional<HitTestResult>&&, bool, NavigationUpgradeToHTTPSBehavior, SandboxFlags, PolicyDecisionMode, FramePolicyFunction&& decision) final
     {
         if (core_offer_external(m_core, action, request, m_frame.isMainFrame(), decision))

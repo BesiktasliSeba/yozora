@@ -46,7 +46,7 @@ two fingers enlarge the picture of the page the way safari does, the layout keep
 
 ## desktop site
 
-the core keeps it (`yozora_core_set_desktop`): the user agent of safari on a mac and a layout 980 points wide. the menu has no entry for it, the interface cannot switch it on. the mode belongs to the tab and a page in it neither reads nor writes the disk cache.
+the core keeps it (`yozora_core_set_desktop`): the user agent of safari on a mac, `navigator.platform` MacIntel for the page and its frames (workers keep the one of the port) and a layout 980 points wide. the menu has no entry for it, the interface cannot switch it on. the mode belongs to the tab and a page in it neither reads nor writes the disk cache.
 
 ## notch
 
