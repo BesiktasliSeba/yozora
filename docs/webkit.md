@@ -20,6 +20,8 @@ three patches build on each other, in this order:
 - `webkit-yozora`: the port, shared by the host build and both iOS slices. the host applies it after `webkit-ios`, so a host tree and an iOS tree can be the same directory
 - `webkit-yozora-ios`: what only iOS needs on top: build fixes in crypto keys, coders, text controls and style, and a monotonic clock fix
 
+`webkit-yozora-gcm` comes after `webkit-yozora-dns` on the host and both iOS slices. it is the AES-GCM part of WebKit 317719@main (bug 319982, OpenSSL 3.x compatibility improvements), which 2.54.3 does not have: `Source/WebCore/crypto/openssl/CryptoAlgorithmAESGCMOpenSSL.cpp` disabled the padding before the cipher of the context was set, openssl 3 refuses that, and every AES-GCM encrypt and decrypt answered `OperationError`. the call now comes after the init, line for line as in WebKit. remove the group when the pin moves to a release that has the fix.
+
 `llvm-ios` is separate, it rebuilds libc++ under its own namespace. `webkit-yozora` holds, among others:
 
 - port and build: `port`, `windows`, `embedder`, `cpu`, `mach`

@@ -708,5 +708,12 @@
       "before": "4940c7e651336be176fa3933a564ca4746e5ef1aa834aac51682e0ed37ecf253",
       "after": "31add825ef56fdd78804e2d18b0b7a4cfaf5637c6c7881268052db8ec95bd2f8"
     }
+  ],
+  "webkit-yozora-gcm": [
+    {
+      "path": "Source/WebCore/crypto/openssl/CryptoAlgorithmAESGCMOpenSSL.cpp",
+      "before": "f5ef5ba92184909c96e5d08110e0fc7462c07dccc9b260d72189b7cd8f941982",
+      "after": "55213b8766310ac6fd409c20361d1d8db3ad023f4cd4cc51336ab7ad556f3507"
+    }
   ]
 }
