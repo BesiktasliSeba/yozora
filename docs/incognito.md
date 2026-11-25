@@ -9,6 +9,7 @@ while the session runs, `YozoraPrivateSession` is on and the core keeps in memor
 - cookies, in a second store (`YozoraCookies::current()`)
 - local storage, in a private namespace
 - indexeddb, in a second in-memory hub
+- the cache storage api, in a second engine (`YozoraCacheStorage.cpp`)
 - stored responses: the http cache is off
 - bytecode: no reads and no writes
 

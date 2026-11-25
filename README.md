@@ -32,7 +32,7 @@ see [docs/webkit.md](docs/webkit.md), [docs/javascript.md](docs/javascript.md), 
 - webassembly: an own engine for the slices that have none, the core of the 2.0 specification, bigints, streaming compile
 - mediasource: fragmented mp4 from the page is cut into mpeg-ts and served to the system player as hls, h264 and aac only
 - web audio: contexts, oscillators, filters, convolver, panner, worklets, decoding of wave, mp3 and aac
-- websockets, workers, indexeddb, touch events, pinch zoom, selection, find in page
+- websockets, workers, indexeddb, cache storage, touch events, pinch zoom, selection, find in page
 - geolocation, notifications, color, date, select and file controls of the page as native sheets
 
 see [docs/webgl.md](docs/webgl.md), [docs/webassembly.md](docs/webassembly.md), [docs/media.md](docs/media.md).

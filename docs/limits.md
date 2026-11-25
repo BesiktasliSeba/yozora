@@ -13,6 +13,7 @@ every number here is in the code, the file is named so it can be changed. a limi
 ## storage
 
 - local storage 5 MB per origin (`YozoraStorage.cpp`)
+- cache storage 32 MB of response bodies for all caches of all sites together, the private session has its own, in memory for the life of the app (`YozoraCacheStorage.cpp`)
 - http cache 64 MB, one response up to 4 MB, its headers up to 16 KB (`yozora_httpcache.h`), 4 MB may wait for the writer
 - bytecode cache 64 MB, a script of 16 KB or more, 8 MB may wait for the writer
 - site icons: 96 in memory, 512 KB each, previews of tabs on disk without a bound that the system may empty
@@ -55,7 +56,7 @@ every number here is in the code, the file is named so it can be changed. a limi
 
 ## what is not done
 
-- service workers and the cache api
+- service workers, and caches of the cache api on disk: they live in memory and end with the app
 - device orientation and motion, getusermedia, webrtc, speech, the gamepad api
 - webgl and offscreen canvas in workers, webgl in a video texture
 - autocorrect and spell check

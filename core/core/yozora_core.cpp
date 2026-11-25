@@ -11,6 +11,7 @@
 #include "YozoraPrivateSession.h"
 #include "YozoraHttpCache.h"
 #include "YozoraIDB.h"
+#include "YozoraCacheStorage.h"
 #include "YozoraLoaderStrategy.h"
 #include "CurlContext.h"
 #include "CurlSSLHandle.h"
@@ -444,6 +445,9 @@ static yozora_core* core_create(const char* fonts, const char* roots, char* erro
 #endif
     // the databases of sites come from the provider of the page configuration
     settings.setIndexedDBAPIEnabled(true);
+    // the caches of sites come from the provider of the page configuration too (YozoraCacheStorage.cpp), WebCore keeps
+    // the preference off by default and without it a page has no caches object
+    settings.setCacheAPIEnabled(true);
     // YozoraNotifications.cpp is the client: permission is asked once per site and what a page shows reaches
     // the interface
     settings.setNotificationsEnabled(true);
@@ -2371,6 +2375,7 @@ extern "C" void yozora_clear_site_data(void)
         YozoraCookies::clear();
         YozoraStorage::clear();
         YozoraIDB::clear();
+        YozoraCacheStorage::clear();
         clearYozoraCredentials();
     });
 }
@@ -2407,6 +2412,7 @@ extern "C" void yozora_clear_private_session(void)
         YozoraCookies::clearPrivate();
         YozoraStorage::clearPrivate();
         YozoraIDB::clearPrivate();
+        YozoraCacheStorage::clearPrivate();
     });
 }
 
