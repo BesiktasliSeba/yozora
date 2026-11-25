@@ -14,6 +14,12 @@
 #include "YozoraCacheStorage.h"
 #include "CacheStorageProvider.h"
 #include "UserContentController.h"
+#include "CryptoClient.h"
+#include "CryptoKey.h"
+#include "CryptoKeyData.h"
+#include "SerializedCryptoKeyWrap.h"
+#include "SerializedScriptValue.h"
+#include "WrappedCryptoKey.h"
 #if defined(YOZORA_WASM_ENGINE)
 #include "YozoraWasm.h"
 #include "ScriptController.h"
@@ -573,10 +579,43 @@ public:
 #endif
 };
 
+// a CryptoKey that a page puts into IndexedDB, or hands to structuredClone or postMessage, is serialized through the
+// crypto client of the page. the empty client of the default configuration answers nothing, so every such clone threw
+// DataCloneError and web.whatsapp.com, which keeps its keys in IndexedDB, stopped at the start of its storage. the
+// WebKit ports answer in their UI process (WebPageProxy::serializeAndWrapCryptoKey and unwrapCryptoKey), with one
+// process the page takes the same steps itself: the key is made again from its data, checked, serialized and wrapped.
+// the wrap is the OpenSSL one of WebCore (crypto/openssl/SerializedCryptoKeyWrapOpenSSL.cpp, already in the port), it
+// keeps the serialized key as it is and takes no master key, as on the GTK and WPE ports, so a stored key rests in the
+// IndexedDB of the profile like the rest of the data of the site
+class YozoraCryptoClient final : public CryptoClient {
+    WTF_MAKE_TZONE_ALLOCATED_INLINE(YozoraCryptoClient);
+public:
+    YozoraCryptoClient() = default;
+private:
+    std::optional<Vector<uint8_t>> serializeAndWrapCryptoKey(CryptoKeyData&& data) const final
+    {
+        RefPtr key = CryptoKey::create(WTF::move(data));
+        if (!key || !key->isValid() || key->algorithmIdentifier() == CryptoAlgorithmIdentifier::DEPRECATED_SHA_224)
+            return std::nullopt;
+        Vector<uint8_t> wrapped;
+        if (!wrapSerializedCryptoKey({ }, SerializedScriptValue::serializeCryptoKey(*key), wrapped))
+            return std::nullopt;
+        return wrapped;
+    }
+    std::optional<Vector<uint8_t>> unwrapCryptoKey(const Vector<uint8_t>& wrappedKey) const final
+    {
+        auto key = readSerializedCryptoKey(wrappedKey);
+        if (!key)
+            return std::nullopt;
+        return WebCore::unwrapCryptoKey({ }, *key);
+    }
+};
+
 PageConfiguration yozora_page_configuration(yozora_core& core)
 {
     auto configuration = pageConfigurationWithEmptyClients(PageIdentifier::generate(), PAL::SessionID::defaultSessionID());
     configuration.socketProvider = adoptRef(*new YozoraSocketProvider);
+    configuration.cryptoClient = makeUniqueRef<YozoraCryptoClient>();
     // the provider of the default configuration rejects every call, the engine of YozoraCacheStorage.cpp answers
     // window.caches and the caches of workers
     configuration.cacheStorageProvider = YozoraCacheStorage::provider();

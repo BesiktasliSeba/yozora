@@ -7,7 +7,7 @@
 - `browser.sqlite3`: history (4096 urls) and bookmarks (1024), mode 0600
 - `cookies.db`
 - `local-storage.txt`: 5 MB per origin
-- `IndexedDB/`
+- `IndexedDB/`: a crypto key a site stores is kept as webcore serializes it, without a master key, as on the gtk and wpe ports
 - the cache storage api (`caches`) keeps nothing here, its caches live in memory and end with the app, see [limits](limits.md)
 - `geolocation.txt`, `notifications.txt`, `adblock-sites.txt`: decisions of sites, see [permissions](permissions.md)
 - `adblock-rules.txt`: the rules of the person, see [adblock](adblock.md)
